@@ -1,0 +1,7 @@
+# Normalize line endings to LF in the repository.
+* text=auto
+
+# These MUST stay LF on every platform or they break at runtime
+# (migrate.sh is executed by `sh` inside the Linux migrator container).
+*.sh   text eol=lf
+*.sql  text eol=lf

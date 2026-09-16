@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# next.js
+web/.next/
+web/out/
+
+# env & secrets — never commit real values
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# python workers (data plane, W04+)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# build artifacts
+dist/
+*.tsbuildinfo
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

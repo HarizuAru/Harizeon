@@ -1,0 +1,1376 @@
+================================================================================
+HARIZEON
+Security infrastructure, provisioned like cloud.
+Master plan v1.0 — built for a solo founder shipping an MVP.
+================================================================================
+
+HOW TO USE THIS DOCUMENT
+  Sections 01-04 are the business case. Read once, then stop re-reading.
+  Sections 05-11 are the build spec. This is what you code from.
+  Sections 12-19 are what keeps you out of trouble and gets you paid.
+  Section 20 is copy/paste material (names, seed data, blurbs).
+
+  If you only have one weekend: read 05, 06, 09, 10. Build the wedge.
+
+================================================================================
+01. THESIS
+================================================================================
+
+AWS won because it turned capital expenditure into an API call. You no longer
+bought a server; you called RunInstances.
+
+Cybersecurity has not had that moment for small teams. It is still sold the way
+servers were sold in 2004: annual contracts, sales calls, per-seat minimums,
+onboarding engineers, six-figure floors. A 4-person startup in Kuala Lumpur that
+needs a WAF, a vulnerability scan, and a place to put its secrets has three bad
+options: enterprise tools they cannot afford, free tools they cannot operate, or
+nothing.
+
+HARIZEON'S BET:
+  Package security capabilities as metered, self-serve, API-first services behind
+  one console and one bill. No sales call. No contract. Sign up, verify your
+  domain, get a scan in four minutes, pay for what you used.
+
+ONE-LINE PITCH:
+  "Harizeon is the security control plane for teams too small to have a security
+  team."
+
+WHAT YOU ARE NOT BUILDING:
+  - Not a next-gen EDR. Endpoint agents are a multi-year, multi-team problem.
+  - Not a SOC. Humans in a room monitoring alerts does not scale for a solo founder.
+  - Not a compliance certification body. You produce evidence, you do not certify.
+  - Not novel detection research. You are an integration and UX company that
+    wraps proven open-source engines in an operable product. Say this out loud
+    and stop feeling bad about it — AWS did not invent the hypervisor either.
+
+WHY YOU SPECIFICALLY CAN BUILD THIS:
+  Netcentric Computing coursework = networking + cloud + security fundamentals.
+  AWS CCP = you already think in the service/console/billing mental model this
+  product copies. Malaysia = an underserved SME market with a real data
+  protection law (PDPA) and almost no affordable local tooling.
+
+================================================================================
+02. MARKET AND IDEAL CUSTOMER
+================================================================================
+
+PRIMARY ICP (build for this person, ignore everyone else for 12 months):
+  "The only technical person at a 3-25 person company."
+  - Title: CTO, lead dev, or the guy who set up the servers.
+  - Has: a few domains, a handful of VPS/cloud instances, a web app, an API.
+  - Pain: a client or investor asked "are you secure?" and they have no answer.
+  - Budget authority: can expense MYR 100-800/month without asking anyone.
+  - Buys: with a credit card, at 11pm, after reading a docs page.
+
+SECONDARY ICPs (later, do not build for these yet):
+  - Freelance developers / agencies managing client sites (multi-tenant need).
+  - University students and CTF folks (free tier, community, top-of-funnel).
+  - Malaysian SMEs facing PDPA obligations with zero security staff.
+
+MARKET SIZING (do this honestly, not with a hockey stick):
+  Malaysia has on the order of a million registered SMEs; the realistic reachable
+  slice is the tech-enabled ones with a web presence and a developer on staff.
+  You do not need a big number. At MYR 150/month average, 400 paying accounts is
+  MYR 60k/month. That is a real company. Aim at 400, not at 4 million.
+
+GEOGRAPHIC WEDGE:
+  Start Malaysia/SEA. Local pricing in MYR, local payment rails (FPX, GrabPay,
+  Billplz/Chip), Bahasa Malaysia + English UI, PDPA-aware reporting. Global
+  vendors will not do this. It is a moat for exactly as long as you need one.
+
+================================================================================
+03. COMPETITIVE LANDSCAPE
+================================================================================
+
+  SEGMENT              EXAMPLES                     WHY YOU WIN / WHERE YOU DON'T
+  -------------------  ---------------------------  ---------------------------
+  Enterprise platform  Palo Alto, CrowdStrike,      They will never serve a
+                       Qualys, Rapid7               3-person team. You win on
+                                                    price + self-serve.
+  Dev-first security   Snyk, Semgrep, Detectify,    Real competition. They are
+                       Intruder.io, Pentest-Tools   strong single-service tools.
+                                                    You win on ONE console + ONE
+                                                    bill + local pricing/support.
+  Cloud-native builtin AWS GuardDuty, Security Hub  Only covers that one cloud.
+                                                    Most SMEs are multi-vendor
+                                                    (a VPS + Cloudflare + a SaaS).
+  CDN/WAF              Cloudflare                   You do NOT beat Cloudflare on
+                                                    WAF. Integrate with them,
+                                                    don't fight them. This matters.
+  Open source DIY      OpenVAS, Wazuh, Nuclei,      Free but unoperable for the
+                       ZAP, Trivy, Vault            ICP. You are the managed,
+                                                    opinionated wrapper. This is
+                                                    your actual supply chain.
+
+STRATEGIC NOTE: your competitor is not CrowdStrike. Your competitor is "nothing"
+and "a spreadsheet." Price and position against inaction.
+
+================================================================================
+04. SERVICE CATALOG (the full vision — NOT all in MVP)
+================================================================================
+
+Naming convention mirrors AWS: a product name, a 3-letter code, a resource ARN
+style identifier. Consistency here is what makes it feel like a platform instead
+of a pile of scripts.
+
+  CODE  SERVICE            WHAT IT DOES
+  ----  -----------------  --------------------------------------------------
+  IAM   Harizeon IAM       Accounts, orgs, users, roles, API keys, audit log.
+  SCN   Harizeon Scan      External attack-surface + web vulnerability scanning
+                           against assets you own and have verified.
+  ASM   Harizeon Surface   Continuous asset discovery: subdomains, open ports,
+                           certs, exposed services, shadow IT.
+  VLT   Harizeon Vault     Encrypted secrets storage + programmatic retrieval,
+                           rotation reminders, per-key access policy.
+  WCH   Harizeon Watch     Log ingestion, retention, and rule-based alerting
+                           (SIEM-lite). Slack/email/webhook destinations.
+  SHD   Harizeon Shield    Managed WAF + rate limiting, delivered as a reverse
+                           proxy or as managed rules pushed to Cloudflare.
+  GRD   Harizeon Guard     Threat intel: IOC lookups, malicious IP/domain feeds,
+                           file/hash reputation, leaked-credential checks.
+  ADT   Harizeon Audit     Compliance posture: ISO 27001 / PDPA / SOC2-lite
+                           control checklist mapped to evidence from other
+                           services. Exports a PDF a client will accept.
+  RSP   Harizeon Respond   Incident workspace: timeline, severity, assignees,
+                           postmortem template. (Very late stage.)
+
+SERVICE DEPENDENCY GRAPH:
+
+        +---------+
+        |   IAM   |  <-- everything depends on this. Build first. No exceptions.
+        +----+----+
+             |
+   +---------+---------+----------+----------+
+   |         |         |          |          |
+ +-+-+     +-+-+     +--+--+   +--+--+   +---+---+
+ |SCN|<----|ASM|     | VLT |   | WCH |   |  GRD  |
+ +-+-+     +---+     +-----+   +--+--+   +---+---+
+   |                              |          |
+   +--------------+---------------+----------+
+                  |
+              +---+---+
+              |  ADT  |   <-- consumes findings from everything, outputs report
+              +-------+
+
+READ THE GRAPH: SCN and ASM are joined at the hip (discover, then test). ADT is
+pure aggregation — it is cheap to build once the others exist, and it is the
+thing that makes buyers renew, because it produces the PDF their client asked for.
+
+================================================================================
+05. MVP SCOPE — THE HARD CUT
+================================================================================
+
+The single most common way this startup dies is building nine services badly.
+You are one person. Here is the cut.
+
+MVP = IAM + ASM + SCN + ADT(lite) + BILLING.
+That is: "Point Harizeon at your domain. It finds everything you own, tests it,
+and gives you a report you can hand to a client."
+
+  IN SCOPE (v0.1, ship in ~10-12 weeks)
+  -------------------------------------
+  [x] Signup, login, email verification, password reset
+  [x] Organization + project ("workspace") model, single user per org is fine
+  [x] API keys with scopes, and a real audit log from day one
+  [x] Asset registry: add domain / IP / URL
+  [x] DOMAIN OWNERSHIP VERIFICATION (DNS TXT record or /.well-known file)
+      -- NON-NEGOTIABLE. See section 12. No verification, no scan. Ever.
+  [x] Passive discovery: subdomain enumeration, DNS records, TLS cert inspection
+      and expiry, WHOIS age, HTTP fingerprinting, security header check
+  [x] Active scan (verified assets only): TCP port scan on common ports, service
+      version detection, TLS config grading, template-based web checks
+  [x] Findings model: severity, CWE/CVE reference, evidence, remediation text,
+      status (open / acknowledged / fixed / false positive / accepted risk)
+  [x] Scheduled rescans (daily / weekly / monthly) + diff ("3 new findings")
+  [x] Email + Slack webhook notification on new high/critical
+  [x] Dashboard with security score, findings-over-time, asset table
+  [x] PDF report export (client-facing, branded)
+  [x] Usage metering + plan limits + subscription billing
+  [x] Public docs site + public status page
+
+  OUT OF SCOPE (v0.1) — write these down so you stop thinking about them
+  ---------------------------------------------------------------------
+  [ ] Vault, Watch, Shield, Guard, Respond    -> v0.2 onward
+  [ ] Any endpoint agent                       -> maybe never
+  [ ] Authenticated web app crawling / login sequences -> v0.3, it's a rabbit hole
+  [ ] Multi-user teams, SSO, RBAC beyond owner -> v0.2 (design schema for it now)
+  [ ] Mobile app                               -> never, make the web app responsive
+  [ ] Marketplace / third-party plugins        -> year 2 fantasy
+  [ ] Multi-region infrastructure              -> one region, one datacenter
+
+  DEFINITION OF DONE FOR MVP (the demo you must be able to run cold):
+  ------------------------------------------------------------------
+    1. Stranger signs up with an email. No human involved.
+    2. Adds their domain. Verifies it with a TXT record.
+    3. Clicks Scan. Sees live progress.
+    4. Within 10 minutes: asset inventory + findings list with severities.
+    5. Exports a PDF.
+    6. Enters a card. Is billed. Receives an invoice.
+    7. Gets an email a week later saying a new subdomain appeared.
+  If any step needs you to SSH into a box, the MVP is not done.
+
+================================================================================
+06. SYSTEM ARCHITECTURE
+================================================================================
+
+6.1 PRINCIPLE
+  Split CONTROL PLANE (the console, the API, billing, state — must be reliable,
+  boring, always up) from DATA PLANE (the scanners — untrusted, resource-hungry,
+  disposable, isolated). This is the single most important architectural
+  decision in the document. AWS does this. Copy it.
+
+6.2 HIGH LEVEL
+
+  INTERNET
+     |
+     v
+  +---------------------------------------------------------------+
+  |  EDGE: Cloudflare (DNS, TLS, DDoS, caching, bot rules)         |
+  +---------------------------------------------------------------+
+     |                                   |
+     v                                   v
+  +----------------------+     +-------------------------------+
+  |  WEB (Next.js)       |     |  API GATEWAY (control plane)  |
+  |  console.harizeon.*  |---->|  api.harizeon.*               |
+  |  SSR + client app    |     |  auth, rate limit, routing    |
+  +----------------------+     +---------------+---------------+
+                                               |
+             +---------------------------------+----------------------+
+             |                 |               |            |         |
+             v                 v               v            v         v
+        +---------+      +-----------+   +---------+  +---------+ +---------+
+        |  IAM    |      |  ASSET    |   | SCAN    |  | FINDING | | BILLING |
+        | service |      |  service  |   | orchestr|  | service | | service |
+        +----+----+      +-----+-----+   +----+----+  +----+----+ +----+----+
+             |                 |              |            |           |
+             +--------+--------+----+---------+------------+-----------+
+                      |             |
+                      v             v
+              +--------------+  +-----------+
+              |  PostgreSQL  |  |  Redis    |  (cache, rate limit, locks)
+              |  (primary)   |  +-----+-----+
+              +--------------+        |
+                                      v
+                            +-------------------+
+                            |   JOB QUEUE       |  (Redis Streams / RabbitMQ)
+                            +---------+---------+
+                                      |
+  ====================================|============= TRUST BOUNDARY ==========
+                                      v
+                   +----------------------------------------+
+                   |  DATA PLANE: WORKER POOL               |
+                   |  isolated network, no DB credentials,  |
+                   |  no prod secrets, egress-controlled    |
+                   |                                        |
+                   |  [worker: discovery]  [worker: portscan]|
+                   |  [worker: webscan ]  [worker: tls     ]|
+                   |  each = ephemeral container, one job,  |
+                   |  hard timeout, then destroyed          |
+                   +--------------------+-------------------+
+                                        |
+                              results pushed via
+                              signed callback / result queue
+                                        |
+                                        v
+                            +------------------------+
+                            |  RESULT INGEST SERVICE |
+                            |  validates + normalizes|
+                            |  -> findings table     |
+                            +------------------------+
+
+                   +------------------+   +--------------------+
+                   | OBJECT STORAGE   |   |  NOTIFIER          |
+                   | (S3-compatible): |   |  email / slack /   |
+                   | raw evidence,    |   |  webhook fanout    |
+                   | PDF reports      |   +--------------------+
+                   +------------------+
+
+6.3 WHY WORKERS ARE ISOLATED
+  A scanner parses hostile input: attacker-controlled HTTP responses, TLS certs,
+  banners. Parsers have bugs. Assume a worker can be compromised. Therefore:
+   - workers hold NO database credentials and NO customer secrets
+   - workers receive a narrowly-scoped job payload and a one-time result token
+   - workers run in a separate network segment with no route to the control plane
+     database or to other tenants' jobs
+   - one job per container, hard CPU/memory/time limits, destroyed after
+   - egress from workers is logged; internal RFC1918 ranges blocked by default so
+     a malicious "asset" cannot pivot you into your own infrastructure (SSRF)
+
+6.4 SCAN JOB LIFECYCLE (state machine)
+
+  QUEUED -> CLAIMED -> RUNNING -> [COMPLETED | FAILED | TIMEOUT | CANCELLED]
+     ^                    |
+     +----- retry (max 2, exponential backoff) -----+
+
+  Every transition writes to scan_events with a timestamp. The progress bar in
+  the UI is just a projection of this table. Do not fake progress.
+
+  A scan is decomposed into PHASES so the UI can show something real:
+    1. verify        (confirm ownership token still valid)
+    2. discover      (subdomains, DNS, WHOIS)
+    3. resolve       (hostnames -> IPs, dedupe, respect scope rules)
+    4. probe         (port scan, service fingerprint)
+    5. inspect       (TLS grade, headers, tech fingerprint)
+    6. test          (template-based web vulnerability checks)
+    7. normalize     (dedupe findings, assign severity, diff vs last scan)
+    8. report        (materialize summary, trigger notifications)
+
+6.5 SCANNING ENGINE SUPPLY CHAIN
+  Do not write scanners from scratch. Wrap mature open-source engines and own the
+  orchestration, normalization, storage, UX, and reporting. Check each project's
+  licence before you ship commercially — some are GPL/AGPL and that affects how
+  you may distribute; running them server-side as a service is generally the safe
+  pattern, but read the licences yourself and get them reviewed before launch.
+
+  Candidate engines by phase (evaluate, pick one per slot):
+    discovery   : passive DNS sources, certificate transparency logs
+    port probe  : a fast open-source port scanner with service detection
+    TLS         : an open-source TLS configuration analyzer
+    web checks  : a template-driven scanner with a community template repository
+    dependency  : a container/SBOM vulnerability scanner (for v0.2 "code" scans)
+    CVE data    : NVD feed + your own enrichment table, cached locally
+
+  NORMALIZATION IS YOUR PRODUCT. Every engine emits a different shape. You define
+  ONE finding schema (section 07) and map everything into it. This mapping layer
+  is genuinely the most valuable code you will write in year one.
+
+6.6 MULTI-TENANCY MODEL
+  Single database, row-level tenancy on org_id. Every table that holds customer
+  data carries org_id and every query goes through a repository layer that
+  injects it. Do not rely on developers remembering a WHERE clause.
+  Use PostgreSQL row-level security as a second net.
+  Revisit dedicated-DB-per-tenant only when an enterprise customer pays for it.
+
+6.7 ENVIRONMENTS
+  local  -> docker compose, everything on one machine, seeded fake data
+  stage  -> one small VPS, mirrors prod, scans only your own throwaway domains
+  prod   -> control plane VPS(s) + separate worker VPS(s), same region
+  No staging data in prod. No prod credentials on your laptop.
+
+================================================================================
+07. DATA MODEL
+================================================================================
+
+Written as logical tables. All tables: id (uuid), created_at, updated_at.
+All tenant tables: org_id (fk, indexed, NOT NULL).
+
+  orgs
+    id, name, slug, plan_id, billing_status, country, currency,
+    trial_ends_at, suspended_at
+
+  users
+    id, email (unique, citext), password_hash, name, email_verified_at,
+    mfa_secret (nullable), last_login_at, locale ('en'|'ms')
+
+  memberships                     -- built now even though MVP is 1 user/org
+    id, org_id, user_id, role ('owner'|'admin'|'member'|'readonly'),
+    invited_by, accepted_at
+
+  api_keys
+    id, org_id, name, prefix (visible, e.g. "hrz_live_a9f2"),
+    hash (argon2 of the secret), scopes (jsonb array), last_used_at,
+    expires_at, revoked_at
+    -- store ONLY the hash; show the full key exactly once at creation
+
+  audit_log                       -- append-only, never updated or deleted
+    id, org_id, actor_type ('user'|'api_key'|'system'), actor_id,
+    action ('asset.create','scan.start','apikey.revoke',...),
+    target_type, target_id, ip, user_agent, metadata (jsonb)
+
+  assets
+    id, org_id, type ('domain'|'subdomain'|'ip'|'url'),
+    value, parent_asset_id (nullable, for discovered subdomains),
+    discovered_by ('manual'|'discovery'), first_seen_at, last_seen_at,
+    is_active, tags (jsonb), criticality ('low'|'medium'|'high')
+
+  asset_verifications
+    id, org_id, asset_id, method ('dns_txt'|'http_file'|'meta_tag'),
+    token, verified_at, last_checked_at, status ('pending'|'verified'|'failed'|'revoked')
+    -- re-check periodically; a domain that changed hands must lose verification
+
+  scans
+    id, org_id, project_id, trigger ('manual'|'scheduled'|'api'|'webhook'),
+    profile ('quick'|'standard'|'deep'), status, phase, progress_pct,
+    started_at, finished_at, error_code, requested_by, engine_versions (jsonb)
+
+  scan_targets
+    id, scan_id, asset_id, status, result_summary (jsonb)
+
+  scan_events                     -- the timeline / progress source of truth
+    id, scan_id, phase, level ('info'|'warn'|'error'), message, at
+
+  findings
+    id, org_id, asset_id, scan_id (first seen), fingerprint (unique per org),
+    title, description, severity ('info'|'low'|'medium'|'high'|'critical'),
+    cvss_score, cve_ids (text[]), cwe_id, category,
+    evidence_ref (object storage key), remediation,
+    status ('open'|'acknowledged'|'fixed'|'false_positive'|'accepted'),
+    status_reason, first_seen_at, last_seen_at, resolved_at, assigned_to
+    -- FINGERPRINT is critical: hash(asset + check_id + location) so the same
+    -- issue across 50 scans is ONE finding with a history, not 50 rows.
+
+  finding_events
+    id, finding_id, actor_id, from_status, to_status, note, at
+
+  notification_channels
+    id, org_id, type ('email'|'slack'|'webhook'|'discord'), config (jsonb,
+    secrets encrypted), enabled, min_severity, verified_at
+
+  schedules
+    id, org_id, project_id, cron, profile, timezone, next_run_at, enabled
+
+  plans
+    id, code ('free'|'starter'|'growth'|'scale'), price_myr_month,
+    limits (jsonb: max_assets, scans_per_month, retention_days, seats)
+
+  subscriptions
+    id, org_id, plan_id, provider, provider_ref, status, current_period_end,
+    cancel_at_period_end
+
+  usage_records                   -- metering, one row per billable unit
+    id, org_id, metric ('scan.standard','asset.monitored','report.pdf'),
+    quantity, unit_cost, occurred_at, invoice_id (nullable)
+
+  invoices
+    id, org_id, number, period_start, period_end, subtotal, tax, total,
+    currency, status, pdf_ref, paid_at
+
+  reports
+    id, org_id, project_id, type ('executive'|'technical'|'compliance'),
+    generated_at, period_start, period_end, file_ref, generated_by
+
+INDEXING NOTES
+  findings: (org_id, status, severity), (org_id, asset_id), unique(org_id, fingerprint)
+  scan_events: (scan_id, at)
+  audit_log: (org_id, created_at desc), partition by month once it grows
+  usage_records: (org_id, occurred_at), (invoice_id)
+
+RETENTION
+  Raw scan evidence: 90 days on paid, 14 days on free, then delete from object
+  storage but keep the finding record. Evidence is the expensive part.
+
+================================================================================
+08. API DESIGN
+================================================================================
+
+Base: https://api.harizeon.com/v1
+Auth: Authorization: Bearer hrz_live_xxxxx   (API key)  OR session cookie (console)
+Format: JSON. Errors follow one shape, always:
+
+  { "error": { "code": "asset_not_verified",
+               "message": "Asset must be verified before scanning.",
+               "doc_url": "https://docs.harizeon.com/errors/asset_not_verified",
+               "request_id": "req_01HZ..." } }
+
+ENDPOINTS (MVP surface — keep it this small)
+
+  POST   /auth/signup
+  POST   /auth/login
+  POST   /auth/logout
+  POST   /auth/verify-email
+  POST   /auth/password/reset
+
+  GET    /org
+  PATCH  /org
+  GET    /org/members
+  POST   /org/members/invite
+
+  GET    /api-keys
+  POST   /api-keys                  -> returns secret ONCE
+  DELETE /api-keys/{id}
+
+  GET    /assets                    ?type=&status=&q=&page=
+  POST   /assets                    { type, value, criticality, tags }
+  GET    /assets/{id}
+  PATCH  /assets/{id}
+  DELETE /assets/{id}
+  POST   /assets/{id}/verification  -> { method } returns token + instructions
+  POST   /assets/{id}/verification/check -> re-check now
+
+  GET    /scans                     ?status=&asset_id=&page=
+  POST   /scans                     { asset_ids[], profile }
+  GET    /scans/{id}
+  GET    /scans/{id}/events         (supports Server-Sent Events for live view)
+  POST   /scans/{id}/cancel
+
+  GET    /findings                  ?severity=&status=&asset_id=&since=&page=
+  GET    /findings/{id}
+  PATCH  /findings/{id}             { status, status_reason, assigned_to }
+  GET    /findings/{id}/evidence    -> signed short-lived URL
+
+  GET    /schedules
+  POST   /schedules
+  PATCH  /schedules/{id}
+  DELETE /schedules/{id}
+
+  GET    /channels
+  POST   /channels
+  POST   /channels/{id}/test
+  DELETE /channels/{id}
+
+  POST   /reports                   { type, period, asset_ids[] } -> async job
+  GET    /reports/{id}              -> status + download ref
+
+  GET    /usage                     ?period=
+  GET    /billing/subscription
+  POST   /billing/checkout-session
+  GET    /billing/invoices
+
+  GET    /health                    (public, no auth)
+
+CONVENTIONS
+  - Pagination: cursor-based. { data: [...], next_cursor: "...", has_more: bool }
+  - Idempotency-Key header honoured on all POST that create billable work.
+  - Rate limits returned in headers: X-RateLimit-Limit / -Remaining / -Reset.
+  - Every response carries X-Request-Id. Log it. Support depends on it.
+  - Webhooks OUT are signed: HMAC-SHA256 of the raw body with the channel secret,
+    in X-Harizeon-Signature, plus a timestamp to prevent replay.
+  - Versioning: /v1 in the path. Never break v1. Add v2 when you must.
+
+================================================================================
+09. PAGE-BY-PAGE SPECIFICATION
+================================================================================
+
+9.1 SITEMAP
+
+  PUBLIC (harizeon.com)
+    /                         Landing
+    /services                 Service catalog overview
+    /services/{code}          Individual service page (scan, surface, vault...)
+    /pricing                  Pricing + calculator
+    /docs                     Documentation (own subdomain is fine)
+    /docs/quickstart
+    /docs/api
+    /security                 Our own security posture + responsible disclosure
+    /legal/terms
+    /legal/privacy
+    /legal/acceptable-use     <-- the scanning authorization policy lives here
+    /status                   Public status page (can be a hosted third party)
+    /blog                     SEO engine
+    /login  /signup  /forgot-password
+
+  CONSOLE (console.harizeon.com) — all auth required
+    /                         Dashboard
+    /assets                   Asset inventory
+    /assets/new               Add asset
+    /assets/{id}              Asset detail
+    /assets/{id}/verify       Verification flow
+    /scans                    Scan history
+    /scans/new                Launch scan
+    /scans/{id}               Live scan view / results
+    /findings                 Findings queue (the daily-driver screen)
+    /findings/{id}            Finding detail
+    /schedules                Recurring scans
+    /reports                  Report library
+    /reports/new              Generate report
+    /settings/organization
+    /settings/members
+    /settings/api-keys
+    /settings/notifications
+    /settings/billing
+    /settings/audit-log
+    /settings/profile
+    /onboarding               First-run wizard
+
+9.2 PAGE SPECS
+  Format: PURPOSE / LAYOUT / COMPONENTS / EMPTY STATE / PRIMARY ACTION
+
+--------------------------------------------------------------------------------
+LANDING  /
+--------------------------------------------------------------------------------
+  PURPOSE  Convert a technical visitor to a signup in under 30 seconds.
+  LAYOUT
+    [ nav: HARIZEON | Services  Pricing  Docs  Security | Log in  Start free ]
+    [ HERO
+        H1: Security infrastructure, provisioned like cloud.
+        SUB: Scan, monitor, and prove the security of everything you own.
+             Self-serve. Metered. No sales call.
+        [Start free]  [Read the docs]
+        micro-proof line: "Verify a domain. First scan in four minutes."
+    ]
+    [ LIVE TERMINAL BLOCK — a static, honest example, not a fake animation
+        $ curl -X POST https://api.harizeon.com/v1/scans \
+            -H "Authorization: Bearer hrz_live_..." \
+            -d '{"asset_ids":["ast_01H..."],"profile":"standard"}'
+        { "id": "scn_01H...", "status": "queued" }
+    ]
+    [ SERVICE GRID — 3 x 3 cards, each: CODE / name / one line / status badge
+        available | beta | coming soon    <- be honest, it builds trust ]
+    [ HOW IT WORKS — 3 steps: Verify ownership -> Scan -> Fix and prove ]
+    [ PRICING STRIP — free tier + 3 plans, single row ]
+    [ FOOTER — services, docs, legal, status, contact, language toggle EN/BM ]
+  PRIMARY ACTION  Start free.
+  NOTE  No stock photos. No gradients. No "trusted by" logos you do not have.
+
+--------------------------------------------------------------------------------
+SERVICE DETAIL  /services/scan
+--------------------------------------------------------------------------------
+  PURPOSE  Sell one service to someone who already understands the problem.
+  LAYOUT   Breadcrumb / SCN badge / H1 / what it does / what it checks (real
+           list, categorized) / sample finding card / API snippet / limits and
+           quotas table / pricing for this service / FAQ / CTA.
+  COMPONENTS  CheckCategoryList, FindingPreviewCard, CodeBlock, QuotaTable.
+
+--------------------------------------------------------------------------------
+PRICING  /pricing
+--------------------------------------------------------------------------------
+  LAYOUT  Four columns: FREE / STARTER / GROWTH / SCALE.
+          Rows: assets, scans per month, scan depth, schedule frequency,
+          retention, seats, reports, API, support.
+          Below: a metered-usage calculator (drag asset count -> see MYR).
+          Below: FAQ (What counts as an asset? What if I exceed? Can I cancel?)
+  NOTE    Show MYR by default with a USD toggle. Show tax handling explicitly.
+
+--------------------------------------------------------------------------------
+ONBOARDING  /onboarding  (first login only)
+--------------------------------------------------------------------------------
+  PURPOSE  Get to first value (a finding) without a human.
+  FLOW     4 steps, progress shown as "01 / 04", no skipping step 2.
+    01  Name your organization. Pick locale.
+    02  Add your first domain.
+    03  VERIFY IT. Show the exact TXT record. Poll every 10s. Offer the
+        HTTP file method as fallback. Explain WHY in one sentence:
+        "We only scan assets you can prove you control."
+    04  Run your first scan. -> redirect straight into the live scan view.
+  EMPTY STATE  n/a. This screen IS the empty state.
+
+--------------------------------------------------------------------------------
+DASHBOARD  /
+--------------------------------------------------------------------------------
+  PURPOSE  Answer "did anything get worse since yesterday?" in 3 seconds.
+  LAYOUT
+    [ TOP BAR: org switcher | search | notifications | user menu ]
+    [ SIDEBAR: Dashboard, Assets, Scans, Findings, Schedules, Reports, Settings ]
+    [ ROW 1 — four stat tiles, monospace numbers, big:
+        SECURITY SCORE   OPEN FINDINGS   ASSETS MONITORED   LAST SCAN
+           72 / 100          14              23              2h ago
+        each with a delta vs 7 days ago: (-3)  (+2)  (+1)  ]
+    [ ROW 2 — left 60%: findings-over-time line chart (stacked by severity,
+                        rendered in greyscale with different line weights
+                        and dash patterns, never colour)
+              right 40%: severity breakdown as a horizontal bar list
+                        CRITICAL  ██                    2
+                        HIGH      ██████                6
+                        MEDIUM    ████████             11
+                        LOW       ███                   4  ]
+    [ ROW 3 — "Needs attention": top 5 findings by severity+age, each a row
+              with severity marker, title, asset, age, [View] ]
+    [ ROW 4 — Recent activity feed from audit_log, 8 items ]
+  EMPTY STATE  Large bordered box: "No data yet. Add an asset to begin."
+               with a single [Add asset] button. No fake demo numbers.
+
+--------------------------------------------------------------------------------
+ASSETS  /assets
+--------------------------------------------------------------------------------
+  LAYOUT  Header with [Add asset] + [Run scan on selected].
+          Filter bar: type, verification status, criticality, tag, search.
+          Dense table, rows 40px, monospace for values:
+          [ ] VALUE                TYPE    VERIFIED  FINDINGS  LAST SCAN  CRIT
+          [ ] harizeon.com         domain  YES       3         2h ago     HIGH
+          [ ] api.harizeon.com     sub     INHERIT   1         2h ago     HIGH
+          [ ] 203.0.113.44         ip      YES       0         2h ago     MED
+          Bulk select -> bulk actions bar slides up from the bottom.
+          Pagination at 50/page, cursor based.
+  EMPTY STATE  "No assets. Harizeon can only scan what you prove you own."
+               [Add your first asset]
+
+--------------------------------------------------------------------------------
+ASSET DETAIL  /assets/{id}
+--------------------------------------------------------------------------------
+  LAYOUT  Header: value (mono, large), type badge, verification badge,
+          [Scan now] [Edit] [Delete].
+          Tabs: OVERVIEW | FINDINGS | DISCOVERED | HISTORY | SETTINGS
+          OVERVIEW: DNS records table, TLS cert (issuer, SANs, expiry with a
+                    countdown), open ports table, detected technologies,
+                    security headers checklist (pass/fail, mono).
+          DISCOVERED: subdomains found by ASM, with first_seen, and a
+                    prominent [Add to scope] / [Ignore] pair per row.
+          HISTORY: timeline of scans and status changes.
+
+--------------------------------------------------------------------------------
+VERIFY  /assets/{id}/verify
+--------------------------------------------------------------------------------
+  LAYOUT  Two methods in tabs. DNS TXT is default and recommended.
+          Show the exact record in a copyable mono block:
+            HOST   _harizeon-verify.example.com
+            TYPE   TXT
+            VALUE  harizeon-site-verification=8f3a91c0d7...
+          [Check now] button + auto-poll every 10 seconds, with a plain
+          status line: "Checking... last checked 12s ago. Not found yet."
+          Link to a troubleshooting doc. Show propagation expectation honestly.
+  WHY THIS PAGE MATTERS  It is your legal shield and your product's integrity.
+  Make it feel important, not like a nuisance.
+
+--------------------------------------------------------------------------------
+NEW SCAN  /scans/new
+--------------------------------------------------------------------------------
+  LAYOUT  Step 1: select assets (verified only selectable; unverified shown
+                  greyed with a [Verify] link).
+          Step 2: choose profile —
+                  QUICK     ~2 min   passive only, no active probing
+                  STANDARD  ~10 min  passive + ports + TLS + web checks
+                  DEEP      ~45 min  standard + broader port range + more checks
+          Step 3: confirmation panel showing estimated duration, what will be
+                  sent, and the quota/credit cost. Then a required checkbox:
+                  [ ] I am authorized to test these assets.
+          [Start scan]
+
+--------------------------------------------------------------------------------
+LIVE SCAN  /scans/{id}
+--------------------------------------------------------------------------------
+  PURPOSE  This is the screen that makes people believe the product is real.
+  LAYOUT
+    Header: scan id (mono), status badge, elapsed timer, [Cancel scan]
+    PHASE RAIL (vertical, left):
+        [x] 01 VERIFY      0.4s
+        [x] 02 DISCOVER    12.1s   23 subdomains
+        [>] 03 RESOLVE     running
+        [ ] 04 PROBE
+        [ ] 05 INSPECT
+        [ ] 06 TEST
+        [ ] 07 NORMALIZE
+        [ ] 08 REPORT
+    MAIN: live event log streaming via SSE, monospace, newest at bottom,
+          auto-scroll with a pause-on-hover. Real lines only:
+            14:02:11  discover  resolved api.example.com -> 203.0.113.44
+            14:02:13  probe     203.0.113.44:443 open (nginx)
+            14:02:19  inspect   TLS 1.0 enabled  -> finding queued
+    RIGHT RAIL: findings appearing in real time, counter ticking up by severity.
+    ON COMPLETE: the page transforms into the results view with a diff banner:
+            "+3 new   -1 resolved   11 unchanged   [View findings]"
+
+--------------------------------------------------------------------------------
+FINDINGS  /findings   <-- the page people live in. Optimize this one hardest.
+--------------------------------------------------------------------------------
+  LAYOUT  Left filter rail (sticky): severity checkboxes with counts, status,
+          asset, category, date range, "only new since last scan" toggle.
+          Main: dense list. Each row:
+            [!!] CRITICAL  Exposed .git directory
+                 api.example.com/.git/HEAD   CWE-538   first seen 3d ago   OPEN
+          Row click -> slide-over detail panel (does not lose list position).
+          Bulk select -> set status, assign, export.
+          Sort: severity, age, last seen, asset.
+          Saved views: "My open criticals", "New this week".
+  SEVERITY MARKERS (no colour — this is the black/white discipline):
+            CRITICAL  [!!!]  solid black chip, white text, bold
+            HIGH      [!!]   solid black chip, white text
+            MEDIUM    [!]    black outline chip, black text
+            LOW       [-]    grey outline chip
+            INFO      [i]    grey text, no chip
+  EMPTY STATE  "No findings match these filters." + [Clear filters]
+               A genuinely clean asset gets: "No open findings. Last scanned 2h ago."
+
+--------------------------------------------------------------------------------
+FINDING DETAIL  /findings/{id}
+--------------------------------------------------------------------------------
+  LAYOUT  Title, severity chip, CVSS, CVE/CWE links, affected asset (mono).
+          Sections, in this order (this order is the product's opinion):
+            1. WHAT IT IS        two sentences, plain language
+            2. WHY IT MATTERS    business impact, not jargon
+            3. EVIDENCE          request/response or output, mono, collapsible,
+                                 with sensitive values masked by default
+            4. HOW TO FIX        concrete, copy-pasteable, with config snippets
+            5. VERIFY THE FIX    exact command or [Rescan this check]
+          Right rail: status dropdown, assignee, first/last seen, occurrence
+          count, scan history sparkline, [Export], [Create ticket] (v0.2).
+          Bottom: activity log of status changes with notes.
+
+--------------------------------------------------------------------------------
+REPORTS  /reports
+--------------------------------------------------------------------------------
+  LAYOUT  Table of generated reports (type, period, generated, size, download).
+          [Generate report] -> modal: type (Executive / Technical / Compliance),
+          date range, asset selection, include-resolved toggle, logo upload.
+  REPORT PDF STRUCTURE (this artifact is what customers show their clients):
+          Cover (client name, period, Harizeon mark)
+          Executive summary — score, trend, top 3 risks, one paragraph
+          Scope — assets tested, methodology, dates, engine versions
+          Findings by severity — full detail, one per page block
+          Remediation plan — prioritized table with effort estimates
+          Appendix — raw evidence references, glossary, disclaimer
+  DISCLAIMER  Automated testing only; not a substitute for a manual penetration
+              test. State it plainly. It protects you and sets expectations.
+
+--------------------------------------------------------------------------------
+SETTINGS / API KEYS  /settings/api-keys
+--------------------------------------------------------------------------------
+  LAYOUT  Table: name, prefix (hrz_live_a9f2••••), scopes, created, last used,
+          [Revoke]. [Create key] -> modal with name + scope checkboxes ->
+          success screen showing the full key ONCE inside a black block with
+          [Copy] and the sentence "This is the only time you will see this key."
+
+--------------------------------------------------------------------------------
+SETTINGS / BILLING  /settings/billing
+--------------------------------------------------------------------------------
+  LAYOUT  Current plan card, usage bars against limits (assets used/limit,
+          scans used/limit, storage), next invoice estimate, payment method,
+          invoice history table with PDF downloads, [Change plan], [Cancel].
+  RULE    Never let a limit surprise someone. Warn at 80% by email and in-app.
+
+--------------------------------------------------------------------------------
+SETTINGS / AUDIT LOG  /settings/audit-log
+--------------------------------------------------------------------------------
+  LAYOUT  Filterable table: timestamp (mono), actor, action, target, IP.
+          Export CSV. This page alone closes deals with careful buyers.
+
+9.3 SHARED COMPONENTS (build these once)
+  AppShell, Sidebar, TopBar, OrgSwitcher, PageHeader, DataTable (sortable,
+  selectable, cursor-paginated), FilterRail, SlideOver, Modal, Toast,
+  StatTile, SeverityChip, StatusBadge, CodeBlock(+copy), EmptyState,
+  ConfirmDialog(destructive actions require typing the resource name),
+  Skeleton, Pagination, Tabs, Timeline, ProgressRail, UsageBar, DateRangePicker.
+
+================================================================================
+10. UI / UX DESIGN SYSTEM — PURE BLACK AND WHITE
+================================================================================
+
+10.1 PHILOSOPHY
+  Colour is the laziest way to encode severity. Removing it forces hierarchy
+  through type weight, size, spacing, borders, and fills — which is more
+  accessible, prints perfectly, and looks like an instrument rather than a toy.
+  Constraint is the brand.
+
+10.2 TOKENS
+
+  --hz-black:       #000000
+  --hz-white:       #FFFFFF
+  --hz-grey-900:    #111111   text on white, secondary
+  --hz-grey-700:    #3A3A3A   muted text
+  --hz-grey-500:    #767676   disabled, placeholder (lowest AA-safe on white)
+  --hz-grey-300:    #C8C8C8   borders, dividers
+  --hz-grey-100:    #F2F2F2   subtle fill, table zebra, code background
+  THAT IS THE ENTIRE PALETTE. No blue. No red. Not even for destructive actions
+  — destructive is communicated with a solid black fill plus a confirm step.
+
+  Dark mode = exact inversion. Black canvas, white text, greys mirrored.
+  Provide a toggle; respect prefers-color-scheme.
+
+10.3 TYPOGRAPHY
+  Display / headings : a grotesk sans (e.g. Inter or Helvetica Neue), tight
+                       tracking, weights 500/700 only.
+  Body               : same sans, 400/500.
+  Data / code / IDs / numbers / domains / timestamps : ALWAYS monospace
+                       (e.g. JetBrains Mono or IBM Plex Mono).
+  The mono/sans split is the core visual signature. Prose is sans. Facts are mono.
+
+  SCALE (rem, 16px base)
+    display  2.50  700  -0.02em
+    h1       2.00  700  -0.02em
+    h2       1.50  600
+    h3       1.25  600
+    body     1.00  400   line-height 1.55
+    small    0.875 400
+    micro    0.75  500   uppercase  +0.08em tracking (labels, table headers)
+    mono     0.875 400   line-height 1.5
+
+10.4 SPACING + GEOMETRY
+  4px base unit. Use 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64.
+  Border radius: 0 everywhere. Sharp corners. One exception: 2px on chips if a
+  fully square chip reads as broken. Decide once, stay consistent.
+  Borders: 1px solid var(--hz-grey-300). 2px solid black for emphasis/focus.
+  Shadows: none. Elevation is expressed with borders and background inversion.
+
+10.5 COMPONENT RULES
+  BUTTON
+    primary     black fill, white text, 1px black border, hover -> grey-900
+    secondary   white fill, black text, 1px black border, hover -> grey-100
+    ghost       transparent, black text, underline on hover
+    destructive black fill + the word is explicit ("Delete permanently") + a
+                confirm dialog that requires typing the resource name
+    disabled    grey-300 border, grey-500 text, no fill
+    heights     32 / 40 / 48. Never rounded.
+  INPUT
+    1px grey-300 border, black text, grey-500 placeholder,
+    focus: 2px black border (no glow), error: 2px black border + a bold
+    monospace error line beneath prefixed with "ERROR: "
+  TABLE
+    1px grey-300 dividers, micro uppercase headers, zebra on grey-100,
+    hover row -> grey-100, selected row -> black left border 2px.
+    All identifiers, values, and timestamps in mono.
+  CHART
+    Never colour. Distinguish series by: line weight (1px/2px/3px), dash
+    pattern (solid/dashed/dotted), fill pattern (solid/hatch/dots), and direct
+    labels at the end of each line. Always direct-label; legends are a failure.
+  SEVERITY (the one thing that must be instantly readable)
+    CRITICAL  solid black chip, white uppercase bold text, prefix [!!!]
+    HIGH      solid black chip, white uppercase text, prefix [!!]
+    MEDIUM    white chip, 2px black border, black uppercase text, prefix [!]
+    LOW       white chip, 1px grey-300 border, grey-700 text, prefix [-]
+    INFO      no chip, grey-500 text, prefix [i]
+    Always pair the chip with the word AND the bracket prefix. Three redundant
+    channels means it survives greyscale printing, low vision, and screenshots.
+
+10.6 MOTION
+  Durations 120ms / 200ms only. Ease-out. Animate opacity and transform only.
+  Loading = skeleton blocks in grey-100, never spinners, except the scan phase
+  rail which uses a blinking mono cursor. Respect prefers-reduced-motion.
+
+10.7 ACCESSIBILITY (non-negotiable, and easier in monochrome)
+  Contrast: body text is black on white = 21:1. Never put text below grey-500
+  on white. Focus rings are visible 2px black (white in dark mode) and never
+  removed. Every icon has a text label. Full keyboard navigation: j/k to move
+  in the findings list, / to focus search, g+f to go to findings.
+  Target AA minimum, AAA for body text.
+
+10.8 VOICE AND COPY
+  Direct, technical, unhype. Never "Oops!" Never exclamation marks.
+  Bad:  "Uh oh! Something went wrong 😬"
+  Good: "Scan failed at phase PROBE: connection timed out after 30s. Retry?"
+  Severity language is literal. Never say "urgent" when you mean "high".
+  Bilingual: full EN and BM strings from day one. Store in i18n files, not
+  hardcoded. BM matters for the local SME market and nobody else does it.
+
+================================================================================
+11. SECURING HARIZEON ITSELF
+================================================================================
+
+You are a security company. One breach and the company is over. This section is
+not optional polish.
+
+  IDENTITY
+    Argon2id password hashing. TOTP MFA available from launch, enforced for
+    owners on paid plans. Session cookies: HttpOnly, Secure, SameSite=Lax,
+    rotate on privilege change, absolute timeout.
+  SECRETS
+    Nothing in the repo. Environment injection or a managed secret store.
+    Customer notification-channel secrets encrypted at rest with an envelope
+    key. Rotate the master key annually and document how.
+  API KEYS
+    Hash at rest. Prefix visible for identification. Scoped. Revocable.
+    Show once. Detect and alert on keys committed to public repos (later).
+  TENANCY
+    Row-level security in Postgres as a backstop. Every integration test
+    includes a cross-tenant access assertion. Write that test on day one.
+  SSRF / SCANNER ABUSE  (your biggest technical risk)
+    Workers resolve targets and block RFC1918, loopback, link-local, and cloud
+    metadata endpoints unless explicitly allowlisted for an enterprise
+    on-prem case. Block redirects to those ranges too. Re-resolve after redirect
+    (DNS rebinding). Log every outbound connection a worker makes.
+  RATE LIMITING
+    Per-key and per-org. Scan concurrency caps per plan. Global circuit breaker
+    so one customer cannot exhaust the worker pool.
+  SUPPLY CHAIN
+    Pin every dependency. Lockfiles committed. Automated dependency scanning on
+    every PR. Pin scanner engine versions and record them in scans.engine_versions
+    so a finding is reproducible.
+  LOGGING
+    Structured JSON, request_id on everything, PII minimized, secrets redacted
+    by a logging filter (test the filter). Ship logs off-box. 90-day retention.
+  BACKUPS
+    Automated daily Postgres backups, encrypted, stored in a different provider
+    than production. TEST A RESTORE MONTHLY AND WRITE THE DATE DOWN. An untested
+    backup is a rumour.
+  RESPONSIBLE DISCLOSURE
+    security.txt at /.well-known/security.txt, a /security page, a published
+    response SLA, and a hall of fame. You will get reports. Answer them well;
+    it is free marketing in exactly your market.
+  YOUR OWN MEDICINE
+    Harizeon scans harizeon.com on a schedule and the score is on the /security
+    page publicly. This is the most persuasive marketing asset you will ever have.
+
+================================================================================
+12. LEGAL, ETHICAL, AND AUTHORIZATION GATES
+================================================================================
+
+READ THIS TWICE. This is the section that decides whether Harizeon is a company
+or an incident.
+
+12.1 THE CORE RULE
+  Harizeon performs active testing ONLY against assets whose control the customer
+  has cryptographically demonstrated. Verification is not a UX step you can skip
+  for "trusted" users, enterprise deals, or demos. There is no bypass flag. If
+  you build a bypass flag, someone will use it, and it will be you at 2am.
+
+12.2 VERIFICATION MECHANICS
+  - DNS TXT record containing a per-asset random token, OR
+  - a file at /.well-known/harizeon-verification.txt containing the token, OR
+  - a meta tag on the root document (weakest, offer last).
+  - Re-verify on a schedule (weekly). Domains change hands. If re-verification
+    fails, scanning pauses automatically and the customer is notified.
+  - IP ranges require a stronger path: reverse DNS plus a signed authorization
+    form, reviewed manually. Do not automate IP-range authorization in v1.
+
+12.3 MALAYSIAN AND REGIONAL CONTEXT
+  Unauthorized access to computer material is a criminal offence in Malaysia
+  under the Computer Crimes Act 1997. Personal data handling is governed by the
+  Personal Data Protection Act 2010 (amended in recent years — check the current
+  text). Other jurisdictions have their own equivalents, and a scan initiated in
+  Malaysia may touch infrastructure abroad.
+
+  ACTION ITEMS, not reading material:
+    [ ] Engage a Malaysian lawyer before public launch. Budget for it. This is
+        not the place to be frugal.
+    [ ] Have them review: Terms of Service, Acceptable Use Policy, the
+        authorization warranty clause, the liability cap, and your PDPA
+        obligations as a data processor/controller.
+    [ ] Get written advice on scanning cross-border targets.
+    [ ] Register the business properly (SSM). Do not sign customers as a person.
+    [ ] Obtain professional indemnity / cyber liability insurance before your
+        first paying customer. Ask specifically whether it covers claims arising
+        from a scan against a third party.
+  Nothing in this document is legal advice. I am not a lawyer.
+
+12.4 ACCEPTABLE USE POLICY — CLAUSES THAT MUST EXIST
+  - Customer warrants it owns or is contractually authorized to test each asset.
+  - Customer indemnifies Harizeon for claims arising from assets it added.
+  - Harizeon may suspend without notice on suspected unauthorized targeting.
+  - No use of Harizeon output to attack systems.
+  - Harizeon logs all scan activity and will cooperate with lawful requests.
+
+12.5 ABUSE DETECTION (build these into v1, they are cheap)
+  - Flag accounts that add many unrelated domains quickly.
+  - Flag failed-verification rates above a threshold.
+  - Flag targets on government / financial / critical-infrastructure TLDs and
+    domain lists for manual review before any active phase runs.
+  - Keep an internal blocklist of assets that must never be scanned.
+  - Abuse inbox monitored. Published. Answered within 24h.
+
+12.6 DATA PROTECTION
+  Scan evidence may contain personal data incidentally. Therefore: minimize what
+  you store, mask by default in the UI, encrypt at rest, delete on schedule,
+  honour deletion requests within 30 days, publish a data processing addendum,
+  and keep a register of sub-processors (your hosting provider, email provider,
+  payment provider).
+
+================================================================================
+13. PRICING AND BILLING
+================================================================================
+
+13.1 MODEL
+  Hybrid: a subscription that includes an allowance, plus metered overage.
+  Bill on ASSETS MONITORED (the value unit the customer understands) rather than
+  scans (which they cannot predict and which makes them scan less — the opposite
+  of what you want).
+
+13.2 PLANS (MYR/month; adjust after 20 customer conversations, not before)
+
+  FREE         MYR 0      1 asset,  quick scans only, monthly schedule,
+                          14-day retention, no PDF report, community support
+  STARTER      MYR 79     5 assets, standard scans, weekly schedule,
+                          90-day retention, PDF reports, email support
+  GROWTH       MYR 249    25 assets, deep scans, daily schedule, 1-year
+                          retention, API access, 3 seats, Slack alerts
+  SCALE        MYR 799    100 assets, on-demand unlimited scans, 2-year
+                          retention, 10 seats, priority support, SSO (v0.2)
+  ENTERPRISE   talk to us custom assets, on-prem worker, DPA, SLA
+
+  OVERAGE      MYR 8 per additional asset per month
+               MYR 5 per additional deep scan
+
+13.3 FREE TIER DISCIPLINE
+  The free tier exists to prove value and drive word of mouth, not to be a
+  product. Constrain the EXPENSIVE things (deep scans, retention, concurrency),
+  never the trust-building things (findings quality, remediation guidance).
+  Free must still verify domain ownership. No exceptions.
+
+13.4 PAYMENTS
+  Malaysia: use a local gateway supporting FPX + cards (Billplz, Chip, or
+  Stripe if your entity qualifies). Show prices with SST treatment stated.
+  Issue proper tax invoices — SMEs need them for their accounts, and getting
+  this right is a surprisingly strong retention factor.
+
+13.5 BILLING EDGE CASES TO HANDLE BEFORE LAUNCH
+  - Failed payment: 3 retries over 10 days, then downgrade to read-only (NEVER
+    delete data; a security company that loses your history is unforgivable)
+  - Mid-cycle upgrade: prorate immediately. Downgrade: at period end.
+  - Refunds: 14-day no-questions on first payment. Publish it.
+  - Cancellation: keep data 60 days, then delete, with two email warnings.
+
+================================================================================
+14. INFRASTRUCTURE AND COST
+================================================================================
+
+14.1 MVP TOPOLOGY (deliberately small)
+  1x control-plane VPS   4 vCPU / 8 GB   — web, API, services (docker compose)
+  1x worker VPS          4 vCPU / 8 GB   — scanner containers, separate network
+  1x managed Postgres    or self-hosted with automated backups initially
+  1x managed Redis       or a container early on
+  Object storage         S3-compatible (evidence, reports)
+  Cloudflare             DNS, TLS, edge protection (free tier is fine)
+  Email                  a transactional provider with good deliverability
+  Monitoring             uptime checks + error tracking + a metrics dashboard
+
+  Estimated monthly burn at MVP: roughly MYR 250-600 depending on provider and
+  whether you self-host Postgres. Verify current prices yourself; this is an
+  order-of-magnitude figure, not a quote.
+
+14.2 SCALING PATH (do not pre-build any of this)
+  Stage 1  single worker VPS, sequential jobs           0-50 customers
+  Stage 2  3-5 worker VPS, queue-based autoscaling      50-300
+  Stage 3  Kubernetes or Nomad for worker orchestration 300+
+  Stage 4  ClickHouse for findings analytics; read replicas; multi-region
+
+14.3 DEPLOYMENT
+  Git-based. Docker images built in CI. Tagged releases. Migrations run as a
+  separate, reversible step before the app rolls. Blue/green or simple
+  rolling restart behind the proxy. One command to deploy. One command to roll
+  back. Write the rollback command down and test it before you need it.
+
+14.4 OBSERVABILITY MINIMUM
+  - Uptime check on /health every 60s with alerting to your phone
+  - Error tracking with source maps
+  - Four dashboards: API latency+errors, queue depth+job duration, scan
+    success rate by phase, signup->verified->first-scan funnel
+  - A daily digest email to yourself: signups, scans run, failures, revenue
+
+================================================================================
+15. TECH STACK
+================================================================================
+
+Chosen for a solo founder who must ship, not for resume points.
+
+  Frontend        Next.js (App Router) + TypeScript + Tailwind
+                  Tailwind config stripped to the monochrome tokens in §10 so
+                  you physically cannot use a colour by accident. This is the
+                  trick that makes the design system enforce itself.
+  Charts          a lightweight charting lib configured monochrome, or hand-
+                  rolled SVG. Charts are simple enough to own.
+  API             Node/TypeScript (Fastify or NestJS) to keep one language,
+                  OR Go if you want performance and static binaries for workers.
+                  Pick ONE and never revisit the decision.
+  Workers         Python or Go. Python wins because most scanner tooling and
+                  parsing libraries are Python-native. Containerized, one job
+                  per container.
+  Queue           Redis Streams (simplest) or RabbitMQ (better semantics).
+                  Start with Redis Streams; you already need Redis.
+  Database        PostgreSQL. Row-level security. Migrations in version control.
+  Cache/limits    Redis.
+  Object storage  S3-compatible.
+  PDF             HTML template rendered headless-browser to PDF. Do not fight
+                  a PDF library; you already have a design system in CSS.
+  Auth            Roll it with a well-audited library, or use a hosted auth
+                  provider to save two weeks. For a security company, owning
+                  auth is defensible — but only if you do it correctly.
+  CI              Build, test, lint, dependency scan, container scan, deploy.
+  IaC             Keep server setup in version control (Ansible or shell
+                  scripts, committed). Not Terraform on day one.
+
+  ANTI-GOALS: no microservices, no Kubernetes, no event sourcing, no GraphQL,
+  no monorepo tooling, no custom framework. These kill solo startups.
+
+================================================================================
+16. BUILD ROADMAP — 12 WEEKS TO MVP
+================================================================================
+
+Assumes ~20-25 focused hours per week alongside study. Weeks are checkpoints,
+not deadlines. If you slip, cut scope, never quality of the core loop.
+
+  W01  Foundation
+       repo, CI, docker compose, Postgres schema v1, migrations,
+       design tokens implemented in Tailwind, AppShell + Sidebar + DataTable
+       DELIVERABLE: an empty console you can log into locally
+
+  W02  IAM
+       signup, login, email verify, password reset, sessions, org creation,
+       audit_log writing on every mutation, API key issuance + hashing
+       DELIVERABLE: a stranger can create an account
+
+  W03  Assets + verification
+       asset CRUD, DNS TXT verification with polling, HTTP file fallback,
+       verification re-check cron, the /assets and /assets/{id} pages
+       DELIVERABLE: you can prove you own a domain
+       (this is the week most people skip. Do not skip it.)
+
+  W04  Job pipeline skeleton
+       queue, worker container, job claim/heartbeat/timeout, scan + scan_events
+       tables, SSE endpoint, the live scan page rendering FAKE phases end to end
+       DELIVERABLE: a scan that does nothing but does it visibly and reliably
+
+  W05  Discovery phase
+       subdomain enumeration, DNS records, WHOIS, certificate transparency,
+       asset auto-creation with parent linkage, the DISCOVERED tab
+       DELIVERABLE: point at a domain, get a real asset inventory
+
+  W06  Probe + inspect phases
+       port scanning with strict scope rules, service fingerprinting,
+       TLS configuration analysis + expiry, security header checks
+       DELIVERABLE: first real findings appear
+
+  W07  Findings core
+       finding schema, fingerprinting/dedup, severity normalization, status
+       workflow, /findings list with filters, /findings/{id} detail
+       DELIVERABLE: the daily-driver screen works
+
+  W08  Web checks + normalization
+       template-based web vulnerability checks, mapping every engine's output
+       into your one schema, diffing against previous scans
+       DELIVERABLE: "+3 new, -1 resolved" is accurate
+
+  W09  Schedules + notifications
+       cron schedules, notification channels, email + Slack + webhook with HMAC
+       signing, digest emails, 80%-of-quota warnings
+       DELIVERABLE: it works while you sleep
+
+  W10  Reports + dashboard
+       PDF generation, three report types, the dashboard with real aggregates,
+       security score algorithm (document how it is computed — customers ask)
+       DELIVERABLE: something a customer can hand to their client
+
+  W11  Billing + limits
+       plans, subscription checkout, metering, quota enforcement, invoices,
+       failed-payment handling, /settings/billing
+       DELIVERABLE: you can take money
+
+  W12  Harden + launch
+       marketing site, docs, legal pages reviewed by your lawyer, security.txt,
+       status page, self-scan on a schedule, load test the worker pool,
+       restore-from-backup drill, 20 private beta invites
+       DELIVERABLE: public launch
+
+  W13+ POST-MVP ORDER (resist reordering this for one shiny customer)
+       1. Fix everything the first 20 users complain about. Nothing else.
+       2. Multi-user teams + roles
+       3. Harizeon Vault (VLT) — highest demand, lowest build cost of the rest
+       4. Harizeon Audit (ADT) full — compliance PDF, drives upgrades
+       5. Harizeon Watch (WCH) — log ingestion, the biggest infra step
+       6. Integrations: Jira, Linear, GitHub Issues, Cloudflare
+       7. Harizeon Shield (SHD)
+
+================================================================================
+17. GO TO MARKET
+================================================================================
+
+  FIRST 10 CUSTOMERS — manual, unscalable, correct
+    Your university network, local dev community, Malaysian tech Telegram/
+    Discord groups, agencies who manage client websites, KL startup meetups.
+    Offer: free scan of their domain, personally delivered report, a real
+    conversation about what they'd pay. Do this 30 times before you write the
+    pricing page copy.
+
+  CONTENT ENGINE (your cheapest channel, and it compounds)
+    - "The state of web security in Malaysian SMEs" — scan 500 public .my sites
+      PASSIVELY ONLY (headers, TLS, DNS — no active probing, no exploitation),
+      publish the aggregate statistics, never name individual companies, and
+      privately notify anyone with something critical. Handled correctly this is
+      a legitimate research report and a press magnet. Handled badly it is a
+      crime. Get legal sign-off on the methodology BEFORE you run it.
+    - Remediation guides that rank: "How to fix X on nginx", one per finding
+      type. Every finding detail page links to one. This is SEO that converts.
+    - Bilingual posts. Nobody writes good BM security content. Own it.
+
+  DEVELOPER SURFACE
+    Great docs, a real free tier, a CLI, a GitHub Action. Developers adopt tools
+    they can try at midnight without talking to anyone.
+
+  PARTNERSHIPS
+    Web agencies and MSPs in Malaysia: white-label reports, reseller margin.
+    One agency with 40 clients is worth 40 individual signups and costs one
+    conversation.
+
+  UNIVERSITY ANGLE
+    You are a UiTM student. Use it: free tier for students and student
+    societies, a campus security club, a CTF sponsorship. Builds the brand,
+    builds a hiring pipeline, and costs almost nothing.
+
+================================================================================
+18. METRICS
+================================================================================
+
+  ACTIVATION (the only metric that matters for 6 months)
+    signup -> domain verified -> first scan completed -> first finding viewed
+    Target: 40% of signups reach a completed scan within 24 hours.
+    Instrument every step. Fix the biggest drop. Repeat.
+
+  PRODUCT HEALTH
+    scan success rate by phase (target >97%)
+    median scan duration by profile
+    false-positive rate (track manual "false positive" status marks — if this
+    climbs above ~5% you have a credibility problem, not a bug)
+    time from scan completion to notification delivered
+
+  BUSINESS
+    MRR, paying accounts, ARPA, gross margin per account (infra cost / revenue),
+    logo churn, net revenue retention, CAC by channel
+
+  LEADING INDICATORS OF CHURN
+    no login in 14 days; schedule disabled; findings untouched for 30 days;
+    payment method expiring. Trigger a human email on each.
+
+================================================================================
+19. RISKS AND MITIGATIONS
+================================================================================
+
+  RISK                          MITIGATION
+  ----------------------------  ------------------------------------------------
+  Scanning an unauthorized      Mandatory verification, no bypass, abuse
+  target                        detection, insurance, lawyer, logging (§12)
+  You get breached              §11 in full. Also: minimize what you store.
+                                You cannot leak evidence you deleted.
+  False positives destroy       Conservative severity, always show evidence,
+  trust                         one-click false-positive reporting, act on it
+  Scope creep across 9          The §05 cut. Print it. Say no to features that
+  services                      are not the wedge, including "easy" ones
+  Solo founder burnout          The roadmap assumes 20-25h/wk, not 60. Ship
+                                weekly. Protect study time; the degree matters
+  Big vendor launches a         They will not serve MYR 79/month SMEs in BM
+  cheap tier                    with FPX billing. Stay where they won't go
+  Open-source licence problem   Audit every engine's licence in W01, not W12.
+                                Get legal review before commercial launch
+  Infra cost exceeds revenue    Meter from day one. Know your cost per scan
+                                before you set the price
+  Nobody pays                   30 customer conversations before week 6. If you
+                                cannot get 5 verbal commitments, change the
+                                wedge — do not build harder
+
+================================================================================
+20. APPENDIX
+================================================================================
+
+20.1 NAMING
+  Company/product : HARIZEON
+  Wordmark        : all caps, mono or tight grotesk, letter-spaced +0.05em
+  Mark            : a single glyph built from a horizon line and a vertical
+                    scan line forming a bracket. Pure black. One weight.
+                    Must work at 16px favicon size in black only.
+  Domains to grab : harizeon.com, harizeon.my, harizeon.io
+  Handles         : @harizeon everywhere, immediately
+  Subdomains      : console. / api. / docs. / status. / blog.
+  Resource IDs    : ast_ (asset), scn_ (scan), fnd_ (finding), org_, key_,
+                    rpt_, inv_  + a sortable ULID. Prefixed IDs are a real
+                    developer-experience feature; support can identify any
+                    object from a screenshot.
+  API key format  : hrz_live_<32 chars>  /  hrz_test_<32 chars>
+
+20.2 TAGLINE OPTIONS
+  "Security infrastructure, provisioned like cloud."     <- recommended
+  "Your security control plane."
+  "Prove it's secure."
+  "Keselamatan siber, atas permintaan."  (BM)
+
+20.3 SEVERITY DEFINITIONS (publish these; customers will ask)
+  CRITICAL  Exploitable now, leads to data exposure or system compromise,
+            no preconditions. Fix today.
+  HIGH      Exploitable with minor preconditions, or exposes sensitive config.
+            Fix this week.
+  MEDIUM    Meaningful weakening of security posture; needs chaining to exploit.
+            Fix this month.
+  LOW       Best-practice deviation with limited direct impact. Fix when convenient.
+  INFO      Observation, no action required. Context only.
+
+20.4 SECURITY SCORE (be transparent about the formula or do not show a score)
+  Start at 100. Subtract per open finding, weighted by severity and age, capped
+  per category so one noisy category cannot zero the score. Publish the exact
+  weights on a docs page. An opaque score is a trust liability; a transparent
+  one is a feature.
+
+20.5 FIRST-WEEK CHECKLIST
+  [ ] Register harizeon.com (and .my)
+  [ ] Create the GitHub org, private repo, branch protection on main
+  [ ] Set up the local docker compose environment
+  [ ] Write the Postgres schema from §07 as migration 0001
+  [ ] Build the design tokens from §10 into tailwind.config
+  [ ] Build AppShell + Sidebar + DataTable + SeverityChip
+  [ ] Audit the licence of every scanner engine you intend to use
+  [ ] Draft the Acceptable Use Policy, put it in the repo, book a lawyer
+  [ ] Message 10 people from your network offering a free manual scan
+  [ ] Write the empty dashboard. Ship nothing else this week.
+
+20.6 THE ONE SENTENCE TO REMEMBER
+  The product is not the scanner. The product is the verified-ownership gate,
+  the normalized finding, the remediation that actually works, and the report
+  someone's client will accept. Anyone can run a scanner.
+
+================================================================================
+END OF DOCUMENT
+Nothing here is legal, financial, or professional security advice. Section 12
+requires a real lawyer before you launch. Budget for it.
+================================================================================

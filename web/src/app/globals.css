@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+/*
+  HARIZEON design system — pure black & white (§10).
+  Colour is the laziest way to encode severity, so it is removed entirely.
+  The default Tailwind colour palette is cleared below (§15) so a hue cannot
+  be used by accident; only the monochrome tokens exist.
+*/
+
+/* Runtime theme variables — flip for dark mode (exact inversion, §10.2). */
+:root {
+  --hz-canvas: #ffffff;
+  --hz-subtle: #f2f2f2;
+  --hz-ink: #000000;
+  --hz-ink-2: #111111;
+  --hz-muted: #3a3a3a;
+  --hz-faint: #767676;
+  --hz-line: #c8c8c8;
+  --hz-accent: #000000;
+  --hz-accent-ink: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hz-canvas: #000000;
+    --hz-subtle: #111111;
+    --hz-ink: #ffffff;
+    --hz-ink-2: #f2f2f2;
+    --hz-muted: #c8c8c8;
+    --hz-faint: #767676;
+    --hz-line: #3a3a3a;
+    --hz-accent: #ffffff;
+    --hz-accent-ink: #000000;
+  }
+}
+
+/* Manual override wins over the media query (later in source, equal specificity). */
+:root[data-theme="light"] {
+  --hz-canvas: #ffffff;
+  --hz-subtle: #f2f2f2;
+  --hz-ink: #000000;
+  --hz-ink-2: #111111;
+  --hz-muted: #3a3a3a;
+  --hz-faint: #767676;
+  --hz-line: #c8c8c8;
+  --hz-accent: #000000;
+  --hz-accent-ink: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  --hz-canvas: #000000;
+  --hz-subtle: #111111;
+  --hz-ink: #ffffff;
+  --hz-ink-2: #f2f2f2;
+  --hz-muted: #c8c8c8;
+  --hz-faint: #767676;
+  --hz-line: #3a3a3a;
+  --hz-accent: #ffffff;
+  --hz-accent-ink: #000000;
+}
+
+/* Static monochrome palette + fonts (§10.2, §10.3). */
+@theme {
+  --color-*: initial;
+
+  --color-black: #000000;
+  --color-white: #ffffff;
+  --color-grey-100: #f2f2f2;
+  --color-grey-300: #c8c8c8;
+  --color-grey-500: #767676;
+  --color-grey-700: #3a3a3a;
+  --color-grey-900: #111111;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono",
+    Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Semantic tokens that flip with the theme (inline so utilities track the var). */
+@theme inline {
+  --color-canvas: var(--hz-canvas);
+  --color-subtle: var(--hz-subtle);
+  --color-ink: var(--hz-ink);
+  --color-ink-2: var(--hz-ink-2);
+  --color-muted: var(--hz-muted);
+  --color-faint: var(--hz-faint);
+  --color-line: var(--hz-line);
+  --color-accent: var(--hz-accent);
+  --color-accent-ink: var(--hz-accent-ink);
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--hz-line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--hz-canvas);
+    color: var(--hz-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    background-color: var(--hz-accent);
+    color: var(--hz-accent-ink);
+  }
+
+  /* Focus is always visible, 2px, never removed (§10.7). */
+  :focus-visible {
+    outline: 2px solid var(--hz-ink);
+    outline-offset: 2px;
+  }
+}
+
+/* Motion: 120/200ms only, and honour reduced-motion (§10.6). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,80 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  web:
+    name: web (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  db:
+    name: db (apply migrations)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: harizeon
+          POSTGRES_PASSWORD: harizeon
+          POSTGRES_DB: harizeon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harizeon"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://harizeon:harizeon@localhost:5432/harizeon
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply migrations
+        run: sh db/migrate.sh
+      - name: Assert core tables exist
+        run: |
+          for t in orgs users memberships projects assets findings scans audit_log; do
+            psql "$DATABASE_URL" -tAc "SELECT to_regclass('public.$t')" | grep -q "$t" \
+              || { echo "missing table: $t"; exit 1; }
+          done
+          echo "schema OK"
+      - name: Assert audit_log is append-only
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO orgs (name, slug) VALUES ('t','t');" >/dev/null
+          if psql "$DATABASE_URL" -c \
+            "INSERT INTO audit_log (org_id, actor_type, action) SELECT id, 'system', 'x' FROM orgs WHERE slug='t'; \
+             UPDATE audit_log SET action='y';" 2>/dev/null; then
+            echo "audit_log accepted an UPDATE — guard is broken"; exit 1;
+          else
+            echo "append-only guard OK";
+          fi
+
+  audit:
+    name: dependency scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm audit --audit-level=high

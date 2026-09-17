@@ -7,10 +7,14 @@ import { authRoutes } from "./routes/auth";
 import { orgRoutes } from "./routes/org";
 import { apiKeyRoutes } from "./routes/apiKeys";
 import { assetRoutes } from "./routes/assets";
+import { scanRoutes } from "./routes/scans";
 import { healthRoutes } from "./routes/health";
 import { authenticate, requireAuth } from "./plugins/auth";
 import { requestIdHook, errorHandler } from "./lib/errors";
 import { startVerificationRecheck } from "./lib/recheck";
+import { scanQueue } from "./services/scanQueue";
+import { startIngest } from "./workers/ingest";
+import { startReaper } from "./workers/reaper";
 
 export async function buildServer() {
   const app = Fastify({
@@ -46,6 +50,7 @@ export async function buildServer() {
         await priv.register(orgRoutes);
         await priv.register(apiKeyRoutes);
         await priv.register(assetRoutes);
+        await priv.register(scanRoutes);
       });
     },
     { prefix: "/v1" },
@@ -69,6 +74,10 @@ async function start() {
   const app = await buildServer();
   try {
     await app.listen({ port: config.PORT, host: "0.0.0.0" });
+    // Background control-plane loops (NOT started by buildServer, so tests stay quiet).
+    await scanQueue.ready();
+    startIngest(scanQueue);
+    startReaper(scanQueue);
     // Hourly ownership re-verification (background system task, not a request).
     startVerificationRecheck();
   } catch (err) {

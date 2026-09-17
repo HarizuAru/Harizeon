@@ -4,6 +4,7 @@ const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
   DATABASE_URL: z.string().min(1),
+  REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
   COOKIE_SECURE: z.coerce.boolean().default(false),
   COOKIE_DOMAIN: z.string().optional(),
   HARIZEON_SESSION_SECRET: z.string().min(32).optional(),

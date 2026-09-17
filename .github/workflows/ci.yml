@@ -82,11 +82,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
     defaults:
       run:
         working-directory: api
     env:
       HARIZEON_APP_PASSWORD: ci_only_password
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -114,6 +124,19 @@ jobs:
         env:
           DATABASE_URL: postgresql://harizeon_app:ci_only_password@localhost:5432/harizeon
         run: npm run test:integration
+
+  worker:
+    name: worker (python unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest -v test_worker
 
   audit:
     name: dependency scan

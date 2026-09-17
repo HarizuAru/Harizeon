@@ -30,6 +30,19 @@ services:
       timeout: 3s
       retries: 12
 
+  # Data-plane scan worker (W04). Separate container, NO database credentials —
+  # it only reaches Redis and the job payload (§06.1 trust boundary).
+  worker:
+    build:
+      context: ./worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379
+      SCAN_STEP_MS: "500"
+    restart: unless-stopped
+
   # One-shot schema migrator. `docker compose up` builds it (migrations are
   # copied into the image, so no host bind mount is needed), applies pending
   # migrations, then exits. Safe to re-run (already-applied files are skipped).

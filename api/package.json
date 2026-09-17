@@ -9,13 +9,14 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts src/lib/verify.test.ts",
-    "test:integration": "node --import tsx --test test/integration.test.ts test/assets.test.ts"
+    "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts src/lib/verify.test.ts src/lib/scan-state.test.ts src/lib/queue.test.ts",
+    "test:integration": "node --import tsx --test test/integration.test.ts test/assets.test.ts test/scans.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.0",
     "@node-rs/argon2": "^2.0.0",
     "fastify": "^5.0.0",
+    "ioredis": "^6.0.0",
     "pg": "^8.11.0",
     "zod": "^3.23.0"
   },

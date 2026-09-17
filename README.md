@@ -19,8 +19,34 @@ control plane for teams too small to have a security team.
   StatusBadge, PageHeader, EmptyState, StatTile — plus `/login` and the seven
   nav routes. Builds and lints clean.
 
-**Next: W04** — the scan job pipeline (queue + worker container + phase state
-machine + live scan view). See §16.
+**Next: W05** — passive discovery (subdomain enumeration, DNS, WHOIS, CT logs)
+so scans find real assets. See §16.
+
+**W04 — Scan job pipeline: done (queue + worker + live view, proven live).**
+
+- **Queue:** Redis Streams (`harizeon:scans:jobs`, consumer group `workers`) behind
+  a small `ScanQueue` interface with two adapters — a Redis one for production and
+  an in-memory one for tests.
+- **State machine (§06.4):** `queued → claimed → running → completed|failed|timeout|cancelled`,
+  with `attempt` and max-2 retries; terminal transitions are first-writer-wins (a
+  late event cannot resurrect a cancelled scan).
+- **Data plane:** an isolated Python worker (`worker/`) with **no database
+  credentials** (§06.3) — it reads a job, walks the profile's phases
+  (verify…report), heartbeats, honours a cancel flag, and publishes events. It has
+  no engines yet, so it reports phases honestly and produces **no findings**.
+- **Control plane:** an ingest loop writes `scan_events` + drives `scans`; a reaper
+  reclaims scans whose worker stopped heartbeating. Both start from `start()`, not
+  `buildServer()`, so tests stay deterministic.
+- **API (§08):** `POST /v1/scans` (verified assets only — §12), `GET /v1/scans`,
+  `GET /v1/scans/{id}` (with its event log), `GET /v1/scans/{id}/events` (SSE,
+  resumable with `?since=<seq>`), `POST /v1/scans/{id}/cancel`.
+- **Console:** `/scans`, `/scans/new`, `/scans/{id}` live view (phase rail + streaming
+  event log) via a same-origin SSE proxy (`web/src/app/api/scans/[id]/events`).
+- **Proven:** api 46 unit tests + 3 integration suites on live Postgres **and Redis**
+  (auth, assets, scan pipeline incl. cancel/first-writer-wins/reaper escalation);
+  8 Python worker unit tests; and a real containerised worker driving an
+  API-created scan to `completed` (9 events) with the SSE stream and console live
+  page verified over HTTP.
 
 **W03 — Assets + ownership verification: done (API + console, proven live).**
 
@@ -72,8 +98,8 @@ machine + live scan view). See §16.
 - **Web/console:** Next.js 16 (App Router) + TypeScript (strict) + Tailwind v4.
 - **Data:** PostgreSQL 16 (row-level security) + Redis 7.
 - **API:** Node/TypeScript (Fastify) — `api/`, control plane for §08 endpoints.
-- **Workers (data plane):** Python, isolated — lands in W04.
-- **Queue:** Redis Streams — W04.
+- **Workers (data plane):** Python, isolated (queue + job payload only) — `worker/`.
+- **Queue:** Redis Streams (`harizeon:scans:jobs` / `:events`).
 
 ## Layout
 
@@ -81,7 +107,8 @@ machine + live scan view). See §16.
 db/migrations/     SQL schema, applied in filename order by db/migrate.sh
 db/verify.sql        Security invariants self-check (RLS isolation, append-only)
 docker-compose.yml Postgres + Redis + one-shot migrator
-api/               Fastify control-plane API (auth, orgs, api-keys, assets)
+api/               Fastify control-plane API (auth, orgs, api-keys, assets, scans)
+worker/            Python data-plane scan worker (queue consumer; no DB creds)
 infra/db/          App-role provisioning (non-owner role + RLS grants)
 web/               Next.js console (marketing site arrives in W12)
 docs/              legal drafts + scanner engine licence audit
@@ -124,9 +151,13 @@ traffic always uses the internal ports and is unaffected.
 - Schema: CI applies every migration against a real Postgres 16 service and
   asserts the append-only guard.
 - API typecheck/lint/unit: `cd api && npm run typecheck && npm run lint && npm test`
+- Worker unit tests: `cd worker && python -m unittest -v test_worker`
 - API integration (needs the stack up + app role): `cd api && npm run test:integration`
-  with `DATABASE_URL` pointing at the `harizeon_app` role; `db/verify.sql`
-  asserts RLS tenant isolation and the append-only audit guard.
+  with `DATABASE_URL` pointing at the `harizeon_app` role and `REDIS_URL` set;
+  `db/verify.sql` asserts RLS tenant isolation and the append-only audit guard.
+- Live scan: `docker compose up -d --build` (db + redis + worker), run the API,
+  create a scan, and watch it through the console or
+  `curl -N "…/v1/scans/<id>/events"`.
 
 ## Non-negotiables
 

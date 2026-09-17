@@ -1,4 +1,4 @@
-import type { PoolClient } from "pg";
+import type { Queryable } from "../db";
 
 export type AuditEvent = {
   orgId: string;
@@ -15,7 +15,7 @@ export type AuditEvent = {
 /**
  * Write an audit-log entry within the caller's transaction (GUC already set).
  */
-export async function writeAudit(client: PoolClient, e: AuditEvent): Promise<void> {
+export async function writeAudit(client: Queryable, e: AuditEvent): Promise<void> {
   await client.query(
     `INSERT INTO audit_log (org_id, actor_type, actor_id, action, target_type, target_id, ip, user_agent, metadata)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,

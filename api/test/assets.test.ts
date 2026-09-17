@@ -207,5 +207,6 @@ test("Assets + verification end-to-end", { skip: !DATABASE_URL }, async () => {
   } finally {
     await app.close();
     await pool.end();
+    (await import("../src/lib/redis")).redis.disconnect();
   }
 });

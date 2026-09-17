@@ -39,5 +39,10 @@ later services (Vault, Watch, Shield, Guard, Respond are v0.2+).
 ## Hard rules
 
 - No active scanning of an asset without verified ownership (§12). No bypass.
+- **Control plane vs data plane (§06.1).** The Fastify API owns the database and
+  RLS. The Python worker (`worker/`) must **never** get DB credentials — it only
+  sees Redis Streams and the job payload. Cross the seam via `api/src/lib/queue.ts`
+  (`ScanQueue`). Start background loops (ingest, reaper, recheck) from `start()`,
+  never `buildServer()`, so tests stay deterministic.
 - No secrets in the repo. `.env` is gitignored; copy from `.env.example`.
 - Do not commit or push unless explicitly asked.

@@ -75,5 +75,7 @@ test("IAM end-to-end under RLS", { skip: !DATABASE_URL }, async () => {
     assert.equal(badKey.statusCode, 401);
   } finally {
     await app.close();
+    await (await import("../src/db")).pool.end();
+    (await import("../src/lib/redis")).redis.disconnect();
   }
 });

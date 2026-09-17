@@ -25,16 +25,17 @@ Pick **one** engine per slot. Confirm the licence, then set the status.
 
 | Phase (§6.4)   | Slot                          | Candidate engine (evaluate) | Licence (VERIFY) | Distribution mode | SaaS-safe? | Status |
 | -------------- | ----------------------------- | --------------------------- | ---------------- | ----------------- | ---------- | ------ |
-| discover       | subdomain enum / passive DNS  | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
-| discover       | certificate transparency      | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
-| discover       | WHOIS / DNS records           | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
-| probe          | port scan + service detection | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
-| inspect        | TLS configuration analyzer    | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
-| inspect        | security headers / fingerprint| _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
-| test           | template-driven web checks    | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
-| test           | template repository content   | _TBD_                       | _TBD_            | data, server-side | _TBD_      | ☐ todo |
+| discover       | subdomain enum / passive DNS  | worker `discovery.py` (in-house) | n/a (in-house) | server-side | yes | ✔ cleared W05 |
+| discover       | certificate transparency      | crt.sh JSON API (data)      | public data      | queried, server-side | yes | ✔ cleared W05 |
+| discover       | WHOIS / DNS records           | RDAP (IETF std) + dnspython 2.8.0 | ISC (via `pip show`, W05) | server-side | yes | ✔ cleared W06 |
+| probe          | port scan + service detection | worker `probe.py` (stdlib socket) | n/a (in-house) | server-side | yes | ✔ cleared W06 |
+| inspect        | TLS configuration analyzer    | worker `inspect_.py` + `ssl`/`cryptography` 45.0.7 | Apache-2.0 OR BSD-3-Clause (via `pip show`, W06) | server-side | yes | ✔ cleared W06 |
+| inspect        | security headers / fingerprint| worker `inspect_.py` + httpx 0.28.1 | BSD-3-Clause (via `pip show`, W06) | server-side | yes | ✔ cleared W06 |
+| test           | template-driven web checks    | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo W08 |
+| test           | template repository content   | _TBD_                       | _TBD_            | data, server-side | _TBD_      | ☐ todo W08 |
 | (v0.2) code    | container / SBOM vuln scan    | _TBD_                       | _TBD_            | server-side       | _TBD_      | ☐ todo |
 | enrichment     | CVE data (NVD feed + cache)   | NVD                         | see NVD terms    | data, server-side | _TBD_      | ☐ todo |
+| queue          | Redis Streams client          | redis-py 5.3.1              | MIT (via `pip show`, W06) | server-side | yes | ✔ cleared W06 |
 
 ## Rules for filling this in
 

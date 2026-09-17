@@ -19,8 +19,34 @@ control plane for teams too small to have a security team.
   StatusBadge, PageHeader, EmptyState, StatTile — plus `/login` and the seven
   nav routes. Builds and lints clean.
 
-**Next: W06** — probe + inspect (port scan, service fingerprint, TLS, headers)
-so scans produce real findings. See §16.
+**Next: W07** — findings core: the daily-driver `/findings` queue with severity
+filters, status workflow, and fingerprinting UI. See §16.
+
+**W06 — Probe + inspect: done (first real findings, proven live).**
+
+- **Engine supply chain stays dependency-light (§06.5):** TCP connect scan +
+  banner grab (stdlib `socket`), TLS protocol/certificate probing (`ssl` +
+  `cryptography`), security-header checks (httpx, redirects NOT followed — §11).
+  No copyleft engines shipped.
+- **Scope discipline (§11 SSRF):** the worker resolves targets and connects only
+  to globally routable IPs (`worker/scope.py`); private targets and targets with
+  no public address are skipped with a logged reason; header checks do not follow
+  redirects.
+- **Profiles:** `quick` stays passive (no probe/inspect); `deep` scans an extended
+  port list. Services that must never face the internet (redis, postgres,
+  docker, telnet, mongodb…) become findings automatically.
+- **Findings pipeline:** the worker emits a `findings` queue event; the control
+  plane fingerprints per (asset, check, location) and dedupes — the same issue
+  across scans stays one finding with history (`first_seen`/`last_seen`).
+  Invalid severities are dropped; unknown-parent batches are rejected.
+- **API (§08):** `GET /v1/findings?severity=&status=&asset_id=&cursor=` and
+  `GET /v1/findings/:id`.
+- **Proven live:** real worker ran against the verified asset `example.com` —
+  probed 4 genuinely open ports (`80/443/8080/8443`), graded TLS, and recorded
+  9 real findings (missing CSP/HSTS, nosniff, clickjacking protection, exposed
+  Server header). 46 Python tests + 5 API integration suites green; engine
+  licences verified from installed metadata (httpx BSD-3, dnspython ISC,
+  cryptography Apache-2.0/BSD-3, redis MIT).
 
 **W05 — Passive discovery: done (real CT + DNS + RDAP, proven live).**
 
@@ -172,7 +198,7 @@ traffic always uses the internal ports and is unaffected.
 - Schema: CI applies every migration against a real Postgres 16 service and
   asserts the append-only guard.
 - API typecheck/lint/unit: `cd api && npm run typecheck && npm run lint && npm test`
-- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test heartbeat_test`
+- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test heartbeat_test probe_test`
 - API integration (needs the stack up + app role): `cd api && npm run test:integration`
   with `DATABASE_URL` pointing at the `harizeon_app` role and `REDIS_URL` set;
   `db/verify.sql` asserts RLS tenant isolation and the append-only audit guard.

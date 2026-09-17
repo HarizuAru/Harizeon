@@ -8,6 +8,7 @@ import { orgRoutes } from "./routes/org";
 import { apiKeyRoutes } from "./routes/apiKeys";
 import { assetRoutes } from "./routes/assets";
 import { scanRoutes } from "./routes/scans";
+import { findingRoutes } from "./routes/findings";
 import { healthRoutes } from "./routes/health";
 import { authenticate, requireAuth } from "./plugins/auth";
 import { requestIdHook, errorHandler } from "./lib/errors";
@@ -51,6 +52,7 @@ export async function buildServer() {
         await priv.register(apiKeyRoutes);
         await priv.register(assetRoutes);
         await priv.register(scanRoutes);
+        await priv.register(findingRoutes);
       });
     },
     { prefix: "/v1" },

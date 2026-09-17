@@ -23,6 +23,8 @@ import redis
 
 import adapters
 import discovery
+import inspect_ as checks
+import probe
 from heartbeat import Heartbeat
 from phases import PHASES, phase_message, planned_phases, progress_for_phase
 
@@ -60,6 +62,85 @@ def log(r, scan_id, org_id, phase, message, level="info"):
         "scan_id": scan_id, "org_id": org_id, "kind": "event",
         "phase": phase, "level": level, "message": message,
     })
+
+
+def publish_findings(r, scan_id, org_id, asset_id, phase, findings):
+    """Ship findings for one target; the control plane fingerprints + dedupes."""
+    if not findings:
+        return 0
+    publish(r, {
+        "scan_id": scan_id,
+        "org_id": org_id,
+        "kind": "findings",
+        "parent_asset_id": asset_id or "",
+        "phase": phase,
+        "findings": json.dumps(findings[:50]),
+    })
+    return len(findings[:50])
+
+
+def run_probe_phase(r, scan_id, org_id, profile, targets):
+    """Active, scoped TCP probe of each target. Returns probe results per target."""
+    results = {}
+    for target in targets:
+        value = target.get("value", "")
+        try:
+            probes = probe.probe_target(
+                value,
+                profile,
+                lambda host: adapters.dns_lookup(host, "A"),
+                adapters.tcp_probe,
+            )
+        except Exception as exc:  # noqa: BLE001 - one bad target must not fail the phase
+            log(r, scan_id, org_id, "probe", "probe failed for %s: %s" % (value, exc), "warn")
+            continue
+        if probes["skipped"]:
+            log(r, scan_id, org_id, "probe", "probe: skipped %s (%s)" % (value, probes["skipped"]), "warn")
+            continue
+        assets = probes["open"]
+        for entry in assets:
+            log(r, scan_id, org_id, "probe", "%s:%s open (%s)" % (entry["ip"], entry["port"], entry["service"]))
+        if not assets:
+            log(r, scan_id, org_id, "probe", "probe: %d ports closed on %s" % (
+                len(probe.ports_for(profile)), value))
+        results[target.get("asset_id", "")] = assets
+    # Findings: services that must not face the internet.
+    for asset_id, probes in results.items():
+        findings = probe.port_findings(probes)
+        publish_findings(r, scan_id, org_id, asset_id, "probe", findings)
+    return results
+
+
+def run_inspect_phase(r, scan_id, org_id, targets, probe_results):
+    """TLS configuration/expiry + security headers, as findings."""
+    for target in targets:
+        asset_id = target.get("asset_id", "")
+        value = target.get("value", "")
+        host = probe.normalise_host(value)
+        open_ports = {(p or {}).get("port") for p in probe_results.get(asset_id) or []}
+
+        findings = []
+        if 443 in open_ports:
+            try:
+                findings.extend(checks.inspect_tls(adapters.tls_info(host)))
+                log(r, scan_id, org_id, "inspect", "inspect: TLS probe for %s" % host)
+            except Exception as exc:  # noqa: BLE001
+                log(r, scan_id, org_id, "inspect", "TLS probe failed for %s: %s" % (host, exc), "warn")
+
+        for port in (443, 80, 8080):
+            if port not in open_ports:
+                continue
+            scheme = "https" if port == 443 else "http"
+            url = "%s://%s" % (scheme, host) if port in (80, 443) else "%s://%s:%s" % (scheme, host, port)
+            try:
+                headers, status = adapters.fetch_headers(url)
+                findings.extend(checks.inspect_headers(headers, url, port == 443))
+                log(r, scan_id, org_id, "inspect", "inspect: %s -> %d" % (url, status))
+            except Exception as exc:  # noqa: BLE001
+                log(r, scan_id, org_id, "inspect", "header check failed for %s: %s" % (url, exc), "warn")
+                break
+
+        publish_findings(r, scan_id, org_id, asset_id, "inspect", findings)
 
 
 def terminal(r, org_id, scan_id, status, error=None):
@@ -116,6 +197,7 @@ def process(r, fields, step_ms, hb_ttl, hb_every):
 
     with Heartbeat(lambda: heartbeat(r, scan_id, hb_ttl), hb_every):
         discovered_total = 0
+        probe_results = {}
         for phase in planned_phases(profile):
             if is_cancelled(r, scan_id):
                 terminal(r, org_id, scan_id, "cancelled")
@@ -125,6 +207,11 @@ def process(r, fields, step_ms, hb_ttl, hb_every):
                 discovered_total = run_discovery(r, scan_id, org_id, targets)
             elif phase == "resolve":
                 log(r, scan_id, org_id, "resolve", "resolve: %d hostname(s) resolved" % discovered_total)
+            elif phase == "probe":
+                probe_results = run_probe_phase(r, scan_id, org_id, profile, targets)
+                log(r, scan_id, org_id, "probe", "probe: %d target(s) scanned" % len(probe_results))
+            elif phase == "inspect":
+                run_inspect_phase(r, scan_id, org_id, targets, probe_results)
             else:
                 log(r, scan_id, org_id, phase, phase_message(phase, targets))
 

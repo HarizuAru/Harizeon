@@ -2,9 +2,24 @@ import { withTx, type Queryable } from "../db";
 import { writeAudit } from "../lib/audit";
 import { badRequest, notFound } from "../lib/errors";
 import { isTerminal, type ScanStatus } from "../lib/scan-state";
+import { sha256Hex } from "../lib/tokens";
 import type { ScanJob, ScanQueue, WorkerEvent } from "../lib/queue";
 import * as repo from "../repo/scans";
 import * as assetsRepo from "../repo/assets";
+
+const SEVERITIES = new Set(["info", "low", "medium", "high", "critical"]);
+
+export type WorkerFinding = {
+  checkId: string;
+  location: string;
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  title: string;
+  description?: string;
+  remediation?: string;
+  cweId?: string;
+  category?: string;
+  evidence?: string;
+};
 
 export const SCAN_PROFILES = ["quick", "standard", "deep"] as const;
 const MAX_TARGETS = 50;
@@ -167,6 +182,88 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
   return scan;
 }
 
+/** Parse + validate a findings payload; escape HTML-ish fields stay verbatim. */
+export function parseFindings(raw: string | undefined): WorkerFinding[] {
+  if (!raw) return [];
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  const out: WorkerFinding[] = [];
+  for (const item of arr) {
+    const o = (item ?? {}) as Record<string, unknown>;
+    const title = String(o.title ?? "").trim();
+    const severity = String(o.severity ?? "").trim().toLowerCase();
+    if (!title || !SEVERITIES.has(severity)) continue; // drop invalid, keep the rest
+    out.push({
+      checkId: String(o.check_id ?? o.checkId ?? "unknown"),
+      location: String(o.location ?? "").slice(0, 300),
+      severity: severity as WorkerFinding["severity"],
+      title: title.slice(0, 200),
+      description: typeof o.description === "string" ? o.description.slice(0, 2000) : undefined,
+      remediation: typeof o.remediation === "string" ? o.remediation.slice(0, 2000) : undefined,
+      cweId: typeof o.cwe_id === "string" ? o.cwe_id.slice(0, 20) : undefined,
+      category: typeof o.category === "string" ? o.category.slice(0, 60) : undefined,
+      evidence: typeof o.evidence === "string" ? o.evidence.slice(0, 2000) : undefined,
+    });
+  }
+  return out;
+}
+
+/**
+ * Persist a findings batch into the §07 findings schema. One fingerprint per
+ * (asset, check, location) means the same issue across scans stays ONE finding
+ * with history instead of piling up rows.
+ */
+async function applyFindings(client: Queryable, ev: WorkerEvent): Promise<void> {
+  const items = parseFindings(ev.findings);
+  const assetId = ev.parent_asset_id || null;
+
+  if (assetId) {
+    const owned = await client.query(`SELECT 1 FROM assets WHERE id = $1 AND org_id = $2`, [assetId, ev.org_id]);
+    if ((owned.rowCount ?? 0) === 0) return; // asset is not ours -> reject the batch
+  }
+
+  let created = 0;
+  let updated = 0;
+  for (const f of items) {
+    const fingerprint = sha256Hex(`${assetId ?? ""}|${f.checkId}|${f.location}`);
+    const description = [f.description, f.evidence ? `Evidence: ${f.evidence}` : null]
+      .filter(Boolean)
+      .join(" — ");
+
+    const existing = await client.query<{ id: string }>(
+      `SELECT id FROM findings WHERE org_id = $1 AND fingerprint = $2`,
+      [ev.org_id, fingerprint],
+    );
+    if ((existing.rowCount ?? 0) === 0) {
+      await client.query(
+        `INSERT INTO findings (org_id, asset_id, scan_id, fingerprint, title, description,
+           severity, cwe_id, category, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::severity,$8,$9,'open')`,
+        [ev.org_id, assetId, ev.scan_id, fingerprint, f.title, description, f.severity, f.cweId ?? null, f.category ?? null],
+      );
+      created += 1;
+    } else {
+      await client.query(
+        `UPDATE findings SET last_seen_at = now(), severity = $3::severity, description = $4,
+           remediation = COALESCE($5, remediation), updated_at = now()
+         WHERE org_id = $1 AND fingerprint = $2`,
+        [ev.org_id, fingerprint, f.severity, description, f.remediation ?? null],
+      );
+      updated += 1;
+    }
+  }
+
+  await client.query(
+    `INSERT INTO scan_events (scan_id, phase, level, message) VALUES ($1,$2::scan_phase,'info',$3)`,
+    [ev.scan_id, ev.phase ?? "normalize", `findings recorded: ${created} new, ${updated} unchanged`],
+  );
+}
+
 /**
  * Apply one worker event to the control-plane state machine. Tenant writes run
  * inside withTx(org). Terminal transitions are first-writer-wins so a late event
@@ -179,6 +276,11 @@ export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<vo
 
   if (ev.kind === "discovered") {
     await applyDiscovered(client, ev);
+    return;
+  }
+
+  if (ev.kind === "findings") {
+    await applyFindings(client, ev);
     return;
   }
 

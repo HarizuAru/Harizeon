@@ -22,7 +22,7 @@ export type ScanJob = {
 export type WorkerEvent = {
   scan_id: string;
   org_id: string;
-  kind: "status" | "event" | "terminal" | "discovered";
+  kind: "status" | "event" | "terminal" | "discovered" | "findings";
   status?: ScanStatus;
   phase?: ScanPhase;
   level?: "info" | "warn" | "error";
@@ -31,10 +31,12 @@ export type WorkerEvent = {
   error_code?: string;
   attempt?: number;
   at?: string;
-  /** kind=discovered: the asset whose surface was enumerated. */
+  /** kind=discovered|findings: the asset the results belong to. */
   parent_asset_id?: string;
   /** kind=discovered: JSON array of { fqdn, ips, source }. */
   discovered?: string;
+  /** kind=findings: JSON array of { checkId, location, title, severity, ... }. */
+  findings?: string;
 };
 
 /**
@@ -69,7 +71,7 @@ export function serialise(obj: Record<string, unknown>): Record<string, string> 
   return out;
 }
 
-const VALID_KINDS = new Set(["status", "event", "terminal", "discovered"]);
+const VALID_KINDS = new Set(["status", "event", "terminal", "discovered", "findings"]);
 
 export function parseJob(fields: Record<string, string>): ScanJob {
   const { scan_id, org_id, profile, targets } = fields;
@@ -105,6 +107,7 @@ export function parseEvent(fields: Record<string, string>): WorkerEvent {
   if (fields.at !== undefined) ev.at = fields.at;
   if (fields.parent_asset_id) ev.parent_asset_id = fields.parent_asset_id;
   if (fields.discovered !== undefined) ev.discovered = fields.discovered;
+  if (fields.findings !== undefined) ev.findings = fields.findings;
   return ev;
 }
 

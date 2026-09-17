@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts src/lib/verify.test.ts src/lib/scan-state.test.ts src/lib/queue.test.ts",
-    "test:integration": "node --import tsx --test test/integration.test.ts test/assets.test.ts test/scans.test.ts test/discovery.test.ts"
+    "test:integration": "node --import tsx --test test/integration.test.ts test/assets.test.ts test/scans.test.ts test/discovery.test.ts test/findings.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.0",

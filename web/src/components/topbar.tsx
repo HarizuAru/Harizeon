@@ -1,4 +1,5 @@
 import { ThemeToggle } from "@/components/theme-toggle";
+import { logoutAction } from "@/lib/auth-actions";
 
 export function TopBar() {
   return (
@@ -22,9 +23,14 @@ export function TopBar() {
           notifications
         </span>
         <ThemeToggle />
-        <span className="border border-line px-2 py-1 font-mono text-xs text-muted">
-          you
-        </span>
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="h-8 border border-line px-2 font-mono text-xs uppercase tracking-[0.08em] text-muted transition-colors duration-200 hover:bg-subtle hover:text-ink"
+          >
+            Log out
+          </button>
+        </form>
       </div>
     </header>
   );

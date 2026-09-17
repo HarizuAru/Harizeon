@@ -34,7 +34,10 @@ GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO harizeon_app;
 -- Pre-auth credential lookups (SECURITY DEFINER; bypass org-RLS for the auth
 -- hook only, which runs before any org context exists).
 GRANT EXECUTE ON FUNCTION api_key_by_hash(text) TO harizeon_app;
+-- Pre-auth org resolution at login (bypasses memberships org-RLS).
 GRANT EXECUTE ON FUNCTION org_ids_for_user(uuid) TO harizeon_app;
+-- System-level re-verification lookup for the background recheck pass.
+GRANT EXECUTE ON FUNCTION verifications_due_for_recheck(timestamptz) TO harizeon_app;
 
 -- Future tables/sequences created by the owner also grant to the app role.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO harizeon_app;

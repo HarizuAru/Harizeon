@@ -6,9 +6,11 @@ import { pool } from "./db";
 import { authRoutes } from "./routes/auth";
 import { orgRoutes } from "./routes/org";
 import { apiKeyRoutes } from "./routes/apiKeys";
+import { assetRoutes } from "./routes/assets";
 import { healthRoutes } from "./routes/health";
 import { authenticate, requireAuth } from "./plugins/auth";
 import { requestIdHook, errorHandler } from "./lib/errors";
+import { startVerificationRecheck } from "./lib/recheck";
 
 export async function buildServer() {
   const app = Fastify({
@@ -38,11 +40,12 @@ export async function buildServer() {
 
       // Protected routes in their own encapsulated context: requireAuth is added
       // BEFORE these register, so it can never leak onto the public routes.
-      // (route paths already include /org and /api-keys — no prefix here.)
+      // (route paths already include /org, /api-keys, /assets — no prefix here.)
       await v1.register(async (priv) => {
         priv.addHook("preHandler", requireAuth);
         await priv.register(orgRoutes);
         await priv.register(apiKeyRoutes);
+        await priv.register(assetRoutes);
       });
     },
     { prefix: "/v1" },
@@ -66,6 +69,8 @@ async function start() {
   const app = await buildServer();
   try {
     await app.listen({ port: config.PORT, host: "0.0.0.0" });
+    // Hourly ownership re-verification (background system task, not a request).
+    startVerificationRecheck();
   } catch (err) {
     app.log.error(err);
     process.exit(1);

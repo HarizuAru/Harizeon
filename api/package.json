@@ -9,8 +9,8 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts",
-    "test:integration": "node --import tsx --test test/integration.test.ts"
+    "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts src/lib/verify.test.ts",
+    "test:integration": "node --import tsx --test test/integration.test.ts test/assets.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.0",

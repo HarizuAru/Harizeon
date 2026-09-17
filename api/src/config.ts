@@ -9,6 +9,9 @@ const Env = z.object({
   HARIZEON_SESSION_SECRET: z.string().min(32).optional(),
   HARIZEON_MASTER_KEY: z.string().min(32).optional(),
   PUBLIC_API_BASE: z.string().url().default("http://localhost:8080"),
+  // Allow verification fetches to non-public hosts (loopback/test). NEVER true
+  // in production — the SSRF guard (§11) must stay enforced where it matters.
+  VERIFY_ALLOW_PRIVATE: z.coerce.boolean().default(false),
 });
 
 export const config = Env.parse(process.env);

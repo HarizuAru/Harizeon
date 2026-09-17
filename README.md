@@ -19,8 +19,30 @@ control plane for teams too small to have a security team.
   StatusBadge, PageHeader, EmptyState, StatTile — plus `/login` and the seven
   nav routes. Builds and lints clean.
 
-**Next: W02 tail + W03** — wire console login/signup to the API, then assets +
-ownership verification (the non-negotiable gate). See §16.
+**Next: W04** — the scan job pipeline (queue + worker container + phase state
+machine + live scan view). See §16.
+
+**W03 — Assets + ownership verification: done (API + console, proven live).**
+
+- Asset registry (§07 `assets`): CRUD with normalised values (hostnames lower-
+  cased, URLs canonicalised), criticality/tags, soft delete, cursor pagination.
+- **Ownership gate (§12, non-negotiable):** DNS `TXT` (`_harizeon-verify.<domain>`
+  = `harizeon-site-verification=<token>`) or an HTTP file at
+  `/.well-known/harizeon-verification.txt`; the check is pollable and stays
+  `pending` until proven. Creation and scanning of unverified assets is blocked.
+- `asset_verifications` lifecycle (pending/verified/failed/revoked) plus an hourly
+  re-verification pass (`api/src/lib/recheck.ts` + `0003_recheck.sql`): a lost
+  proof auto-revokes ownership and writes to `audit_log`.
+- SSRF guard (`isPublicHost`) so the control plane never fetches private/
+  loopback/link-local/metadata targets while verifying (relaxable only via
+  `VERIFY_ALLOW_PRIVATE`, for dev/tests, never in production).
+- Console wired to the API: `/login`, `/signup`, `/assets`, `/assets/new`,
+  `/assets/{id}`, `/assets/{id}/verify` via server-side `apiFetch` (forwards the
+  `hz_session` cookie), server actions, and an auth gate in the console layout.
+- **Proven:** `api/test/assets.test.ts` (CRUD + pagination + RLS isolation + HTTP
+  verification via a local server + recheck revoke) green against Postgres 16 as
+  the RLS-restricted app role; 32 unit tests; and the console flow rendered live
+  across the Next → API → DB path.
 
 **W02 — IAM: done (control-plane API + proven auth flow).**
 
@@ -37,8 +59,7 @@ ownership verification (the non-negotiable gate). See §16.
   `db/verify.sql` (cross-tenant isolation + append-only audit assertions).
 - Passwords are Argon2id (12-char minimum); session cookies are HttpOnly,
   Secure (in production), SameSite=Lax.
-- Email delivery is a dev-logging stub until the W09 notifier lands; the
-  console login/signup wiring to the API is the remaining W02 tail.
+- Email delivery is a dev-logging stub until the W09 notifier lands.
 
 ## Stack (§15)
 
@@ -54,7 +75,7 @@ ownership verification (the non-negotiable gate). See §16.
 db/migrations/     SQL schema, applied in filename order by db/migrate.sh
 db/verify.sql        Security invariants self-check (RLS isolation, append-only)
 docker-compose.yml Postgres + Redis + one-shot migrator
-api/               Fastify control-plane API (auth, orgs, api-keys)
+api/               Fastify control-plane API (auth, orgs, api-keys, assets)
 infra/db/          App-role provisioning (non-owner role + RLS grants)
 web/               Next.js console (marketing site arrives in W12)
 docs/              legal drafts + scanner engine licence audit
@@ -66,8 +87,16 @@ docs/              legal drafts + scanner engine licence audit
 ```sh
 cp .env.example .env
 docker compose up -d          # starts Postgres + Redis and applies migrations
-cd web && npm install && npm run dev   # http://localhost:3000  (/login, /dashboard)
+# API (control plane) — connects as the RLS app role:
+cd api && npm install
+DATABASE_URL=postgresql://harizeon_app:<pw>@localhost:5432/harizeon npm start
+# Console:
+cp web/.env.example web/.env.local   # HARIZEON_API_BASE (default http://localhost:8080)
+cd web && npm install && npm run dev   # http://localhost:3000  (/login, /signup, /assets)
 ```
+
+The app role is provisioned once after migrations:
+`DATABASE_URL=postgresql://harizeon:harizeon@localhost:5432/harizeon HARIZEON_APP_PASSWORD='<strong secret>' sh infra/db/create-app-role.sh`.
 
 Migrations are idempotent. To apply them without Docker:
 `DATABASE_URL=postgresql://... sh db/migrate.sh`.
@@ -84,6 +113,8 @@ traffic always uses the internal ports and is unaffected.
 
 - Web build (typegen + typecheck + Turbopack): `cd web && npm run build`
 - Web lint: `cd web && npm run lint`
+- Console end-to-end: with the API up, `curl -H "Cookie: hz_session=<token>" localhost:3000/assets`
+  renders assets fetched from the API/DB (and unauthenticated `/dashboard` lands on `/login`).
 - Schema: CI applies every migration against a real Postgres 16 service and
   asserts the append-only guard.
 - API typecheck/lint/unit: `cd api && npm run typecheck && npm run lint && npm test`

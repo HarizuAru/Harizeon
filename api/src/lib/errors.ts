@@ -41,6 +41,21 @@ export function errorHandler(error: Error, req: FastifyRequest, reply: FastifyRe
     });
   }
 
+  // Framework errors (e.g. FST_ERR_CTP_INVALID_MEDIA_TYPE for a missing
+  // Content-Type) carry their own statusCode — return it, don't 500.
+  const statusCode = (error as { statusCode?: unknown }).statusCode;
+  const code = (error as { code?: unknown }).code;
+  if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 600) {
+    return reply.status(statusCode).send({
+      error: {
+        code: typeof code === "string" ? code : "request_error",
+        message: error.message,
+        doc_url: "/docs/errors/request_error",
+        request_id: reqId,
+      },
+    });
+  }
+
   req.log.error({ err: error }, "unhandled error");
   return reply.status(500).send({
     error: { code: "internal_error", message: "Internal server error", doc_url: "/docs/errors/internal_error", request_id: reqId },

@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harizeon}
       POSTGRES_DB: ${POSTGRES_DB:-harizeon}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - dbdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -30,18 +30,17 @@ services:
       timeout: 3s
       retries: 12
 
-  # One-shot schema migrator. `docker compose up` applies pending migrations
-  # then exits; safe to re-run (the runner skips already-applied files).
+  # One-shot schema migrator. `docker compose up` builds it (migrations are
+  # copied into the image, so no host bind mount is needed), applies pending
+  # migrations, then exits. Safe to re-run (already-applied files are skipped).
   migrate:
-    image: postgres:16-alpine
+    build:
+      context: ./db
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-harizeon}:${POSTGRES_PASSWORD:-harizeon}@db:5432/${POSTGRES_DB:-harizeon}
-    volumes:
-      - ./db:/db:ro
-    entrypoint: ["sh", "/db/migrate.sh"]
     restart: "no"
 
 volumes:

@@ -1,0 +1,31 @@
+{
+  "name": "@harizeon/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Harizeon control-plane API (IAM, assets, scans, findings, billing).",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts",
+    "test:integration": "node --import tsx --test test/integration.test.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.0",
+    "@node-rs/argon2": "^2.0.0",
+    "fastify": "^5.0.0",
+    "pg": "^8.11.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.10.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "eslint": "^9.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

@@ -181,7 +181,7 @@ export async function updateAsset(
     sets.push(patch.ignored ? `ignored_at = now()` : `ignored_at = NULL`);
   }
   if (sets.length === 0) return getAsset(db, orgId, assetId);
-  sets.push(`last_seen_at = now()`, `updated_at = now()`);
+  sets.push(`updated_at = now()`);
   const res = await db.query<AssetRow>(
     `UPDATE assets SET ${sets.join(", ")} WHERE org_id = $1 AND id = $2 RETURNING ${ASSET_COLS}`,
     params,

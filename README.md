@@ -172,13 +172,15 @@ traffic always uses the internal ports and is unaffected.
 - Schema: CI applies every migration against a real Postgres 16 service and
   asserts the append-only guard.
 - API typecheck/lint/unit: `cd api && npm run typecheck && npm run lint && npm test`
-- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test`
+- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test heartbeat_test`
 - API integration (needs the stack up + app role): `cd api && npm run test:integration`
   with `DATABASE_URL` pointing at the `harizeon_app` role and `REDIS_URL` set;
   `db/verify.sql` asserts RLS tenant isolation and the append-only audit guard.
 - Live scan: `docker compose up -d --build` (db + redis + worker), run the API,
   create a scan, and watch it through the console or
   `curl -N "…/v1/scans/<id>/events"`.
+- One-command live smoke test (against a running api + worker):
+  `cd api && API_BASE=http://localhost:8080 DATABASE_URL=postgresql://harizeon_app:<pw>@localhost:5432/harizeon DOMAIN=example.com node scripts/e2e-demo.mjs`
 
 ## Non-negotiables
 

@@ -5,6 +5,9 @@ import assert from "node:assert/strict";
 // queue, inheritance, and injection rejection. Requires DATABASE_URL + REDIS_URL.
 const DATABASE_URL = process.env.DATABASE_URL;
 
+// Keep test jobs/events off a running worker's queue.
+process.env.HARIZEON_QUEUE_PREFIX = "test:";
+
 test("discovery ingest + inheritance", { skip: !DATABASE_URL }, async () => {
   const { buildServer } = await import("../src/server");
   const { scanQueue } = await import("../src/services/scanQueue");
@@ -19,6 +22,7 @@ test("discovery ingest + inheritance", { skip: !DATABASE_URL }, async () => {
   const password = "correct-horse-battery-99";
   const orgSlug = `disc-${stamp}`;
   const domain = `disc-${stamp}.example.com`;
+  let orgId = "";
 
   try {
     const signup = await app.inject({
@@ -28,7 +32,8 @@ test("discovery ingest + inheritance", { skip: !DATABASE_URL }, async () => {
     });
     assert.equal(signup.statusCode, 201, signup.body);
     const login = await app.inject({ method: "POST", url: "/v1/auth/login", payload: { email, password } });
-    const orgId = login.json().org.id as string;
+    const orgId0 = login.json().org.id as string;
+    orgId = orgId0;
     const cookie = `hz_session=${login.cookies!.find((c) => c.name === "hz_session")!.value}`;
     const authed = (method: string, url: string, payload?: unknown) =>
       app.inject({ method: method as "GET" | "POST" | "PATCH", url, headers: { cookie }, payload: payload as never });
@@ -104,6 +109,21 @@ test("discovery ingest + inheritance", { skip: !DATABASE_URL }, async () => {
     assert.equal(rejected.statusCode, 400);
     assert.equal(rejected.json().error.code, "asset_not_verified");
   } finally {
+    // Leave no in-flight scans, or the dev reaper would requeue them into the
+    // production stream (tests share the database with a running API).
+    if (orgId) {
+      try {
+        await withTx(async (c) => {
+          await c.query(
+            `UPDATE scans SET status='cancelled', finished_at=now(), updated_at=now()
+             WHERE org_id=$1 AND status IN ('queued','claimed','running')`,
+            [orgId],
+          );
+        }, orgId);
+      } catch {
+        /* best effort */
+      }
+    }
     await app.close();
     await (await import("../src/db")).pool.end();
     (await import("../src/lib/redis")).redis.disconnect();

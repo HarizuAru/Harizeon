@@ -6,6 +6,7 @@ import { createServer, type Server } from "node:http";
 // Requires DATABASE_URL (harizeon_app role). Skipped when unset.
 const DATABASE_URL = process.env.DATABASE_URL;
 process.env.VERIFY_ALLOW_PRIVATE = "true";
+process.env.HARIZEON_QUEUE_PREFIX = "test:";
 
 test("Assets + verification end-to-end", { skip: !DATABASE_URL }, async () => {
   const { buildServer } = await import("../src/server");

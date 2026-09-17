@@ -5,6 +5,9 @@ const Env = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
+  // Namespaces the Redis Streams keys so tests never touch a running worker's
+  // queue (e.g. "test:").
+  HARIZEON_QUEUE_PREFIX: z.string().default(""),
   COOKIE_SECURE: z.coerce.boolean().default(false),
   COOKIE_DOMAIN: z.string().optional(),
   HARIZEON_SESSION_SECRET: z.string().min(32).optional(),

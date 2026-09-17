@@ -50,6 +50,8 @@ export interface ScanQueue {
   ackJob(id: string): Promise<void>;
   publish(ev: WorkerEvent): Promise<void>;
   consumeEvents(consumer: string, count: number): Promise<{ id: string; event: WorkerEvent }[]>;
+  /** Re-deliver events left pending by a failed/crashed ingest (at-least-once). */
+  reclaimEvents(consumer: string, minIdleMs: number, count: number): Promise<{ id: string; event: WorkerEvent }[]>;
   ackEvent(id: string): Promise<void>;
   setHeartbeat(scanId: string, ttlSeconds: number): Promise<void>;
   isAlive(scanId: string): Promise<boolean>;
@@ -133,6 +135,10 @@ export class MemoryScanQueue implements ScanQueue {
     return this.events.splice(0, count);
   }
 
+  async reclaimEvents(_consumer: string, _minIdleMs: number, _count: number): Promise<{ id: string; event: WorkerEvent }[]> {
+    return []; // the in-memory adapter never leaves anything pending
+  }
+
   async ackEvent(_id: string): Promise<void> {}
 
   async setHeartbeat(scanId: string, ttlSeconds: number): Promise<void> {
@@ -176,12 +182,18 @@ function parseReadGroup(res: unknown): { id: string; fields: Record<string, stri
 
 /** Redis Streams adapter (production). */
 export class RedisScanQueue implements ScanQueue {
-  constructor(private readonly redis: Redis) {}
+  private readonly jobs: string;
+  private readonly events: string;
+
+  constructor(private readonly redis: Redis, prefix = "") {
+    this.jobs = prefix + JOBS_STREAM;
+    this.events = prefix + EVENTS_STREAM;
+  }
 
   async ready(): Promise<void> {
     const streams: [string, string][] = [
-      [JOBS_STREAM, WORKERS_GROUP],
-      [EVENTS_STREAM, INGEST_GROUP],
+      [this.jobs, WORKERS_GROUP],
+      [this.events, INGEST_GROUP],
     ];
     for (const [stream, group] of streams) {
       try {
@@ -193,49 +205,75 @@ export class RedisScanQueue implements ScanQueue {
   }
 
   async enqueue(job: ScanJob): Promise<void> {
-    await this.redis.xadd(JOBS_STREAM, "*", ...flat(serialise(job as unknown as Record<string, unknown>)));
+    await this.redis.xadd(this.jobs, "*", ...flat(serialise(job as unknown as Record<string, unknown>)));
   }
 
   async claimJobs(consumer: string, count: number): Promise<{ id: string; job: ScanJob }[]> {
-    const res = await this.redis.xreadgroup(
-      "GROUP", WORKERS_GROUP, consumer, "COUNT", count, "STREAMS", JOBS_STREAM, ">",
+    const res = await this.withGroupRecovery(() =>
+      this.redis.xreadgroup("GROUP", WORKERS_GROUP, consumer, "COUNT", count, "STREAMS", this.jobs, ">"),
     );
     const out: { id: string; job: ScanJob }[] = [];
     for (const { id, fields } of parseReadGroup(res)) {
       try {
         out.push({ id, job: parseJob(fields) });
       } catch {
-        await this.redis.xack(JOBS_STREAM, WORKERS_GROUP, id); // drop poison
+        await this.redis.xack(this.jobs, WORKERS_GROUP, id); // drop poison
       }
     }
     return out;
   }
 
   async ackJob(id: string): Promise<void> {
-    await this.redis.xack(JOBS_STREAM, WORKERS_GROUP, id);
+    await this.redis.xack(this.jobs, WORKERS_GROUP, id);
   }
 
   async publish(ev: WorkerEvent): Promise<void> {
-    await this.redis.xadd(EVENTS_STREAM, "*", ...flat(serialise(ev as unknown as Record<string, unknown>)));
+    await this.redis.xadd(this.events, "*", ...flat(serialise(ev as unknown as Record<string, unknown>)));
   }
 
   async consumeEvents(consumer: string, count: number): Promise<{ id: string; event: WorkerEvent }[]> {
-    const res = await this.redis.xreadgroup(
-      "GROUP", INGEST_GROUP, consumer, "COUNT", count, "STREAMS", EVENTS_STREAM, ">",
+    const res = await this.withGroupRecovery(() =>
+      this.redis.xreadgroup("GROUP", INGEST_GROUP, consumer, "COUNT", count, "STREAMS", this.events, ">"),
     );
+    return this.mapEvents(res);
+  }
+
+  async reclaimEvents(consumer: string, minIdleMs: number, count: number): Promise<{ id: string; event: WorkerEvent }[]> {
+    // Re-deliver messages a previous ingest pass failed to ack (at-least-once).
+    const res = (await this.withGroupRecovery(() =>
+      this.redis.xautoclaim(this.events, INGEST_GROUP, consumer, minIdleMs, "0-0", "COUNT", count),
+    )) as unknown as [string, [string, string[]][], string[]];
+    const entries = Array.isArray(res?.[1]) ? res[1] : [];
+    return this.mapEvents([[this.events, entries]]);
+  }
+
+  /** Recreate streams/groups if they were removed (NOGROUP) and retry once. */
+  private async withGroupRecovery<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e: unknown) {
+      if (String((e as Error)?.message ?? "").includes("NOGROUP")) {
+        await this.ready();
+        return await fn();
+      }
+      throw e;
+    }
+  }
+
+  private async mapEvents(res: unknown): Promise<{ id: string; event: WorkerEvent }[]> {
     const out: { id: string; event: WorkerEvent }[] = [];
     for (const { id, fields } of parseReadGroup(res)) {
       try {
         out.push({ id, event: parseEvent(fields) });
       } catch {
-        await this.redis.xack(EVENTS_STREAM, INGEST_GROUP, id); // drop poison
+        await this.redis.xack(this.events, INGEST_GROUP, id); // drop poison
       }
     }
     return out;
   }
 
   async ackEvent(id: string): Promise<void> {
-    await this.redis.xack(EVENTS_STREAM, INGEST_GROUP, id);
+    await this.redis.xack(this.events, INGEST_GROUP, id);
   }
 
   async setHeartbeat(scanId: string, ttlSeconds: number): Promise<void> {

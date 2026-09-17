@@ -101,6 +101,20 @@ class DiscoverTests(unittest.TestCase):
         capped = candidate_subdomains("example.com", many)
         self.assertLessEqual(len(capped), MAX_SUBDOMAINS)
 
+    def test_resolution_budget_caps_lookups(self):
+        a_calls = {"n": 0}
+
+        def dns(name, rtype):
+            if rtype == "A":
+                a_calls["n"] += 1
+                return ["1.2.3.4"]
+            return []
+
+        out = discover("example.com", lambda _url: (200, "[]"), dns, max_resolutions=3)
+        # 1 root A lookup + at most 3 candidate A lookups
+        self.assertLessEqual(a_calls["n"], 4)
+        self.assertLessEqual(len(out["subdomains"]), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

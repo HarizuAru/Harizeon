@@ -6,6 +6,9 @@ import assert from "node:assert/strict";
 // Skipped when DATABASE_URL is unset so `npm test` stays DB-free.
 const DATABASE_URL = process.env.DATABASE_URL;
 
+// Keep test jobs/events off a running worker's queue.
+process.env.HARIZEON_QUEUE_PREFIX = "test:";
+
 test("IAM end-to-end under RLS", { skip: !DATABASE_URL }, async () => {
   const { buildServer } = await import("../src/server");
   const app = await buildServer();

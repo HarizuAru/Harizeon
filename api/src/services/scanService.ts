@@ -49,8 +49,10 @@ async function applyDiscovered(client: Queryable, ev: WorkerEvent): Promise<void
     );
     parentValue = p.rows[0]?.value ?? null;
   }
-  const accepted = parentValue
-    ? entries.filter((e) => e.fqdn.endsWith("." + parentValue))
+  const accepted = parentId
+    ? parentValue
+      ? entries.filter((e) => e.fqdn.endsWith("." + parentValue))
+      : [] // unknown parent in this org -> reject the batch entirely
     : entries;
 
   let created = 0;
@@ -171,6 +173,10 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
  * cannot resurrect a cancelled/finished scan.
  */
 export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<void> {
+  // Ignore events for scans that no longer exist (avoids FK poison messages).
+  const exists = await client.query(`SELECT 1 FROM scans WHERE id = $1`, [ev.scan_id]);
+  if ((exists.rowCount ?? 0) === 0) return;
+
   if (ev.kind === "discovered") {
     await applyDiscovered(client, ev);
     return;

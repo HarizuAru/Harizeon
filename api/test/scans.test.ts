@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 const DATABASE_URL = process.env.DATABASE_URL;
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 process.env.VERIFY_ALLOW_PRIVATE = "true";
+process.env.HARIZEON_QUEUE_PREFIX = "test:";
 
 test("scan job pipeline end-to-end", { skip: !DATABASE_URL }, async () => {
   const { buildServer } = await import("../src/server");
@@ -22,6 +23,7 @@ test("scan job pipeline end-to-end", { skip: !DATABASE_URL }, async () => {
   const email = `scan${stamp}@example.com`;
   const password = "correct-horse-battery-99";
   const orgSlug = `scan-${stamp}`;
+  let orgId = "";
 
   try {
     const signup = await app.inject({
@@ -32,7 +34,8 @@ test("scan job pipeline end-to-end", { skip: !DATABASE_URL }, async () => {
     assert.equal(signup.statusCode, 201, signup.body);
     const login = await app.inject({ method: "POST", url: "/v1/auth/login", payload: { email, password } });
     assert.equal(login.statusCode, 200, login.body);
-    const orgId = login.json().org.id as string;
+    const orgId0 = login.json().org.id as string;
+    orgId = orgId0;
     const cookie = `hz_session=${login.cookies!.find((c) => c.name === "hz_session")!.value}`;
 
     const authed = (method: string, url: string, payload?: unknown) =>
@@ -129,7 +132,39 @@ test("scan job pipeline end-to-end", { skip: !DATABASE_URL }, async () => {
     const a3 = await authed("GET", `/v1/scans/${s4id}`);
     assert.equal(a3.json().scan.status, "timeout");
     assert.equal(a3.json().scan.error_code, "worker_timeout");
+
+    // An event for a scan that does not exist is ignored, not an FK poison.
+    await scanQueue.publish({
+      scan_id: "00000000-0000-0000-0000-000000000000",
+      org_id: orgId,
+      kind: "event",
+      phase: "probe",
+      level: "info",
+      message: "ghost",
+    });
+    let threw = false;
+    try {
+      await runIngestOnce(scanQueue);
+    } catch {
+      threw = true;
+    }
+    assert.equal(threw, false, "a missing-scan event must not throw");
   } finally {
+    // Leave no in-flight scans, or the dev reaper would requeue them into the
+    // production stream (tests share the database with a running API).
+    if (orgId) {
+      try {
+        await withTx(async (c) => {
+          await c.query(
+            `UPDATE scans SET status='cancelled', finished_at=now(), updated_at=now()
+             WHERE org_id=$1 AND status IN ('queued','claimed','running')`,
+            [orgId],
+          );
+        }, orgId);
+      } catch {
+        /* best effort */
+      }
+    }
     await app.close();
     await (await import("../src/db")).pool.end();
     (await import("../src/lib/redis")).redis.disconnect();

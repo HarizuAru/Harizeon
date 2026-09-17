@@ -9,6 +9,7 @@ env:
   WORKER_NAME      default worker-<hostname>
   SCAN_STEP_MS     delay per phase (default 600; tests use 0)
   SCAN_HB_TTL      heartbeat key TTL seconds (default 20)
+  SCAN_HB_EVERY    heartbeat interval seconds (default 5)
 """
 
 import json
@@ -22,6 +23,7 @@ import redis
 
 import adapters
 import discovery
+from heartbeat import Heartbeat
 from phases import PHASES, phase_message, planned_phases, progress_for_phase
 
 JOBS_STREAM = "harizeon:scans:jobs"
@@ -103,7 +105,7 @@ def run_discovery(r, scan_id, org_id, targets):
     return total
 
 
-def process(r, fields, step_ms, hb_ttl):
+def process(r, fields, step_ms, hb_ttl, hb_every):
     scan_id = fields["scan_id"]
     org_id = fields["org_id"]
     profile = fields["profile"]
@@ -112,26 +114,26 @@ def process(r, fields, step_ms, hb_ttl):
 
     publish(r, {"scan_id": scan_id, "org_id": org_id, "kind": "status", "status": "claimed", "attempt": attempt})
 
-    discovered_total = 0
-    for phase in planned_phases(profile):
-        if is_cancelled(r, scan_id):
-            terminal(r, org_id, scan_id, "cancelled")
-            return
-        heartbeat(r, scan_id, hb_ttl)
+    with Heartbeat(lambda: heartbeat(r, scan_id, hb_ttl), hb_every):
+        discovered_total = 0
+        for phase in planned_phases(profile):
+            if is_cancelled(r, scan_id):
+                terminal(r, org_id, scan_id, "cancelled")
+                return
 
-        if phase == "discover":
-            discovered_total = run_discovery(r, scan_id, org_id, targets)
-        elif phase == "resolve":
-            log(r, scan_id, org_id, "resolve", "resolve: %d hostname(s) resolved" % discovered_total)
-        else:
-            log(r, scan_id, org_id, phase, phase_message(phase, targets))
+            if phase == "discover":
+                discovered_total = run_discovery(r, scan_id, org_id, targets)
+            elif phase == "resolve":
+                log(r, scan_id, org_id, "resolve", "resolve: %d hostname(s) resolved" % discovered_total)
+            else:
+                log(r, scan_id, org_id, phase, phase_message(phase, targets))
 
-        publish(r, {
-            "scan_id": scan_id, "org_id": org_id, "kind": "status", "status": "running",
-            "phase": phase, "progress_pct": progress_for_phase(phase),
-        })
-        if step_ms:
-            time.sleep(step_ms / 1000.0)
+            publish(r, {
+                "scan_id": scan_id, "org_id": org_id, "kind": "status", "status": "running",
+                "phase": phase, "progress_pct": progress_for_phase(phase),
+            })
+            if step_ms:
+                time.sleep(step_ms / 1000.0)
 
     terminal(r, org_id, scan_id, "completed")
 
@@ -140,6 +142,7 @@ def main():
     url = os.environ.get("REDIS_URL", "redis://localhost:6379")
     step_ms = float(os.environ.get("SCAN_STEP_MS", "600"))
     hb_ttl = int(os.environ.get("SCAN_HB_TTL", "20"))
+    hb_every = float(os.environ.get("SCAN_HB_EVERY", "5"))
     consumer = os.environ.get("WORKER_NAME", "worker-%s" % socket.gethostname())
 
     r = redis.Redis.from_url(url, decode_responses=True)
@@ -155,18 +158,35 @@ def main():
 
     print("worker %s ready (phases=%s)" % (consumer, ",".join(PHASES)), flush=True)
     while not stopping["flag"]:
-        resp = r.xreadgroup(WORKERS_GROUP, consumer, {JOBS_STREAM: ">"}, count=1, block=2000)
+        try:
+            resp = r.xreadgroup(WORKERS_GROUP, consumer, {JOBS_STREAM: ">"}, count=1, block=2000)
+        except redis.exceptions.ResponseError as exc:
+            # The stream or consumer group was removed (admin DEL, Redis restart,
+            # flush). Recreate it and keep going instead of crash-looping.
+            if "NOGROUP" in str(exc):
+                print("consumer group missing; recreating", file=sys.stderr, flush=True)
+                ensure_group(r)
+                continue
+            raise
+        except redis.exceptions.RedisError as exc:
+            print("redis error: %s" % exc, file=sys.stderr, flush=True)
+            time.sleep(1)
+            continue
+
         if not resp:
             continue
         for _stream, entries in resp:
             for entry_id, fields in entries:
                 try:
-                    process(r, fields, step_ms, hb_ttl)
+                    process(r, fields, step_ms, hb_ttl, hb_every)
                 except Exception as exc:  # noqa: BLE001 - one bad job must not kill the worker
                     print("job failed: %s" % exc, file=sys.stderr, flush=True)
                     terminal(r, fields.get("org_id", ""), fields.get("scan_id", ""), "failed", str(exc))
                 finally:
-                    r.xack(JOBS_STREAM, WORKERS_GROUP, entry_id)
+                    try:
+                        r.xack(JOBS_STREAM, WORKERS_GROUP, entry_id)
+                    except redis.exceptions.RedisError as exc:
+                        print("ack failed: %s" % exc, file=sys.stderr, flush=True)
     print("worker %s stopped" % consumer, flush=True)
 
 

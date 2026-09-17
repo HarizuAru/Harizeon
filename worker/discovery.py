@@ -10,8 +10,12 @@ subdomains, DNS records for the root, and RDAP (the JSON successor to WHOIS).
 
 import json
 import re
+import time
 
 MAX_SUBDOMAINS = 200
+# Bounds so one huge/slow domain cannot tie a worker up for minutes.
+MAX_RESOLUTIONS = 80
+RESOLVE_BUDGET_SECONDS = 30.0
 
 COMMON_SUBDOMAINS = [
     "www", "api", "app", "dev", "staging", "test", "admin", "mail", "smtp", "imap",
@@ -98,11 +102,14 @@ def candidate_subdomains(domain, ct_names):
     return sorted(names)[:MAX_SUBDOMAINS]
 
 
-def discover(domain, http_get, dns_lookup):
+def discover(domain, http_get, dns_lookup, max_resolutions=MAX_RESOLUTIONS, budget_seconds=RESOLVE_BUDGET_SECONDS):
     """Return {"domain", "records", "whois", "subdomains"}. Never raises.
 
     http_get(url) -> (status:int, body:str)
     dns_lookup(name, rtype) -> list[str]   (rtype in A/AAAA/MX/NS/TXT)
+
+    Candidate resolution is bounded by `max_resolutions` and a wall-clock budget
+    so a domain with hundreds of CT entries cannot stall the worker.
     """
     domain = normalise_domain(domain)
     result = {"domain": domain, "records": {}, "whois": {}, "subdomains": []}
@@ -131,7 +138,12 @@ def discover(domain, http_get, dns_lookup):
         pass
 
     found = []
+    started = time.monotonic()
+    resolutions = 0
     for name in candidate_subdomains(domain, ct_names):
+        if resolutions >= max_resolutions or (time.monotonic() - started) > budget_seconds:
+            break
+        resolutions += 1
         try:
             ips = dns_lookup(name, "A")
         except Exception:  # noqa: BLE001

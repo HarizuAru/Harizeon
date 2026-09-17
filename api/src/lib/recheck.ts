@@ -7,6 +7,7 @@ import {
   httpFileUrl,
   VERIFY_HTTP_PATH,
   isPublicHost,
+  autoVerifiable,
 } from "./verify";
 
 export type DueVerification = {
@@ -30,11 +31,14 @@ export async function dueVerifications(db: Queryable, cutoff: Date): Promise<Due
 }
 
 async function recheckOne(v: DueVerification): Promise<boolean> {
+  // Only auto-verifiable types can be re-proven. Anything else (e.g. ip, which is
+  // authorized manually) is left as-is rather than wrongfully revoked.
+  if (!autoVerifiable(v.asset_type)) return true;
   if (v.method === "dns_txt") {
-    if (v.asset_type !== "domain" && v.asset_type !== "subdomain") return false;
+    if (v.asset_type !== "domain" && v.asset_type !== "subdomain") return true;
     return (await checkDnsTxt(v.asset_value, v.token)).ok;
   }
-  if (v.method !== "http_file") return false;
+  if (v.method !== "http_file") return true;
   let url: string;
   let host: string;
   if (v.asset_type === "url") {
@@ -43,13 +47,11 @@ async function recheckOne(v: DueVerification): Promise<boolean> {
       host = new URL(v.asset_value).hostname;
       url = origin + VERIFY_HTTP_PATH;
     } catch {
-      return false;
+      return true;
     }
-  } else if (v.asset_type === "domain" || v.asset_type === "subdomain" || v.asset_type === "ip") {
+  } else {
     host = v.asset_value;
     url = httpFileUrl(v.asset_value);
-  } else {
-    return false;
   }
   // SSRF guard (§11): a target that is no longer public cannot be re-proven;
   // skip it (kept verified, backed off) rather than wrongfully revoking.

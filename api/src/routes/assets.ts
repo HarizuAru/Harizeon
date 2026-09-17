@@ -26,6 +26,7 @@ import {
   checkHttpFile,
   hostnameForVerification,
   methodAllowedForType,
+  requiresManualReview,
   isPublicHost,
 } from "../lib/verify";
 import { writeAudit } from "../lib/audit";
@@ -44,6 +45,8 @@ const CreateAssetBody = z.object({
 const ListQuery = z.object({
   type: AssetTypeEnum.optional(),
   q: z.string().max(256).optional(),
+  criticality: CriticalityEnum.optional(),
+  verified: z.enum(["yes", "no"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
 });
@@ -182,6 +185,12 @@ export async function assetRoutes(app: FastifyInstance) {
       const asset = await getAsset(client, orgId, id);
       if (!asset) throw notFound("asset_not_found", "Asset not found");
       if (!asset.is_active) throw badRequest("asset_inactive", "Asset is retired");
+      if (requiresManualReview(asset.type)) {
+        throw badRequest(
+          "verification_manual_review_required",
+          "IP assets are authorized manually (reverse DNS + signed form), not automatically. Contact support to have this IP reviewed.",
+        );
+      }
       if (!methodAllowedForType(method, asset.type)) {
         throw badRequest("method_not_supported", `Method ${method} is not supported for asset type ${asset.type}`);
       }

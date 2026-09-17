@@ -3,10 +3,7 @@
 import { useActionState } from "react";
 import { loginAction } from "@/lib/auth-actions";
 import { Button } from "@/components/ui/button";
-
-export const inputClass =
-  "h-10 w-full border border-line bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-ink";
-export const labelClass = "text-xs font-medium uppercase tracking-[0.08em] text-muted";
+import { inputClass, labelClass } from "@/lib/ui";
 
 export function LoginForm() {
   const [state, action, pending] = useActionState(loginAction, null);

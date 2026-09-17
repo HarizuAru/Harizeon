@@ -116,6 +116,13 @@ test("Assets + verification end-to-end", { skip: !DATABASE_URL }, async () => {
     });
     assert.equal(badMethod.statusCode, 400);
 
+    // §12.2: IP assets are NOT auto-verifiable — even HTTP file requires manual review
+    const ipHttp = await authed(A.cookie, {
+      method: "POST", url: `/v1/assets/${ipCreate.json().asset.id}/verification`, payload: { method: "http_file" },
+    });
+    assert.equal(ipHttp.statusCode, 400);
+    assert.equal(ipHttp.json().error.code, "verification_manual_review_required");
+
     // DNS check on a non-existent record → stays pending with a reason
     const checkDns = await authed(A.cookie, {
       method: "POST", url: `/v1/assets/${assetId}/verification/check`,

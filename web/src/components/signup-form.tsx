@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { signupAction } from "@/lib/auth-actions";
 import { Button } from "@/components/ui/button";
-import { inputClass, labelClass } from "@/components/login-form";
+import { inputClass, labelClass } from "@/lib/ui";
 
 export function SignupForm() {
   const [state, action, pending] = useActionState(signupAction, null);

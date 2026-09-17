@@ -93,11 +93,20 @@ export function decodeCursor(cursor: string): { created_at: string; id: string }
   }
 }
 
+export type AssetListRow = AssetRow & { verification_status: string | null };
+
 export async function listAssets(
   db: Queryable,
   orgId: string,
-  opts: { type?: AssetType; q?: string; limit?: number; cursor?: string },
-): Promise<{ data: AssetRow[]; next_cursor: string | null; has_more: boolean }> {
+  opts: {
+    type?: AssetType;
+    q?: string;
+    criticality?: Criticality;
+    verified?: "yes" | "no";
+    limit?: number;
+    cursor?: string;
+  },
+): Promise<{ data: AssetListRow[]; next_cursor: string | null; has_more: boolean }> {
   const lim = Math.min(Math.max(opts.limit ?? 50, 1), 100);
   const params: unknown[] = [orgId];
   let where = `org_id = $1 AND is_active = true`;
@@ -105,9 +114,19 @@ export async function listAssets(
     params.push(opts.type);
     where += ` AND type = $${params.length}`;
   }
+  if (opts.criticality) {
+    params.push(opts.criticality);
+    where += ` AND criticality = $${params.length}`;
+  }
   if (opts.q) {
     params.push(`%${opts.q}%`);
     where += ` AND value ILIKE $${params.length}`;
+  }
+  if (opts.verified === "yes") {
+    where += ` AND EXISTS (SELECT 1 FROM asset_verifications v WHERE v.asset_id = assets.id AND v.status = 'verified')`;
+  }
+  if (opts.verified === "no") {
+    where += ` AND NOT EXISTS (SELECT 1 FROM asset_verifications v WHERE v.asset_id = assets.id AND v.status = 'verified')`;
   }
   if (opts.cursor) {
     const c = decodeCursor(opts.cursor);
@@ -116,8 +135,11 @@ export async function listAssets(
     where += ` AND (created_at, id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`;
   }
   params.push(lim + 1);
-  const res = await db.query<AssetRow>(
-    `SELECT ${ASSET_COLS} FROM assets WHERE ${where}
+  const res = await db.query<AssetListRow>(
+    `SELECT ${ASSET_COLS},
+       (SELECT v.status::text FROM asset_verifications v
+         WHERE v.asset_id = assets.id ORDER BY v.created_at DESC LIMIT 1) AS verification_status
+     FROM assets WHERE ${where}
      ORDER BY created_at DESC, id DESC LIMIT $${params.length}`,
     params,
   );

@@ -146,6 +146,27 @@ export function VerifyFlow({ assetId, assetValue, assetType, initial }: Props) {
     );
   }
 
+  if (assetType === "ip") {
+    return (
+      <div className="flex max-w-2xl flex-col gap-4 border border-line bg-canvas p-6">
+        <StatusBadge>Manual review required</StatusBadge>
+        <p className="text-sm text-muted">
+          IP assets are not verified automatically. Authorizing an IP needs reverse DNS plus a
+          signed authorization form, reviewed by a human — so an automated verification request
+          for this asset is rejected.
+        </p>
+        <p className="font-mono text-xs text-faint">
+          To authorize this IP, contact support@harizeon.com with proof of control.
+        </p>
+        <div>
+          <Link href={`/assets/${assetId}`} className="text-sm font-medium text-ink underline">
+            Back to asset
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const token = verification && "token" in verification ? (verification.token as string | undefined) : undefined;
   const showInstructions = verification?.status === "pending" && token;
   const instructions =

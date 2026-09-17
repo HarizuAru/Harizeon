@@ -10,6 +10,8 @@ import {
   hostnameForVerification,
   methodAllowedForType,
   isPublicHost,
+  autoVerifiable,
+  requiresManualReview,
   VERIFY_TXT_PREFIX,
 } from "./verify";
 
@@ -116,11 +118,19 @@ describe("asset type / method matrix", () => {
     assert.strictEqual(methodAllowedForType("dns_txt", "bogus"), false);
   });
 
-  test("HTTP file for domain/subdomain/url/ip", () => {
-    for (const t of ["domain", "subdomain", "url", "ip"]) {
+  test("HTTP file for domain/subdomain/url, NOT ip (§12.2 manual review)", () => {
+    for (const t of ["domain", "subdomain", "url"]) {
       assert.strictEqual(methodAllowedForType("http_file", t), true);
     }
+    assert.strictEqual(methodAllowedForType("http_file", "ip"), false);
     assert.strictEqual(methodAllowedForType("http_file", "bogus"), false);
+  });
+
+  test("autoVerifiable / requiresManualReview", () => {
+    for (const t of ["domain", "subdomain", "url"]) assert.strictEqual(autoVerifiable(t), true);
+    assert.strictEqual(autoVerifiable("ip"), false);
+    assert.strictEqual(requiresManualReview("ip"), true);
+    assert.strictEqual(requiresManualReview("domain"), false);
   });
 
   test("hostname extraction", () => {

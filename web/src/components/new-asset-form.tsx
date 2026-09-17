@@ -3,9 +3,7 @@
 import { useActionState } from "react";
 import { createAssetAction } from "@/lib/asset-actions";
 import { Button } from "@/components/ui/button";
-import { inputClass, labelClass } from "@/components/login-form";
-
-const selectClass = `${inputClass} pr-2`;
+import { inputClass, labelClass, selectClass } from "@/lib/ui";
 
 export function NewAssetForm() {
   const [state, action, pending] = useActionState(createAssetAction, null);

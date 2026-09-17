@@ -30,6 +30,9 @@ machine + live scan view). See §16.
   = `harizeon-site-verification=<token>`) or an HTTP file at
   `/.well-known/harizeon-verification.txt`; the check is pollable and stays
   `pending` until proven. Creation and scanning of unverified assets is blocked.
+  **IP assets are not auto-verifiable** (§12.2): authorizing an IP needs reverse
+  DNS + a signed form and a human, so automated verification of an `ip` asset is
+  rejected (`verification_manual_review_required`).
 - `asset_verifications` lifecycle (pending/verified/failed/revoked) plus an hourly
   re-verification pass (`api/src/lib/recheck.ts` + `0003_recheck.sql`): a lost
   proof auto-revokes ownership and writes to `audit_log`.
@@ -39,10 +42,13 @@ machine + live scan view). See §16.
 - Console wired to the API: `/login`, `/signup`, `/assets`, `/assets/new`,
   `/assets/{id}`, `/assets/{id}/verify` via server-side `apiFetch` (forwards the
   `hz_session` cookie), server actions, and an auth gate in the console layout.
+  The assets list has the §9.2 filter bar (search / type / criticality /
+  verified), a Verified column, and cursor pagination.
 - **Proven:** `api/test/assets.test.ts` (CRUD + pagination + RLS isolation + HTTP
   verification via a local server + recheck revoke) green against Postgres 16 as
-  the RLS-restricted app role; 32 unit tests; and the console flow rendered live
-  across the Next → API → DB path.
+  the RLS-restricted app role; 33 unit tests; and the console flow rendered live
+  across the Next → API → DB path (filter bar, `type`/`q` filtering, and the IP
+  manual-review notice all confirmed via HTTP).
 
 **W02 — IAM: done (control-plane API + proven auth flow).**
 

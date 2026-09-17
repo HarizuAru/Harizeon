@@ -102,11 +102,24 @@ export function hostnameForVerification(type: string, value: string): string | n
   return null;
 }
 
-/** DNS TXT is meaningless for IPs; HTTP file works wherever a web server answers. */
+/**
+ * Types whose ownership can be proven automatically (DNS TXT / HTTP file).
+ * `ip` is deliberately excluded: §12.2 requires IP authorization to go through
+ * manual review (reverse DNS + a signed authorization form), NOT automation.
+ */
+export function autoVerifiable(type: string): boolean {
+  return type === "domain" || type === "subdomain" || type === "url";
+}
+
+export function requiresManualReview(type: string): boolean {
+  return type === "ip";
+}
+
+/** DNS TXT only makes sense for hostnames; HTTP file where a web server answers. */
 export function methodAllowedForType(method: string, type: string): boolean {
+  if (!autoVerifiable(type)) return false;
   if (method === "dns_txt") return type === "domain" || type === "subdomain";
-  if (method === "http_file")
-    return type === "domain" || type === "subdomain" || type === "url" || type === "ip";
+  if (method === "http_file") return true; // domain | subdomain | url
   return false;
 }
 

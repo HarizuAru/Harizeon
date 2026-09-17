@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { apiFetch, ApiError } from "./api";
 
 export type AssetActionState = { error?: string } | null;
@@ -69,5 +70,25 @@ export async function checkVerificationAction(
     if (e instanceof ApiError && e.status === 401) redirect("/login");
     if (e instanceof ApiError) return { error: e.message };
     return { error: "Cannot reach the API. Is it running?" };
+  }
+}
+
+/** Review a discovered subdomain: add it to scope, or ignore it. */
+export async function setDiscoveryScopeAction(
+  parentId: string,
+  childId: string,
+  inScope: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await apiFetch(`/assets/${childId}`, {
+      method: "PATCH",
+      body: inScope ? { is_active: true } : { ignored: true },
+    });
+    revalidatePath(`/assets/${parentId}`);
+    return { ok: true };
+  } catch (e: unknown) {
+    if (e instanceof ApiError && e.status === 401) redirect("/login");
+    if (e instanceof ApiError) return { ok: false, error: e.message };
+    return { ok: false, error: "Cannot reach the API. Is it running?" };
   }
 }

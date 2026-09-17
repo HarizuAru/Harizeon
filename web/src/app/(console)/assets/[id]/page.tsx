@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
+import { DiscoveredList, type DiscoveredChild } from "@/components/discovered-list";
 import { apiFetch, ApiError } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Asset" };
@@ -54,6 +55,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   }
 
   const { asset, verification } = detail;
+
+  let discovered: DiscoveredChild[] = [];
+  try {
+    discovered = (await apiFetch<{ data: DiscoveredChild[] }>(`/assets/${id}/discovered`)).data;
+  } catch (e: unknown) {
+    if (e instanceof ApiError && e.status === 401) redirect("/login");
+  }
   const verified = verification?.status === "verified";
 
   return (
@@ -99,6 +107,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           to enable scanning.
         </p>
       ) : null}
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
+          Discovered subdomains {discovered.length > 0 ? `(${discovered.length})` : ""}
+        </h2>
+        <DiscoveredList parentId={asset.id} items={discovered} />
+      </section>
     </div>
   );
 }

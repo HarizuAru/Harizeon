@@ -43,6 +43,8 @@ later services (Vault, Watch, Shield, Guard, Respond are v0.2+).
   RLS. The Python worker (`worker/`) must **never** get DB credentials — it only
   sees Redis Streams and the job payload. Cross the seam via `api/src/lib/queue.ts`
   (`ScanQueue`). Start background loops (ingest, reaper, recheck) from `start()`,
-  never `buildServer()`, so tests stay deterministic.
+  never `buildServer()`, so tests stay deterministic. Discovery runs in the worker;
+  its results cross back only via the `discovered` queue event, which the control
+  plane validates (strict subdomains of the scanned asset) before creating assets.
 - No secrets in the repo. `.env` is gitignored; copy from `.env.example`.
 - Do not commit or push unless explicitly asked.

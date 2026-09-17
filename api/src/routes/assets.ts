@@ -7,6 +7,7 @@ import {
   listAssets,
   getAsset,
   updateAsset,
+  listDiscoveredChildren,
   type AssetType,
   type Criticality,
 } from "../repo/assets";
@@ -54,6 +55,7 @@ const UpdateAssetBody = z.object({
   criticality: CriticalityEnum.optional(),
   tags: z.array(z.string().max(64)).max(32).optional(),
   is_active: z.boolean().optional(),
+  ignored: z.boolean().optional(),
 });
 const InitiateBody = z.object({ method: MethodEnum });
 
@@ -131,6 +133,17 @@ export async function assetRoutes(app: FastifyInstance) {
       if (!asset) throw notFound("asset_not_found", "Asset not found");
       const verification = await getLatestVerification(client, orgId, id);
       return { asset, verification };
+    }, orgId);
+  });
+
+  // GET /v1/assets/:id/discovered — subdomains found by discovery, awaiting review
+  app.get("/assets/:id/discovered", async (req: FastifyRequest, _reply: FastifyReply) => {
+    const orgId = req.auth!.orgId;
+    const { id } = req.params as { id: string };
+    return withTx(async (client) => {
+      const asset = await getAsset(client, orgId, id);
+      if (!asset) throw notFound("asset_not_found", "Asset not found");
+      return { data: await listDiscoveredChildren(client, orgId, id) };
     }, orgId);
   });
 

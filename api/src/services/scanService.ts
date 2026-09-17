@@ -4,11 +4,92 @@ import { badRequest, notFound } from "../lib/errors";
 import { isTerminal, type ScanStatus } from "../lib/scan-state";
 import type { ScanJob, ScanQueue, WorkerEvent } from "../lib/queue";
 import * as repo from "../repo/scans";
+import * as assetsRepo from "../repo/assets";
 
 export const SCAN_PROFILES = ["quick", "standard", "deep"] as const;
 const MAX_TARGETS = 50;
 
 const TERMINAL_SQL = `('completed','failed','timeout','cancelled')`;
+
+const HOST_RE = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/;
+
+/** Parse + validate a discovery payload; drop anything that is not a hostname. */
+export function parseDiscovered(raw: string | undefined): { fqdn: string }[] {
+  if (!raw) return [];
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  const out: { fqdn: string }[] = [];
+  for (const item of arr) {
+    const fqdn = String((item as { fqdn?: unknown })?.fqdn ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\.$/, "");
+    if (fqdn && HOST_RE.test(fqdn)) out.push({ fqdn });
+  }
+  return out;
+}
+
+/** Auto-create discovered subdomains (out of scope until reviewed) + link parent. */
+async function applyDiscovered(client: Queryable, ev: WorkerEvent): Promise<void> {
+  const entries = parseDiscovered(ev.discovered);
+  const parentId = ev.parent_asset_id || null;
+
+  // Only accept hostnames that are strict subdomains of the scanned asset, so a
+  // buggy/compromised worker cannot inject arbitrary assets into the org.
+  let parentValue: string | null = null;
+  if (parentId) {
+    const p = await client.query<{ value: string }>(
+      `SELECT value FROM assets WHERE id = $1 AND org_id = $2`,
+      [parentId, ev.org_id],
+    );
+    parentValue = p.rows[0]?.value ?? null;
+  }
+  const accepted = parentValue
+    ? entries.filter((e) => e.fqdn.endsWith("." + parentValue))
+    : entries;
+
+  let created = 0;
+  for (const entry of accepted) {
+    const ins = await client.query(
+      `INSERT INTO assets (org_id, type, value, parent_asset_id, discovered_by, is_active)
+       VALUES ($1,'subdomain',$2,$3,'discovery',false)
+       ON CONFLICT (org_id, type, value) DO NOTHING
+       RETURNING id`,
+      [ev.org_id, entry.fqdn, parentId],
+    );
+    if ((ins.rowCount ?? 0) > 0) {
+      created += 1;
+    } else {
+      await client.query(
+        `UPDATE assets SET last_seen_at = now(), updated_at = now(),
+           parent_asset_id = COALESCE(parent_asset_id, $3)
+         WHERE org_id = $1 AND type = 'subdomain' AND value = $2`,
+        [ev.org_id, entry.fqdn, parentId],
+      );
+    }
+  }
+
+  await client.query(
+    `INSERT INTO scan_events (scan_id, phase, level, message) VALUES ($1,'discover','info',$2)`,
+    [ev.scan_id, `discovery inventory: ${accepted.length} host(s), ${created} new`],
+  );
+
+  if (created > 0) {
+    await writeAudit(client, {
+      orgId: ev.org_id,
+      actorType: "system",
+      action: "asset.discovered",
+      targetType: "scan",
+      targetId: ev.scan_id,
+      metadata: { created, total: accepted.length },
+    });
+  }
+}
 
 export type CreateScanInput = {
   orgId: string;
@@ -37,10 +118,13 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
     for (const a of assets) {
       if (!a.is_active) throw badRequest("asset_inactive", `Asset ${a.value} is retired`);
       if (a.verification_status !== "verified") {
-        throw badRequest(
-          "asset_not_verified",
-          `Asset ${a.value} must be verified before scanning.`,
-        );
+        const inherited = await assetsRepo.isVerifiedOrInherited(client, input.orgId, a.id);
+        if (!inherited) {
+          throw badRequest(
+            "asset_not_verified",
+            `Asset ${a.value} must be verified before scanning.`,
+          );
+        }
       }
     }
 
@@ -87,6 +171,11 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
  * cannot resurrect a cancelled/finished scan.
  */
 export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<void> {
+  if (ev.kind === "discovered") {
+    await applyDiscovered(client, ev);
+    return;
+  }
+
   if (ev.kind === "event") {
     await client.query(
       `INSERT INTO scan_events (scan_id, phase, level, message, at)

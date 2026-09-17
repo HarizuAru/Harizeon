@@ -161,7 +161,7 @@ export async function updateAsset(
   db: Queryable,
   orgId: string,
   assetId: string,
-  patch: { criticality?: Criticality; tags?: string[]; is_active?: boolean },
+  patch: { criticality?: Criticality; tags?: string[]; is_active?: boolean; ignored?: boolean },
 ): Promise<AssetRow | null> {
   const sets: string[] = [];
   const params: unknown[] = [orgId, assetId];
@@ -177,6 +177,9 @@ export async function updateAsset(
     params.push(patch.is_active);
     sets.push(`is_active = $${params.length}`);
   }
+  if (patch.ignored !== undefined) {
+    sets.push(patch.ignored ? `ignored_at = now()` : `ignored_at = NULL`);
+  }
   if (sets.length === 0) return getAsset(db, orgId, assetId);
   sets.push(`last_seen_at = now()`, `updated_at = now()`);
   const res = await db.query<AssetRow>(
@@ -184,4 +187,58 @@ export async function updateAsset(
     params,
   );
   return res.rows[0] ?? null;
+}
+
+/**
+ * Verified directly, or via a verified ancestor — a subdomain inherits the
+ * ownership proof of the domain it sits under (§9.2 INHERIT; §12 still holds:
+ * the customer proved control of the domain).
+ */
+export async function isVerifiedOrInherited(
+  db: Queryable,
+  orgId: string,
+  assetId: string,
+): Promise<boolean> {
+  const res = await db.query<{ verified: boolean }>(
+    `WITH RECURSIVE anc AS (
+       SELECT id, parent_asset_id, 0 AS depth FROM assets WHERE org_id = $1 AND id = $2
+       UNION ALL
+       SELECT a.id, a.parent_asset_id, anc.depth + 1
+       FROM assets a JOIN anc ON a.id = anc.parent_asset_id
+       WHERE a.org_id = $1 AND anc.depth < 10
+     )
+     SELECT COALESCE(bool_or(v.status = 'verified'), false) AS verified
+     FROM anc
+     LEFT JOIN LATERAL (
+       SELECT av.status FROM asset_verifications av
+       WHERE av.asset_id = anc.id ORDER BY av.created_at DESC LIMIT 1
+     ) v ON true`,
+    [orgId, assetId],
+  );
+  return res.rows[0]?.verified ?? false;
+}
+
+export type DiscoveredChild = {
+  id: string;
+  fqdn: string;
+  first_seen_at: Date | string;
+  last_seen_at: Date | string;
+  is_active: boolean;
+};
+
+/** Discovered subdomains awaiting review (not ignored), newest first. */
+export async function listDiscoveredChildren(
+  db: Queryable,
+  orgId: string,
+  parentId: string,
+): Promise<DiscoveredChild[]> {
+  const res = await db.query<DiscoveredChild>(
+    `SELECT id, value AS fqdn, first_seen_at, last_seen_at, is_active
+     FROM assets
+     WHERE org_id = $1 AND parent_asset_id = $2
+       AND discovered_by = 'discovery' AND ignored_at IS NULL
+     ORDER BY value`,
+    [orgId, parentId],
+  );
+  return res.rows;
 }

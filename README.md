@@ -19,8 +19,29 @@ control plane for teams too small to have a security team.
   StatusBadge, PageHeader, EmptyState, StatTile — plus `/login` and the seven
   nav routes. Builds and lints clean.
 
-**Next: W05** — passive discovery (subdomain enumeration, DNS, WHOIS, CT logs)
-so scans find real assets. See §16.
+**Next: W06** — probe + inspect (port scan, service fingerprint, TLS, headers)
+so scans produce real findings. See §16.
+
+**W05 — Passive discovery: done (real CT + DNS + RDAP, proven live).**
+
+- The worker's discover/resolve phases now do real work: certificate transparency
+  (crt.sh) + a DNS wordlist for subdomains, A/AAAA/MX/NS/TXT records for the root,
+  and RDAP (registration + registrar). Pure, injected-I/O logic in
+  `worker/discovery.py`; network adapters in `worker/adapters.py`.
+- Discovered subdomains are auto-created via a new `discovered` worker event,
+  **out of scope** (`is_active=false`) and parent-linked to the scanned domain,
+  with the source (ct/wordlist) logged. A batch may only add strict subdomains of
+  the scanned asset, so a buggy/compromised worker cannot inject arbitrary assets.
+- **DISCOVERED tab** on the asset detail page (`GET /v1/assets/:id/discovered`):
+  a review queue with Add-to-scope / Ignore (`ignored_at`, migration 0005).
+- **Verification inheritance (§9.2 INHERIT):** a subdomain is scannable when an
+  ancestor domain is verified — §12 still holds, since proving control of a domain
+  proves control of its subdomains; unverified parents are still rejected.
+- **Proven:** 17 Python tests; API integration (4 suites) incl. injection
+  rejection, parent linkage, review-queue transitions and inheritance; and a real
+  containerised worker run against `example.com` that discovered
+  `www.example.com` (CT) plus DNS records and RDAP data, auto-created it out of
+  scope, and rendered it in the console DISCOVERED tab.
 
 **W04 — Scan job pipeline: done (queue + worker + live view, proven live).**
 
@@ -108,7 +129,7 @@ db/migrations/     SQL schema, applied in filename order by db/migrate.sh
 db/verify.sql        Security invariants self-check (RLS isolation, append-only)
 docker-compose.yml Postgres + Redis + one-shot migrator
 api/               Fastify control-plane API (auth, orgs, api-keys, assets, scans)
-worker/            Python data-plane scan worker (queue consumer; no DB creds)
+worker/            Python data-plane worker (queue consumer + discovery; no DB creds)
 infra/db/          App-role provisioning (non-owner role + RLS grants)
 web/               Next.js console (marketing site arrives in W12)
 docs/              legal drafts + scanner engine licence audit
@@ -151,7 +172,7 @@ traffic always uses the internal ports and is unaffected.
 - Schema: CI applies every migration against a real Postgres 16 service and
   asserts the append-only guard.
 - API typecheck/lint/unit: `cd api && npm run typecheck && npm run lint && npm test`
-- Worker unit tests: `cd worker && python -m unittest -v test_worker`
+- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test`
 - API integration (needs the stack up + app role): `cd api && npm run test:integration`
   with `DATABASE_URL` pointing at the `harizeon_app` role and `REDIS_URL` set;
   `db/verify.sql` asserts RLS tenant isolation and the append-only audit guard.

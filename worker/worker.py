@@ -25,6 +25,7 @@ import adapters
 import discovery
 import inspect_ as checks
 import probe
+import webchecks
 from heartbeat import Heartbeat
 from phases import PHASES, phase_message, planned_phases, progress_for_phase
 
@@ -143,6 +144,30 @@ def run_inspect_phase(r, scan_id, org_id, targets, probe_results):
         publish_findings(r, scan_id, org_id, asset_id, "inspect", findings)
 
 
+def run_webcheck_phase(r, scan_id, org_id, targets, probe_results):
+    """Template-driven web checks against each target's open web ports (W08)."""
+    for target in targets:
+        asset_id = target.get("asset_id", "")
+        value = target.get("value", "")
+        host = probe.normalise_host(value)
+        open_ports = {(p or {}).get("port") for p in probe_results.get(asset_id) or []}
+
+        total = 0
+        for scheme_port in (443, 80):
+            if scheme_port not in open_ports:
+                continue
+            scheme = "https" if scheme_port == 443 else "http"
+            url = "%s://%s" % (scheme, host)
+            findings = webchecks.run_web_checks(url, adapters.http_get_full)
+            log(r, scan_id, org_id, "test", "test: %d web check(s) fired for %s" % (len(findings), url))
+            publish_findings(r, scan_id, org_id, asset_id, "test", findings)
+            total += len(findings)
+        if not open_ports:
+            log(r, scan_id, org_id, "test", "test: no open web ports for %s; skipped" % host)
+        total_publish = total
+    return {"count": total}
+
+
 def terminal(r, org_id, scan_id, status, error=None):
     publish(r, {
         "scan_id": scan_id, "org_id": org_id, "kind": "terminal", "status": status,
@@ -212,6 +237,8 @@ def process(r, fields, step_ms, hb_ttl, hb_every):
                 log(r, scan_id, org_id, "probe", "probe: %d target(s) scanned" % len(probe_results))
             elif phase == "inspect":
                 run_inspect_phase(r, scan_id, org_id, targets, probe_results)
+            elif phase == "test":
+                run_webcheck_phase(r, scan_id, org_id, targets, probe_results)
             else:
                 log(r, scan_id, org_id, phase, phase_message(phase, targets))
 

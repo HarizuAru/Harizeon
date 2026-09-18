@@ -19,8 +19,27 @@ control plane for teams too small to have a security team.
   StatusBadge, PageHeader, EmptyState, StatTile — plus `/login` and the seven
   nav routes. Builds and lints clean.
 
-**Next: W08** — template-based web checks + normalization so scans produce
-committed web-vuln classes and accurate "+new/−resolved" diffs. See §16.
+**Next: W09** — schedules + notifications: cron-driven scans, email/Slack/webhook
+channels with HMAC signing, digest emails and quota warnings. See §16.
+
+**W08 — Web checks + normalization: done (+new/−resolved proven accurate).**
+
+- **Template-driven web checks (`worker/webchecks.py`):** a CHECKS registry —
+  each entry declares a path, pure evaluator (over {status,body,headers}), and
+  §07 metadata. Ships exposed `.git`, exposed `.env`, `phpinfo`, and plain-HTTP-
+  does-not-redirect (only a *cacheable* 301/308-to-https counts as honest; the
+  http check fires only against the http:// variant). Fetches are first-response
+  (no redirects, §11) with capped bodies. In-house evaluator for now — swapping
+  in a community template repo later is exactly this seam (§6.5).
+- **`test` phase wired:** per target, checks run against its open web ports
+  (https then http each), findings bulk-published and ingested with the existing
+  fingerprint pipeline (re-fired checks stay one finding).
+- **Diff accuracy proven:** integration test seeds two findings on scan 1, re-
+  fires only check A on scan 2 → `summary = {new: 0, resolved: 1, unchanged: 1}`
+  and no duplication.
+- **Proven live:** the real worker webchecked `example.com` — 0 fired over
+  https, 1 fired over http (plain HTTP serving without redirect), recorded and
+  deduped. 56 Python tests + 7 API integration suites green.
 
 **W07 — Findings core: done (status workflow + the daily-driver screen).**
 
@@ -219,7 +238,7 @@ traffic always uses the internal ports and is unaffected.
 - Schema: CI applies every migration against a real Postgres 16 service and
   asserts the append-only guard.
 - API typecheck/lint/unit: `cd api && npm run typecheck && npm run lint && npm test`
-- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test heartbeat_test probe_test`
+- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test heartbeat_test probe_test webchecks_test`
 - API integration (needs the stack up + app role): `cd api && npm run test:integration`
   with `DATABASE_URL` pointing at the `harizeon_app` role and `REDIS_URL` set;
   `db/verify.sql` asserts RLS tenant isolation and the append-only audit guard.

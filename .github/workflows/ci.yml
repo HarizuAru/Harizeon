@@ -136,7 +136,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m unittest -v test_worker discovery_test heartbeat_test probe_test
+      - run: python -m unittest -v test_worker discovery_test heartbeat_test probe_test webchecks_test
 
   audit:
     name: dependency scan

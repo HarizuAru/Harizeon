@@ -107,3 +107,13 @@ def fetch_headers(url):
     resp = httpx.get(url, timeout=TIMEOUT, follow_redirects=False, headers={"User-Agent": USER_AGENT})
     return {str(k).lower(): str(v) for k, v in resp.headers.items()}, resp.status_code
 
+
+def http_get_full(url, body_cap=2000):
+    """webcheck fetch: first response (no redirects), body capped."""
+    resp = httpx.get(url, timeout=TIMEOUT, follow_redirects=False, headers={"User-Agent": USER_AGENT})
+    return {
+        "status": resp.status_code,
+        "body": resp.text[:body_cap],
+        "headers": {str(k).lower(): str(v) for k, v in resp.headers.items()},
+    }
+

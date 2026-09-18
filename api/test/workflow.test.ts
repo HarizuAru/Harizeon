@@ -105,6 +105,37 @@ test("findings status workflow", { skip: !DATABASE_URL }, async () => {
     assert.equal(summary.new, 2, "both findings are new from this scan");
     assert.equal(summary.resolved, 0);
 
+    // W08 diff story: a second scan re-fires check A but NOT check B — the
+    // summary for scan 2 must read "+0 new −1 resolved 1 unchanged".
+    await scanQueue.publish({
+      scan_id: scanId, org_id: orgId, kind: "findings", parent_asset_id: assetId,
+      findings: JSON.stringify([
+        { check_id: "check.a", location: `${domain}:443`, severity: "high", title: "Legacy TLS enabled", category: "tls" },
+      ]),
+    });
+    for (let i = 0; i < 3; i += 1) await runIngestOnce(scanQueue);
+
+    const scan2 = await authed("POST", "/v1/scans", { asset_ids: [assetId], profile: "standard" });
+    const scan2Id = scan2.json().scan.id as string;
+    await scanQueue.publish({
+      scan_id: scan2Id, org_id: orgId, kind: "findings", parent_asset_id: assetId,
+      findings: JSON.stringify([
+        { check_id: "check.a", location: `${domain}:443`, severity: "high", title: "Legacy TLS enabled", category: "tls" },
+      ]),
+    });
+    for (let i = 0; i < 3; i += 1) await runIngestOnce(scanQueue);
+
+    // No duplicate: still 2 findings total
+    const dedup = await authed("GET", "/v1/findings");
+    assert.equal(dedup.json().data.length, 2, "re-fired checks stay one finding");
+
+    const d2 = await authed("GET", `/v1/scans/${scan2Id}`);
+    const summary2 = d2.json().summary;
+    assert.ok(summary2, "scan2 summary present");
+    assert.equal(summary2.new, 0, "check A fired before: not new");
+    assert.equal(summary2.resolved, 1, "check B stopped firing: resolved");
+    assert.equal(summary2.unchanged, 1);
+
     // RLS: cross-org access rejected
     const s2 = await app.inject({
       method: "POST", url: "/v1/auth/signup",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
@@ -28,12 +29,14 @@ export function LiveScan({
   initialPhase,
   initialProgress,
   initialEvents,
+  initialSummary,
 }: {
   scanId: string;
   initialStatus: string;
   initialPhase: string | null;
   initialProgress: number;
   initialEvents: LogEvent[];
+  initialSummary?: { new: number; resolved: number; unchanged: number } | null;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [phase, setPhase] = useState<string | null>(initialPhase);
@@ -154,9 +157,22 @@ export function LiveScan({
         </div>
       </div>
 
+      {done && initialSummary && (initialSummary.new > 0 || initialSummary.resolved > 0) ? (
+        <div className="border border-line bg-canvas p-3 font-mono text-sm text-ink">
+          <span className="font-bold">+{initialSummary.new} new</span>{" "}
+          <span className="mx-2 text-faint">|</span>
+          <span className="font-bold">−{initialSummary.resolved} resolved</span>
+          <span className="mx-2 text-faint">|</span>
+          <span className="text-muted">{initialSummary.unchanged} unchanged</span>
+          <Link href="/findings" className="ml-3 underline">
+            View findings
+          </Link>
+        </div>
+      ) : null}
+
       <p className="font-mono text-xs text-faint">
-        W04 pipeline scaffold — the queue, phases and live view are real; scanning
-        engines land in W05–W08, so no findings are produced yet.
+        Pipeline + discovery + probe/inspect engines are live; template-based web
+        checks land in W08.
       </p>
     </div>
   );

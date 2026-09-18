@@ -157,3 +157,53 @@ export async function getScanEvents(
   );
   return res.rows;
 }
+
+export type ScanDiff = {
+  new: number;
+  resolved: number;
+  unchanged: number;
+};
+
+/**
+ * Scan diff banner data (§09.2): findings first recorded by this scan are NEW;
+ * open/acknowledged findings for this scan's targets whose last_seen predates
+ * the scan were RESOLVED (the check no longer fires).
+ */
+export async function scanDiff(
+  db: Queryable,
+  orgId: string,
+  scanId: string,
+): Promise<ScanDiff | null> {
+  const scan = await db.query<{ started_at: Date | string | null; created_at: Date | string }>(
+    `SELECT started_at, created_at FROM scans WHERE org_id = $1 AND id = $2`,
+    [orgId, scanId],
+  );
+  if ((scan.rowCount ?? 0) === 0) return null;
+  // A scan whose job was never claimed has no started_at; its findings can
+  // still be attributed, so fall back to creation time.
+  const boundary = scan.rows[0].started_at ?? scan.rows[0].created_at;
+  if (!boundary) return null;
+
+  const res = await db.query<{ kind: string; count: string }>(
+    `WITH tgt AS (SELECT asset_id FROM scan_targets WHERE scan_id = $2)
+     SELECT CASE
+              WHEN f.status IN ('fixed','false_positive','accepted') THEN 'unchanged'
+              WHEN f.last_seen_at >= $3 AND f.scan_id = $2 THEN 'new'
+              WHEN f.last_seen_at < $3 THEN 'resolved'
+              ELSE 'unchanged'
+            END AS kind,
+            count(*) AS count
+     FROM findings f
+     JOIN tgt ON tgt.asset_id = f.asset_id
+     WHERE f.org_id = $1
+     GROUP BY kind`,
+    [orgId, scanId, boundary],
+  );
+  const diff: ScanDiff = { new: 0, resolved: 0, unchanged: 0 };
+  for (const row of res.rows) {
+    if (row.kind === "new") diff.new = Number(row.count);
+    else if (row.kind === "resolved") diff.resolved = Number(row.count);
+    else diff.unchanged = Number(row.count);
+  }
+  return diff;
+}

@@ -19,8 +19,29 @@ control plane for teams too small to have a security team.
   StatusBadge, PageHeader, EmptyState, StatTile — plus `/login` and the seven
   nav routes. Builds and lints clean.
 
-**Next: W07** — findings core: the daily-driver `/findings` queue with severity
-filters, status workflow, and fingerprinting UI. See §16.
+**Next: W08** — template-based web checks + normalization so scans produce
+committed web-vuln classes and accurate "+new/−resolved" diffs. See §16.
+
+**W07 — Findings core: done (status workflow + the daily-driver screen).**
+
+- **Status workflow (§07):** `PATCH /v1/findings/:id` moves a finding between
+  open/acknowledged/fixed/false_positive/accepted with a reason; `fixed` stamps
+  `resolved_at`, reopening clears it. Every real transition writes a
+  `finding_events` row + `audit_log`; no-ops don't. Invalid statuses 400,
+  cross-org mutating 404.
+- **Scan diff (§09.2 / §18 metrics):** `GET /v1/scans/:id` now includes a
+  `summary` — `new` (recorded by this scan), `resolved` (open findings whose
+  check stopped firing), `unchanged` — and the live view renders the
+  "+N new −N resolved · unchanged" banner that links to the queue.
+- **Console:** the daily-driver `/findings` queue — severity chips with live
+  per-severity counts (`GET /v1/findings/counts`), status filter, cursor
+  pagination — plus the finding detail page in the §9.2 order (What it is →
+  Why it matters → Evidence → How to fix → Verify the fix) with status actions
+  and the finding_events trail.
+- **Proven:** 6 API integration suites (status transitions, no-op detection,
+  `resolved_at` semantics, severity counts, scan diff, cross-tenant 404) and a
+  live run — the console /findings list, severity filter and detail page
+  rendered over HTTP with real findings from the real worker.
 
 **W06 — Probe + inspect: done (first real findings, proven live).**
 

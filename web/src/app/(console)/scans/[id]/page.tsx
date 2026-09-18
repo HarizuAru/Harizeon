@@ -11,6 +11,7 @@ type Detail = {
   scan: { id: string; status: string; phase: string | null; progress_pct: number; profile: string };
   targets: { asset_id: string; type: string; value: string }[];
   events: { seq: number; phase: string | null; level: string; message: string; at: string }[];
+  summary?: { new: number; resolved: number; unchanged: number } | null;
 };
 
 export default async function ScanPage({ params }: { params: Promise<{ id: string }> }) {
@@ -47,6 +48,7 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
         initialPhase={scan.phase}
         initialProgress={scan.progress_pct}
         initialEvents={events}
+        initialSummary={detail.summary ?? null}
       />
     </div>
   );

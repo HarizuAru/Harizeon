@@ -60,7 +60,8 @@ export async function scanRoutes(app: FastifyInstance) {
       if (!scan) throw notFound("scan_not_found", "Scan not found");
       const targets = await repo.listScanTargets(c, id);
       const events = await repo.getScanEvents(c, id, 0, 500);
-      return { scan, targets, events };
+      const summary = await repo.scanDiff(c, orgId, id);
+      return { scan, targets, events, summary };
     }, orgId);
   });
 

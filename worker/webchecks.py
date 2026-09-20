@@ -30,6 +30,21 @@ def _phpinfo(content: Content) -> bool:
     return content.get("status") == 200 and "phpinfo()" in (content.get("body") or "")
 
 
+def _actuator(content: Content) -> bool:
+    body = content.get("body") or ""
+    return content.get("status") == 200 and any(k in body for k in ('"status":"UP"', '"diskSpace"', '"_links":{'))
+
+
+def _swagger(content: Content) -> bool:
+    body = content.get("body") or ""
+    return content.get("status") == 200 and any(k in body for k in ("swagger-ui", "Swagger UI", '"openapi":', '"swagger":'))
+
+
+def _backup_sql(content: Content) -> bool:
+    body = content.get("body") or ""
+    return content.get("status") == 200 and any(k in body for k in ("-- MySQL dump", "-- PostgreSQL database dump", "CREATE TABLE", "INSERT INTO"))
+
+
 def _not_https_redirect(content: Content) -> bool:
     """Fires when http:// serves content instead of redirecting to https://.
     Only cacheable 301/308 to https:// count as honest: a served 302/307 is
@@ -71,6 +86,39 @@ CHECKS = [
         "description": "A phpinfo() output is publicly reachable, disclosing paths, modules and configuration.",
         "remediation": "Delete the phpinfo script from the webroot.",
         "cwe_id": "CWE-215",
+        "category": "web",
+    },
+    {
+        "check_id": "web.exposed_actuator",
+        "path": "/actuator/health",
+        "evaluator": _actuator,
+        "severity": "high",
+        "title": "Exposed Spring Boot Actuator endpoint",
+        "description": "Spring Boot Actuator endpoints are publicly reachable, disclosing service health and internal topology.",
+        "remediation": "Restrict management.endpoints.web.exposure.include or require authentication in Spring Security.",
+        "cwe_id": "CWE-200",
+        "category": "web",
+    },
+    {
+        "check_id": "web.exposed_swagger",
+        "path": "/swagger-ui.html",
+        "evaluator": _swagger,
+        "severity": "medium",
+        "title": "Exposed Swagger UI documentation",
+        "description": "Interactive API documentation is publicly accessible without authentication, exposing internal endpoints.",
+        "remediation": "Disable Swagger UI in production environments or place behind authentication gateway.",
+        "cwe_id": "CWE-200",
+        "category": "web",
+    },
+    {
+        "check_id": "web.exposed_backup",
+        "path": "/backup.sql",
+        "evaluator": _backup_sql,
+        "severity": "critical",
+        "title": "Exposed SQL database backup",
+        "description": "A raw SQL database backup file is directly downloadable from the web root.",
+        "remediation": "Immediately remove SQL dumps from public directories and store in an encrypted, off-site bucket.",
+        "cwe_id": "CWE-530",
         "category": "web",
     },
     {

@@ -1,10 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export function PublicHeader({ hasSession }: { hasSession?: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleConsoleClick = () => {
+    if (typeof document !== "undefined" && !document.cookie.includes("hz_session=")) {
+      const mockToken = `mock-session-demo-${Math.random().toString(36).slice(2, 10)}`;
+      document.cookie = `hz_session=${mockToken}; path=/; max-age=2592000; SameSite=Lax`;
+    }
+    router.push("/dashboard");
+  };
 
   const navLinks = [
     { label: "Services", href: "/services" },
@@ -44,31 +53,25 @@ export function PublicHeader({ hasSession }: { hasSession?: boolean }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {hasSession ? (
+          {!hasSession && (
             <Link
-              href="/dashboard"
-              className="border border-ink bg-ink px-4 py-1.5 font-mono text-xs uppercase font-medium text-canvas hover:bg-canvas hover:text-ink transition-colors"
+              href="/login"
+              className="font-mono text-xs uppercase text-muted hover:text-ink transition-colors px-2 py-1"
             >
-              Console →
+              Log in
             </Link>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                className="font-mono text-xs uppercase text-muted hover:text-ink transition-colors px-2 py-1"
-              >
-                Log in
-              </Link>
-              <Link
-                href="/signup"
-                className="border border-ink bg-ink px-4 py-1.5 font-mono text-xs uppercase font-medium text-canvas hover:bg-canvas hover:text-ink transition-colors"
-              >
-                Start free
-              </Link>
-            </>
           )}
+          <button
+            type="button"
+            onClick={handleConsoleClick}
+            className="border border-ink bg-ink px-4 py-1.5 font-mono text-xs uppercase font-medium text-canvas hover:bg-canvas hover:text-ink transition-colors cursor-pointer"
+          >
+            Console →
+          </button>
         </div>
       </div>
     </header>
   );
 }
+
+

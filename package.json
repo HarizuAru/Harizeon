@@ -2,6 +2,9 @@
   "name": "harizeon-monorepo",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "web"
+  ],
   "scripts": {
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web run build",

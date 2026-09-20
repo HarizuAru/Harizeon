@@ -18,7 +18,7 @@ const ALL_SERVICES = [
     features: [
       "Top 100 & Full port inspection",
       "TLS 1.0/1.1 deprecation & weak cipher discovery",
-      "HTTP daemon fingerprinting & banner grabbing",
+      "Template-driven web checks (actuator, swagger, git, env)",
       "Automated CVE mapping from NIST NVD feeds",
       "Deduplicated findings with reproduction cURL",
     ],
@@ -26,11 +26,11 @@ const ALL_SERVICES = [
   {
     code: "ASM",
     name: "Harizeon Surface",
-    description: "Continuous external attack surface management. Automated subdomain discovery across Certificate Transparency logs and DNS brute force enumeration.",
+    description: "Continuous external attack surface management. Automated subdomain discovery across Certificate Transparency logs and DNS zone enumeration.",
     status: "available",
     href: "/services/scan",
     features: [
-      "CT log monitoring (crt.sh & Google CT)",
+      "CT log monitoring (crt.sh & Google CT logs)",
       "Strict subdomain boundary enforcement",
       "DNS record drift & orphan record alerts",
       "CNAME takeover vulnerability detection",
@@ -56,6 +56,12 @@ const ALL_SERVICES = [
     description: "Deep cryptographic protocol analysis. Audit TLS certificates, CAA records, HSTS preload, and Content-Security-Policy configurations.",
     status: "available",
     href: "/services/scan",
+    features: [
+      "Certificate chain & root trust validation",
+      "SSLv2, SSLv3, TLS 1.0, and TLS 1.1 deprecation checks",
+      "HSTS preload and CSP header validation",
+      "Automated expiry alert thresholds (30d / 7d)",
+    ],
   },
   {
     code: "VLT",
@@ -63,6 +69,12 @@ const ALL_SERVICES = [
     description: "Automated reconnaissance of public GitHub repositories, Pastebin dumps, and compromised credential feeds for your company domain.",
     status: "beta",
     href: "/services/scan",
+    features: [
+      "Monitors public repository and paste dumps",
+      "High-precision token pattern detection",
+      "Company domain & identity correlation",
+      "Automated exposure alerting",
+    ],
   },
   {
     code: "ADT",
@@ -70,6 +82,12 @@ const ALL_SERVICES = [
     description: "Generate boardroom-ready executive security summaries and technical compliance annexes for ISO 27001, SOC 2, and Malaysian CCA audits.",
     status: "available",
     href: "/services/scan",
+    features: [
+      "Executive posture scorecards (0–100)",
+      "ISO 27001 & SOC 2 compliance mapping",
+      "Malaysian Cyber Security Act (CCA) annexes",
+      "Immutable, cryptographically verifiable logs",
+    ],
   },
   {
     code: "WCH",
@@ -109,7 +127,7 @@ export default function ServicesPage() {
               Services & Infrastructure
             </h1>
             <p className="mt-2 text-sm text-muted max-w-2xl font-sans leading-relaxed">
-              Every Harizeon service operates on pure verified assets. Inspect our individual security capabilities below.
+              Every Harizeon service operates strictly on verified perimeter assets. Inspect our specialized security capabilities below.
             </p>
           </div>
 

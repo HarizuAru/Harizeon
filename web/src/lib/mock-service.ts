@@ -337,6 +337,32 @@ const initialFindings: MockFinding[] = [
       },
     ],
   },
+  {
+    id: "fnd-104",
+    title: "Exposed Spring Boot Actuator endpoint",
+    description:
+      "Publicly reachable health and metrics endpoint on /actuator/health disclosing application topology.\nEvidence: HTTP 200 OK at https://api.example.com/actuator/health with payload: {\"status\":\"UP\",\"diskSpace\":{\"status\":\"UP\"}}",
+    remediation:
+      "Restrict management.endpoints.web.exposure.include or enforce strict API gateway authentication on /actuator paths.",
+    severity: "high",
+    status: "open",
+    category: "web",
+    cwe_id: "CWE-200",
+    asset_id: "ast-002",
+    asset_value: "api.example.com",
+    first_seen_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+    last_seen_at: new Date().toISOString(),
+    status_reason: null,
+    events: [
+      {
+        id: "fev-4",
+        from_status: null,
+        to_status: "open",
+        note: "Detected via template-driven web checks",
+        at: new Date(Date.now() - 2 * 3600000).toISOString(),
+      },
+    ],
+  },
 ];
 
 const initialSchedules: MockSchedule[] = [

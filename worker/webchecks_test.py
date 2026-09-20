@@ -26,6 +26,21 @@ class EvaluatorTests(unittest.TestCase):
         self.assertTrue(webchecks._phpinfo(content(200, "<html>phpinfo()</html>")))
         self.assertFalse(webchecks._dotenv(webchecks._phpinfo and content(404, "phpinfo()")))
 
+    def test_actuator_match(self):
+        self.assertTrue(webchecks._actuator(content(200, '{"status":"UP","diskSpace":{"status":"UP"}}')))
+        self.assertFalse(webchecks._actuator(content(200, '{"message":"hello world"}')))
+        self.assertFalse(webchecks._actuator(content(403, 'Forbidden')))
+
+    def test_swagger_match(self):
+        self.assertTrue(webchecks._swagger(content(200, '<title>Swagger UI</title>')))
+        self.assertTrue(webchecks._swagger(content(200, '{"openapi":"3.0.0","info":{}}')))
+        self.assertFalse(webchecks._swagger(content(404, 'Not Found')))
+
+    def test_backup_sql_match(self):
+        self.assertTrue(webchecks._backup_sql(content(200, '-- MySQL dump 10.13\nCREATE TABLE users;')))
+        self.assertFalse(webchecks._backup_sql(content(200, 'SELECT * FROM test')))
+        self.assertFalse(webchecks._backup_sql(content(404, 'Not Found')))
+
 
 class RunChecksTests(unittest.TestCase):
     def test_exposures_fire(self):

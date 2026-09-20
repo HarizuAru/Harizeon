@@ -47,6 +47,22 @@ export function LoginForm() {
       <Button type="submit" size="md" className="mt-2 w-full" disabled={pending}>
         {pending ? "Logging in..." : "Log in"}
       </Button>
+
+      <div className="relative my-2 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-line" />
+        </div>
+        <span className="relative bg-canvas px-2 font-mono text-[10px] text-faint uppercase">
+          or demo access
+        </span>
+      </div>
+
+      <a
+        href="/api/demo-login"
+        className="border border-line bg-subtle py-2 text-center font-mono text-xs uppercase tracking-wider text-ink hover:border-ink hover:bg-canvas transition-colors"
+      >
+        ⚡ Instant AWS Console Demo (1-Click)
+      </a>
     </form>
   );
 }

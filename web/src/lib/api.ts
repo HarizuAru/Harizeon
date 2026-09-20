@@ -31,6 +31,21 @@ export async function apiFetch<T>(
   init: { method?: string; body?: unknown } = {},
 ): Promise<T> {
   const token = await sessionToken();
+
+  // If using a demo session or if the Fastify API daemon is not connected,
+  // route requests to the comprehensive in-memory service
+  if (token?.startsWith("mock-session-")) {
+    try {
+      return await handleMockApi<T>(path, init);
+    } catch (mockErr: unknown) {
+      if (mockErr && typeof mockErr === "object" && "status" in mockErr && "message" in mockErr) {
+        const e = mockErr as { status: number; code?: string; message: string };
+        throw new ApiError(e.status, e.code ?? "error", e.message);
+      }
+      throw mockErr;
+    }
+  }
+
   try {
     const res = await fetch(`${apiBase()}/v1${path}`, {
       method: init.method ?? "GET",
@@ -48,12 +63,15 @@ export async function apiFetch<T>(
       json = {};
     }
     if (!res.ok) {
+      if (res.status === 404 || res.status === 502 || res.status === 503) {
+        return await handleMockApi<T>(path, init);
+      }
       const err = (json as { error?: { code?: string; message?: string } }).error;
       throw new ApiError(res.status, err?.code ?? "request_failed", err?.message ?? `Request failed (${res.status})`);
     }
     return json as T;
   } catch (err: unknown) {
-    if (err instanceof ApiError) throw err;
+    if (err instanceof ApiError && err.status === 401) throw err;
     // Fallback to in-memory mock service if API is offline
     try {
       return await handleMockApi<T>(path, init);

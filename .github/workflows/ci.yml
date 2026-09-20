@@ -6,25 +6,51 @@ on:
   pull_request:
 
 jobs:
-  web:
-    name: web (lint + build)
+  lint:
+    name: quality gates (lint & typecheck)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run build
+          cache-dependency-path: |
+            web/package-lock.json
+            api/package-lock.json
+      - name: Lint web console
+        run: |
+          cd web
+          npm ci
+          npm run lint
+      - name: Typecheck & lint API
+        run: |
+          cd api
+          npm ci
+          npm run typecheck
+          npm run lint
+
+  audit:
+    name: dependency security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit web dependencies
+        run: |
+          cd web
+          npm ci
+          npm audit --audit-level=high
+      - name: Audit api dependencies
+        run: |
+          cd api
+          npm ci
+          npm audit --audit-level=high
 
   db:
-    name: db (apply migrations)
+    name: db (apply migrations & verify schema)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -66,7 +92,8 @@ jobs:
           fi
 
   api:
-    name: api (typecheck + lint + unit + integration under RLS)
+    name: api (unit + integration under RLS)
+    needs: [lint, db]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -105,8 +132,6 @@ jobs:
           cache: npm
           cache-dependency-path: api/package-lock.json
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
       - run: npm test
       - name: Apply migrations (owner)
         env:
@@ -127,6 +152,7 @@ jobs:
 
   worker:
     name: worker (python unit tests)
+    needs: [lint]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -138,8 +164,9 @@ jobs:
           python-version: "3.12"
       - run: python -m unittest -v test_worker discovery_test heartbeat_test probe_test webchecks_test
 
-  audit:
-    name: dependency scan
+  web:
+    name: web (production build)
+    needs: [lint]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -149,5 +176,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=high
+      - run: NODE_ENV=production npm run build
+
+  pipeline:
+    name: pipeline (status gate)
+    needs: [lint, audit, db, api, worker, web]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate pipeline health
+        run: |
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.audit.result }}" != "success" ] || \
+             [ "${{ needs.db.result }}" != "success" ] || \
+             [ "${{ needs.api.result }}" != "success" ] || \
+             [ "${{ needs.worker.result }}" != "success" ] || \
+             [ "${{ needs.web.result }}" != "success" ]; then
+            echo "CI/CD Pipeline failed!"
+            exit 1
+          fi
+          echo "All pipeline stages succeeded!"

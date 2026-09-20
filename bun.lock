@@ -1,0 +1,104 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 0,
+  "workspaces": {
+    "": {
+      "name": "harizeon-monorepo",
+    },
+    "api": {
+      "name": "@harizeon/api",
+      "version": "0.1.0",
+      "dependencies": {
+        "@fastify/cookie": "^11.0.0",
+        "@node-rs/argon2": "^2.0.0",
+        "fastify": "^5.0.0",
+        "ioredis": "^6.0.0",
+        "pg": "^8.11.0",
+        "zod": "^3.23.0",
+      },
+      "devDependencies": {
+        "@eslint/js": "^9.10.0",
+        "@types/node": "^22.0.0",
+        "@types/pg": "^8.11.0",
+        "eslint": "^9.10.0",
+        "tsx": "^4.19.0",
+        "typescript": "^5.5.0",
+        "typescript-eslint": "^8.0.0",
+      },
+    },
+    "web": {
+      "name": "web",
+      "version": "0.1.0",
+      "dependencies": {
+        "next": "16.3.5",
+        "react": "19.2.8",
+        "react-dom": "19.2.8",
+      },
+      "devDependencies": {
+        "@tailwindcss/postcss": "^4",
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "eslint": "^9",
+        "eslint-config-next": "16.3.5",
+        "tailwindcss": "^4",
+        "typescript": "^5",
+      },
+    },
+  },
+  "packages": {
+    "@harizeon/api": ["@harizeon/api@workspace:api"],
+
+    "@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
+
+    "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
+
+    "web": ["web@workspace:web"],
+
+    "@harizeon/api/@eslint/js": ["@eslint/js@file:api/node_modules/@eslint/js", {}],
+
+    "@harizeon/api/@fastify/cookie": ["@fastify/cookie@file:api/node_modules/@fastify/cookie", {}],
+
+    "@harizeon/api/@node-rs/argon2": ["@node-rs/argon2@file:api/node_modules/@node-rs/argon2", {}],
+
+    "@harizeon/api/@types/node": ["@types/node@file:api/node_modules/@types/node", {}],
+
+    "@harizeon/api/@types/pg": ["@types/pg@file:api/node_modules/@types/pg", {}],
+
+    "@harizeon/api/eslint": ["eslint@file:api/node_modules/eslint", {}],
+
+    "@harizeon/api/fastify": ["fastify@file:api/node_modules/fastify", {}],
+
+    "@harizeon/api/ioredis": ["ioredis@file:api/node_modules/ioredis", {}],
+
+    "@harizeon/api/pg": ["pg@file:api/node_modules/pg", {}],
+
+    "@harizeon/api/tsx": ["tsx@file:api/node_modules/tsx", {}],
+
+    "@harizeon/api/typescript": ["typescript@file:api/node_modules/typescript", {}],
+
+    "@harizeon/api/typescript-eslint": ["typescript-eslint@file:api/node_modules/typescript-eslint", {}],
+
+    "@harizeon/api/zod": ["zod@file:api/node_modules/zod", {}],
+
+    "web/@tailwindcss/postcss": ["@tailwindcss/postcss@file:web/node_modules/@tailwindcss/postcss", {}],
+
+    "web/@types/react": ["@types/react@file:web/node_modules/@types/react", {}],
+
+    "web/@types/react-dom": ["@types/react-dom@file:web/node_modules/@types/react-dom", {}],
+
+    "web/eslint": ["eslint@file:web/node_modules/eslint", {}],
+
+    "web/eslint-config-next": ["eslint-config-next@file:web/node_modules/eslint-config-next", {}],
+
+    "web/next": ["next@file:web/node_modules/next", {}],
+
+    "web/react": ["react@file:web/node_modules/react", {}],
+
+    "web/react-dom": ["react-dom@file:web/node_modules/react-dom", {}],
+
+    "web/tailwindcss": ["tailwindcss@file:web/node_modules/tailwindcss", {}],
+
+    "web/typescript": ["typescript@file:web/node_modules/typescript", {}],
+  }
+}

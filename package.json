@@ -1,14 +1,11 @@
 {
   "name": "harizeon-monorepo",
+  "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "web",
-    "api"
-  ],
   "scripts": {
-    "dev": "npm run dev --workspace=web",
-    "build": "npm run build --workspace=web",
-    "start": "npm run start --workspace=web",
-    "lint": "npm run lint --workspace=web"
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix web run start",
+    "lint": "npm --prefix web run lint"
   }
 }

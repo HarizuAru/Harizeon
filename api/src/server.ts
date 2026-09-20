@@ -9,6 +9,11 @@ import { apiKeyRoutes } from "./routes/apiKeys";
 import { assetRoutes } from "./routes/assets";
 import { scanRoutes } from "./routes/scans";
 import { findingRoutes } from "./routes/findings";
+import { scheduleRoutes } from "./routes/schedules";
+import { channelRoutes } from "./routes/channels";
+import { reportRoutes } from "./routes/reports";
+import { billingRoutes } from "./routes/billing";
+import { auditLogRoutes } from "./routes/auditLog";
 import { healthRoutes } from "./routes/health";
 import { authenticate, requireAuth } from "./plugins/auth";
 import { requestIdHook, errorHandler } from "./lib/errors";
@@ -53,6 +58,11 @@ export async function buildServer() {
         await priv.register(assetRoutes);
         await priv.register(scanRoutes);
         await priv.register(findingRoutes);
+        await priv.register(scheduleRoutes);
+        await priv.register(channelRoutes);
+        await priv.register(reportRoutes);
+        await priv.register(billingRoutes);
+        await priv.register(auditLogRoutes);
       });
     },
     { prefix: "/v1" },

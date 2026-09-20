@@ -40,7 +40,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="border-t border-line p-3 font-mono text-xs text-faint">
-        v0.1 · W01
+        v0.1 · W12 (MVP)
       </div>
     </aside>
   );

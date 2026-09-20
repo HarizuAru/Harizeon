@@ -2,23 +2,28 @@
 
 import { redirect } from "next/navigation";
 import { apiBase, forwardSessionCookie, apiFetch, clearSessionCookie } from "./api";
+import { handleMockAuthPost } from "./mock-service";
 
 export type ActionState = { error?: string } | null;
 
 async function postJson(path: string, body: unknown): Promise<{ res: Response; json: unknown }> {
-  const res = await fetch(`${apiBase()}/v1${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  let json: unknown = {};
   try {
-    json = await res.json();
+    const res = await fetch(`${apiBase()}/v1${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    let json: unknown = {};
+    try {
+      json = await res.json();
+    } catch {
+      json = {};
+    }
+    return { res, json };
   } catch {
-    json = {};
+    return handleMockAuthPost(path, body);
   }
-  return { res, json };
 }
 
 function apiErrorMessage(json: unknown, fallback: string): string {

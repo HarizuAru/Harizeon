@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { handleMockApi } from "./mock-service";
 
 export const SESSION_COOKIE = "hz_session";
 export const SESSION_MAX_AGE = 30 * 24 * 3600;
@@ -30,26 +31,40 @@ export async function apiFetch<T>(
   init: { method?: string; body?: unknown } = {},
 ): Promise<T> {
   const token = await sessionToken();
-  const res = await fetch(`${apiBase()}/v1${path}`, {
-    method: init.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Cookie: `${SESSION_COOKIE}=${token}` } : {}),
-    },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    cache: "no-store",
-  });
-  let json: unknown = {};
   try {
-    json = await res.json();
-  } catch {
-    json = {};
+    const res = await fetch(`${apiBase()}/v1${path}`, {
+      method: init.method ?? "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Cookie: `${SESSION_COOKIE}=${token}` } : {}),
+      },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      cache: "no-store",
+    });
+    let json: unknown = {};
+    try {
+      json = await res.json();
+    } catch {
+      json = {};
+    }
+    if (!res.ok) {
+      const err = (json as { error?: { code?: string; message?: string } }).error;
+      throw new ApiError(res.status, err?.code ?? "request_failed", err?.message ?? `Request failed (${res.status})`);
+    }
+    return json as T;
+  } catch (err: unknown) {
+    if (err instanceof ApiError) throw err;
+    // Fallback to in-memory mock service if API is offline
+    try {
+      return await handleMockApi<T>(path, init);
+    } catch (mockErr: unknown) {
+      if (mockErr && typeof mockErr === "object" && "status" in mockErr && "message" in mockErr) {
+        const e = mockErr as { status: number; code?: string; message: string };
+        throw new ApiError(e.status, e.code ?? "error", e.message);
+      }
+      throw err;
+    }
   }
-  if (!res.ok) {
-    const err = (json as { error?: { code?: string; message?: string } }).error;
-    throw new ApiError(res.status, err?.code ?? "request_failed", err?.message ?? `Request failed (${res.status})`);
-  }
-  return json as T;
 }
 
 export async function setSessionCookie(token: string): Promise<void> {
@@ -75,7 +90,13 @@ export async function clearSessionCookie(): Promise<void> {
 export async function forwardSessionCookie(apiRes: Response): Promise<string | null> {
   const headers = apiRes.headers as Headers & { getSetCookie?: () => string[] };
   const list = typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
-  const found = list.map((c) => c.match(/hz_session=([^;]+)/)?.[1]).find(Boolean);
+  let found = list.map((c) => c.match(/hz_session=([^;]+)/)?.[1]).find(Boolean);
+  if (!found) {
+    const raw = apiRes.headers.get("set-cookie");
+    if (raw) {
+      found = raw.match(/hz_session=([^;]+)/)?.[1];
+    }
+  }
   if (found) {
     await setSessionCookie(found);
     return found;

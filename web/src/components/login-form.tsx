@@ -19,7 +19,8 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           required
-          placeholder="you@company.com"
+          defaultValue="admin@harizeon.local"
+          placeholder="admin@harizeon.local"
           className={inputClass}
         />
       </div>
@@ -33,6 +34,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
+          defaultValue="HarizeonPass123!"
           placeholder="••••••••"
           className={inputClass}
         />

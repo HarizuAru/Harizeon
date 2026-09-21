@@ -21,6 +21,7 @@ import { startVerificationRecheck } from "./lib/recheck";
 import { scanQueue } from "./services/scanQueue";
 import { startIngest } from "./workers/ingest";
 import { startReaper } from "./workers/reaper";
+import { startScheduler } from "./workers/scheduler";
 
 export async function buildServer() {
   const app = Fastify({
@@ -90,6 +91,7 @@ async function start() {
     await scanQueue.ready();
     startIngest(scanQueue);
     startReaper(scanQueue);
+    startScheduler();
     // Hourly ownership re-verification (background system task, not a request).
     startVerificationRecheck();
   } catch (err) {

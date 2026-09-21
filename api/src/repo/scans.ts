@@ -164,6 +164,20 @@ export type ScanDiff = {
   unchanged: number;
 };
 
+/** Severities of findings FIRST seen by this scan (drives notifications, §18). */
+export async function newFindingSeverities(
+  db: Queryable,
+  orgId: string,
+  scanId: string,
+): Promise<string[]> {
+  const res = await db.query<{ severity: string }>(
+    `SELECT severity::text AS severity FROM findings
+     WHERE org_id = $1 AND scan_id = $2 AND status = 'open'`,
+    [orgId, scanId],
+  );
+  return res.rows.map((r) => r.severity);
+}
+
 /**
  * Scan diff banner data (§09.2): findings first recorded by this scan are NEW;
  * open/acknowledged findings for this scan's targets whose last_seen predates

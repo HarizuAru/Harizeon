@@ -144,12 +144,11 @@ export async function createReport(
     status: string;
     asset_id: string;
     cwe_id: string | null;
-    cve_id: string | null;
     first_seen_at: Date | string;
     description: string | null;
     remediation: string | null;
   }>(
-    `SELECT id, title, severity, status, asset_id, cwe_id, cve_id, first_seen_at, description, remediation
+    `SELECT id, title, severity, status, asset_id, cwe_id, first_seen_at, description, remediation
      FROM findings
      WHERE org_id = $1
      ORDER BY CASE severity

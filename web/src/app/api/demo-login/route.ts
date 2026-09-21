@@ -2,6 +2,11 @@ import { type NextRequest } from "next/server";
 import { SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/api";
 
 export async function GET(request: NextRequest) {
+  // Demo login only exists in explicit demo mode; never in a real deployment.
+  if (process.env.HARIZEON_DEMO_MODE !== "1") {
+    return new Response("Not found", { status: 404 });
+  }
+
   const redirectPath = request.nextUrl.searchParams.get("next") || "/dashboard";
   const token = `mock-session-demo-${Math.random().toString(36).slice(2, 12)}`;
 

@@ -40,6 +40,8 @@ GRANT EXECUTE ON FUNCTION org_ids_for_user(uuid) TO harizeon_app;
 GRANT EXECUTE ON FUNCTION verifications_due_for_recheck(timestamptz) TO harizeon_app;
 -- System-level stale-scan lookup for the job-pipeline reaper.
 GRANT EXECUTE ON FUNCTION scans_stale(timestamptz) TO harizeon_app;
+-- System-level due-schedule lookup for the W09 scheduler.
+GRANT EXECUTE ON FUNCTION schedules_due(timestamptz) TO harizeon_app;
 
 -- Future tables/sequences created by the owner also grant to the app role.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO harizeon_app;

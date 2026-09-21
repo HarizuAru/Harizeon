@@ -6,7 +6,11 @@ import { handleMockAuthPost } from "./mock-service";
 
 export type ActionState = { error?: string } | null;
 
-async function postJson(path: string, body: unknown): Promise<{ res: Response; json: unknown }> {
+/** Demo mode is explicit and off by default; a security product must never
+ *  silently substitute fabricated data for a failed request (§10.8). */
+const DEMO_MODE = process.env.HARIZEON_DEMO_MODE === "1";
+
+async function postJson(path: string, body: unknown, mockAllowed: boolean): Promise<{ res: Response; json: unknown }> {
   try {
     const res = await fetch(`${apiBase()}/v1${path}`, {
       method: "POST",
@@ -21,8 +25,9 @@ async function postJson(path: string, body: unknown): Promise<{ res: Response; j
       json = {};
     }
     return { res, json };
-  } catch {
-    return handleMockAuthPost(path, body);
+  } catch (e: unknown) {
+    if (DEMO_MODE && mockAllowed) return handleMockAuthPost(path, body);
+    throw e;
   }
 }
 
@@ -37,7 +42,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   let res: Response;
   let json: unknown;
   try {
-    ({ res, json } = await postJson("/auth/login", { email, password }));
+    ({ res, json } = await postJson("/auth/login", { email, password }, true));
   } catch {
     return { error: "Cannot reach the API. Is it running?" };
   }
@@ -58,7 +63,7 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
   let res: Response;
   let json: unknown;
   try {
-    ({ res, json } = await postJson("/auth/signup", { email, password, name, orgName, orgSlug }));
+    ({ res, json } = await postJson("/auth/signup", { email, password, name, orgName, orgSlug }, true));
   } catch {
     return { error: "Cannot reach the API. Is it running?" };
   }

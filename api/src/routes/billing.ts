@@ -69,27 +69,7 @@ export async function billingRoutes(app: FastifyInstance) {
   app.get("/billing/invoices", async (req: FastifyRequest, _reply: FastifyReply) => {
     const orgId = req.auth!.orgId;
     return withTx(async (client) => {
-      let invoices = await listInvoices(client, orgId);
-      if (invoices.length === 0) {
-        // Provide standard initial tax invoice representation for existing tenancy
-        invoices = [
-          {
-            id: "inv-001",
-            org_id: orgId,
-            number: "HRZ-2026-0089",
-            period_start: "2026-08-01T00:00:00.000Z",
-            period_end: "2026-08-31T23:59:59.000Z",
-            subtotal: 79.0,
-            tax: 6.32,
-            total: 85.32,
-            currency: "MYR",
-            status: "paid",
-            pdf_ref: "/invoices/HRZ-2026-0089.pdf",
-            paid_at: "2026-08-01T04:12:00.000Z",
-            created_at: "2026-08-01T04:12:00.000Z",
-          },
-        ];
-      }
+      const invoices = await listInvoices(client, orgId);
       return { invoices };
     }, orgId);
   });

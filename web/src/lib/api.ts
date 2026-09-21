@@ -4,6 +4,9 @@ import { handleMockApi } from "./mock-service";
 export const SESSION_COOKIE = "hz_session";
 export const SESSION_MAX_AGE = 30 * 24 * 3600;
 
+/** Demo mode (in-memory mock) is explicit and off by default. */
+const DEMO_MODE = process.env.HARIZEON_DEMO_MODE === "1";
+
 export function apiBase(): string {
   return process.env.HARIZEON_API_BASE ?? "http://localhost:8080";
 }
@@ -32,18 +35,10 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const token = await sessionToken();
 
-  // If using a demo session or if the Fastify API daemon is not connected,
-  // route requests to the comprehensive in-memory service
-  if (token?.startsWith("mock-session-")) {
-    try {
-      return await handleMockApi<T>(path, init);
-    } catch (mockErr: unknown) {
-      if (mockErr && typeof mockErr === "object" && "status" in mockErr && "message" in mockErr) {
-        const e = mockErr as { status: number; code?: string; message: string };
-        throw new ApiError(e.status, e.code ?? "error", e.message);
-      }
-      throw mockErr;
-    }
+  // Demo mode is explicit and off by default: a security product must never
+  // silently substitute fabricated data for a failed request (§10.8).
+  if (DEMO_MODE && token?.startsWith("mock-session-")) {
+    return mockApi<T>(path, init);
   }
 
   try {
@@ -63,25 +58,25 @@ export async function apiFetch<T>(
       json = {};
     }
     if (!res.ok) {
-      if (res.status === 404 || res.status === 502 || res.status === 503) {
-        return await handleMockApi<T>(path, init);
-      }
       const err = (json as { error?: { code?: string; message?: string } }).error;
       throw new ApiError(res.status, err?.code ?? "request_failed", err?.message ?? `Request failed (${res.status})`);
     }
     return json as T;
   } catch (err: unknown) {
-    if (err instanceof ApiError && err.status === 401) throw err;
-    // Fallback to in-memory mock service if API is offline
-    try {
-      return await handleMockApi<T>(path, init);
-    } catch (mockErr: unknown) {
-      if (mockErr && typeof mockErr === "object" && "status" in mockErr && "message" in mockErr) {
-        const e = mockErr as { status: number; code?: string; message: string };
-        throw new ApiError(e.status, e.code ?? "error", e.message);
-      }
-      throw err;
+    if (DEMO_MODE && !(err instanceof ApiError)) return mockApi<T>(path, init);
+    throw err;
+  }
+}
+
+async function mockApi<T>(path: string, init: { method?: string; body?: unknown }): Promise<T> {
+  try {
+    return await handleMockApi<T>(path, init);
+  } catch (mockErr: unknown) {
+    if (mockErr && typeof mockErr === "object" && "status" in mockErr && "message" in mockErr) {
+      const e = mockErr as { status: number; code?: string; message: string };
+      throw new ApiError(e.status, e.code ?? "error", e.message);
     }
+    throw mockErr;
   }
 }
 

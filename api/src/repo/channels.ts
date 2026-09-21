@@ -1,6 +1,8 @@
 import type { Queryable } from "../db";
+import { config } from "../config";
 import { badRequest, notFound } from "../lib/errors";
-import { createHmac } from "node:crypto";
+import { redactConfig, sealConfig, openConfig } from "../lib/seal";
+import { deliver } from "../lib/notifier";
 
 export type ChannelType = "email" | "slack" | "webhook" | "discord";
 export type SeverityLevel = "info" | "low" | "medium" | "high" | "critical";
@@ -17,12 +19,16 @@ export type ChannelRow = {
   updated_at: Date | string;
 };
 
+const COLS = `id, org_id, type, config, enabled, min_severity, verified_at, created_at, updated_at`;
+
+/** Secrets inside config are encrypted at rest (§11); responses are redacted. */
+export function publicChannel(row: ChannelRow): ChannelRow {
+  return { ...row, config: redactConfig(row.config) };
+}
+
 export async function listChannels(db: Queryable, orgId: string): Promise<ChannelRow[]> {
   const res = await db.query<ChannelRow>(
-    `SELECT id, org_id, type, config, enabled, min_severity, verified_at, created_at, updated_at
-     FROM notification_channels
-     WHERE org_id = $1
-     ORDER BY created_at DESC`,
+    `SELECT ${COLS} FROM notification_channels WHERE org_id = $1 ORDER BY created_at DESC`,
     [orgId],
   );
   return res.rows;
@@ -30,9 +36,7 @@ export async function listChannels(db: Queryable, orgId: string): Promise<Channe
 
 export async function getChannel(db: Queryable, orgId: string, id: string): Promise<ChannelRow> {
   const res = await db.query<ChannelRow>(
-    `SELECT id, org_id, type, config, enabled, min_severity, verified_at, created_at, updated_at
-     FROM notification_channels
-     WHERE org_id = $1 AND id = $2`,
+    `SELECT ${COLS} FROM notification_channels WHERE org_id = $1 AND id = $2`,
     [orgId, id],
   );
   const row = res.rows[0];
@@ -54,16 +58,15 @@ export async function createChannel(
   if (!validTypes.includes(input.type)) {
     throw badRequest("invalid_type", `Channel type must be one of: ${validTypes.join(", ")}`);
   }
-
   const minSeverity = input.min_severity ?? "high";
   const enabled = input.enabled !== false;
-  const config = input.config ?? {};
+  const sealed = sealConfig(input.config ?? {}, config.HARIZEON_MASTER_KEY);
 
   const res = await db.query<ChannelRow>(
-    `INSERT INTO notification_channels (org_id, type, config, min_severity, enabled, verified_at)
-     VALUES ($1, $2, $3, $4, $5, now())
-     RETURNING id, org_id, type, config, enabled, min_severity, verified_at, created_at, updated_at`,
-    [orgId, input.type, config, minSeverity, enabled],
+    `INSERT INTO notification_channels (org_id, type, config, min_severity, enabled)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING ${COLS}`,
+    [orgId, input.type, JSON.stringify(sealed), minSeverity, enabled],
   );
   return res.rows[0];
 }
@@ -79,8 +82,8 @@ export async function updateChannel(
   },
 ): Promise<ChannelRow> {
   const current = await getChannel(db, orgId, id);
-
-  const config = input.config !== undefined ? input.config : current.config;
+  const nextConfig =
+    input.config !== undefined ? sealConfig(input.config, config.HARIZEON_MASTER_KEY) : current.config;
   const minSeverity = input.min_severity !== undefined ? input.min_severity : current.min_severity;
   const enabled = input.enabled !== undefined ? input.enabled : current.enabled;
 
@@ -88,8 +91,8 @@ export async function updateChannel(
     `UPDATE notification_channels
      SET config = $1, min_severity = $2, enabled = $3, updated_at = now()
      WHERE org_id = $4 AND id = $5
-     RETURNING id, org_id, type, config, enabled, min_severity, verified_at, created_at, updated_at`,
-    [config, minSeverity, enabled, orgId, id],
+     RETURNING ${COLS}`,
+    [JSON.stringify(nextConfig), minSeverity, enabled, orgId, id],
   );
   return res.rows[0];
 }
@@ -99,50 +102,36 @@ export async function deleteChannel(db: Queryable, orgId: string, id: string): P
   if ((res.rowCount ?? 0) === 0) throw notFound("channel_not_found", "Notification channel not found");
 }
 
+/**
+ * Send a real test event. Marks `verified_at` ONLY on success and returns an
+ * honest result — a channel that cannot deliver must not look healthy.
+ */
 export async function testChannel(
   db: Queryable,
   orgId: string,
   id: string,
 ): Promise<{ ok: boolean; message: string }> {
   const channel = await getChannel(db, orgId, id);
+  const opened = openConfig(channel.config, config.HARIZEON_MASTER_KEY);
 
-  const testPayload = {
-    event: "channel.test",
-    org_id: orgId,
-    timestamp: new Date().toISOString(),
-    message: "This is a test notification from Harizeon.",
-    channel_id: channel.id,
-    type: channel.type,
-  };
-
-  if (channel.type === "webhook") {
-    const url = (channel.config as { url?: string })?.url;
-    const secret = (channel.config as { secret?: string })?.secret || "harizeon-test-secret";
-    if (url) {
-      const rawBody = JSON.stringify(testPayload);
-      const signature = createHmac("sha256", secret).update(rawBody).digest("hex");
-      try {
-        await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Harizeon-Signature": `sha256=${signature}`,
-            "X-Harizeon-Timestamp": testPayload.timestamp,
-          },
-          body: rawBody,
-          signal: AbortSignal.timeout(5000),
-        });
-      } catch {
-        // Test network request attempted
-      }
-    }
-  }
-
-  // Update verified_at
-  await db.query(
-    `UPDATE notification_channels SET verified_at = now(), updated_at = now() WHERE id = $1`,
-    [id],
+  const result = await deliver(
+    { type: channel.type, config: opened },
+    {
+      kind: "channel.test",
+      orgId,
+      severity: "critical",
+      title: "Harizeon test notification",
+      message: "This is a test from your Harizeon notification channel.",
+    },
+    { force: true },
   );
 
-  return { ok: true, message: `Test dispatch delivered to ${channel.type} channel.` };
+  if (result.ok) {
+    await db.query(
+      `UPDATE notification_channels SET verified_at = now(), updated_at = now() WHERE org_id = $1 AND id = $2`,
+      [orgId, id],
+    );
+    return { ok: true, message: `Test delivered to ${channel.type} channel.` };
+  }
+  return { ok: false, message: result.error ?? "Test delivery failed." };
 }

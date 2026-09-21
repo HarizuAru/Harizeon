@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { withTx } from "../db";
 import {
   listReports,
   getReport,
@@ -9,14 +10,14 @@ import {
 export const reportRoutes: FastifyPluginAsync = async (app) => {
   app.get("/reports", async (req, reply) => {
     const orgId = req.auth!.orgId;
-    const data = await listReports(app.pg, orgId);
+    const data = await withTx((c) => listReports(c, orgId), orgId);
     reply.send({ data });
   });
 
   app.get<{ Params: { id: string } }>("/reports/:id", async (req, reply) => {
     const orgId = req.auth!.orgId;
-    const { report, content } = await getReport(app.pg, orgId, req.params.id);
-    reply.send({ report, content });
+    const result = await withTx((c) => getReport(c, orgId, req.params.id), orgId);
+    reply.send({ report: result.report, content: result.content });
   });
 
   app.post<{
@@ -30,7 +31,10 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
   }>("/reports", async (req, reply) => {
     const orgId = req.auth!.orgId;
     const userId = req.auth!.userId ?? null;
-    const result = await createReport(app.pg, orgId, userId, req.body ?? { type: "executive" });
+    const result = await withTx(
+      (c) => createReport(c, orgId, userId, req.body ?? { type: "executive" }),
+      orgId,
+    );
     reply.status(201).send(result);
   });
 };

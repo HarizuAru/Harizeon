@@ -51,6 +51,7 @@ export function ApiKeysManager({ initialKeys }: { initialKeys: ApiKeyItem[] }) {
   async function handleCreateKey(e: React.FormEvent) {
     e.preventDefault();
     setIsSubmitting(true);
+    setMessage(null);
 
     try {
       const res = await fetch("/api/v1/api-keys", {
@@ -59,59 +60,30 @@ export function ApiKeysManager({ initialKeys }: { initialKeys: ApiKeyItem[] }) {
         body: JSON.stringify({ name: newKeyName, scopes: selectedScopes }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const createdItem: ApiKeyItem = {
-          id: `key-${Date.now()}`,
-          org_id: "org-01",
-          name: data.name,
-          prefix: data.prefix,
-          scopes: data.scopes,
-          last_used_at: null,
-          expires_at: null,
-          revoked_at: null,
-          created_at: data.createdAt || new Date().toISOString(),
-        };
-        setKeys([createdItem, ...keys]);
-        setRevealedSecret(data.key);
-      } else {
-        // Fallback local creation for preview environment
-        const randomHex = Math.random().toString(16).slice(2, 10);
-        const secret = `hrz_live_${randomHex}${Math.random().toString(16).slice(2, 14)}`;
-        const createdItem: ApiKeyItem = {
-          id: `key-${Date.now()}`,
-          org_id: "org-01",
-          name: newKeyName,
-          prefix: `hrz_live_${randomHex.slice(0, 4)}...`,
-          scopes: selectedScopes,
-          last_used_at: null,
-          expires_at: null,
-          revoked_at: null,
-          created_at: new Date().toISOString(),
-        };
-        setKeys([createdItem, ...keys]);
-        setRevealedSecret(secret);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setMessage(body?.error?.message ?? `Could not create the key (HTTP ${res.status}).`);
+        return;
       }
-      setIsCreateOpen(false);
-      setNewKeyName("");
-    } catch {
-      const randomHex = Math.random().toString(16).slice(2, 10);
-      const secret = `hrz_live_${randomHex}${Math.random().toString(16).slice(2, 14)}`;
+
+      const data = await res.json();
       const createdItem: ApiKeyItem = {
-        id: `key-${Date.now()}`,
-        org_id: "org-01",
-        name: newKeyName,
-        prefix: `hrz_live_${randomHex.slice(0, 4)}...`,
-        scopes: selectedScopes,
+        id: data.id ?? `key-${data.prefix}`,
+        org_id: data.orgId ?? "",
+        name: data.name,
+        prefix: data.prefix,
+        scopes: data.scopes,
         last_used_at: null,
         expires_at: null,
         revoked_at: null,
-        created_at: new Date().toISOString(),
+        created_at: data.createdAt ?? new Date().toISOString(),
       };
       setKeys([createdItem, ...keys]);
-      setRevealedSecret(secret);
+      setRevealedSecret(data.key);
       setIsCreateOpen(false);
       setNewKeyName("");
+    } catch {
+      setMessage("Cannot reach the API. Is it running?");
     } finally {
       setIsSubmitting(false);
     }
@@ -123,9 +95,15 @@ export function ApiKeysManager({ initialKeys }: { initialKeys: ApiKeyItem[] }) {
     }
 
     try {
-      await fetch(`/api/v1/api-keys/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/v1/api-keys/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setMessage(body?.error?.message ?? `Could not revoke the key (HTTP ${res.status}).`);
+        return;
+      }
     } catch {
-      // ignore
+      setMessage("Cannot reach the API. Is it running?");
+      return;
     }
 
     setKeys(

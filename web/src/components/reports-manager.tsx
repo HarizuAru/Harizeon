@@ -49,38 +49,16 @@ export function ReportsManager({ initialReports }: { initialReports: ReportItem[
       });
 
       if (!res.ok) {
-        // Fallback local report
-        const newId = `rep-${Date.now().toString(36)}`;
-        const localRep: ReportItem = {
-          id: newId,
-          type: reportType,
-          generated_at: new Date().toISOString(),
-          period_start,
-          period_end,
-          created_at: new Date().toISOString(),
-        };
-        setReports([localRep, ...reports]);
-        setIsModalOpen(false);
-        router.push(`/reports/${newId}`);
-      } else {
-        const data = await res.json();
-        setReports([data.report, ...reports]);
-        setIsModalOpen(false);
-        router.push(`/reports/${data.report.id}`);
+        const body = await res.json().catch(() => null);
+        setError(body?.error?.message ?? `Could not generate the report (HTTP ${res.status}).`);
+        return;
       }
-    } catch {
-      const newId = `rep-${Date.now().toString(36)}`;
-      const localRep: ReportItem = {
-        id: newId,
-        type: reportType,
-        generated_at: new Date().toISOString(),
-        period_start,
-        period_end,
-        created_at: new Date().toISOString(),
-      };
-      setReports([localRep, ...reports]);
+      const data = await res.json();
+      setReports([data.report, ...reports]);
       setIsModalOpen(false);
-      router.push(`/reports/${newId}`);
+      router.push(`/reports/${data.report.id}`);
+    } catch {
+      setError("Cannot reach the API. Is it running?");
     } finally {
       setIsGenerating(false);
     }

@@ -8,11 +8,11 @@ export function OnboardingWizard() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Step 1: Org name & locale
-  const [orgName, setOrgName] = useState("Acme Security");
+  const [orgName, setOrgName] = useState("");
   const [locale, setLocale] = useState<"en" | "ms">("en");
 
   // Step 2: First domain
-  const [domain, setDomain] = useState("example.com");
+  const [domain, setDomain] = useState("");
 
   // Step 3: Verification
   const [verificationMethod, setVerificationMethod] = useState<"dns_txt" | "http_file">("dns_txt");

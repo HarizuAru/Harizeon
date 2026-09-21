@@ -9,12 +9,20 @@ import { ServicesMegaMenu } from "@/components/services-mega-menu";
 import { AwsSearchPalette } from "@/components/aws-search-palette";
 
 export const CLUSTER_REGIONS = [
-  { id: "ap-southeast-1", label: "ap-southeast-1 (Singapore)", status: "Active Fleet (4 workers)" },
-  { id: "us-east-1", label: "us-east-1 (N. Virginia)", status: "Ready (6 workers)" },
-  { id: "eu-west-1", label: "eu-west-1 (Ireland)", status: "Ready (4 workers)" },
-  { id: "ap-northeast-1", label: "ap-northeast-1 (Tokyo)", status: "Ready (4 workers)" },
-  { id: "us-west-2", label: "us-west-2 (Oregon)", status: "Ready (4 workers)" },
+  { id: "ap-southeast-1", label: "ap-southeast-1 (Singapore)" },
+  { id: "us-east-1", label: "us-east-1 (N. Virginia)" },
+  { id: "eu-west-1", label: "eu-west-1 (Ireland)" },
+  { id: "ap-northeast-1", label: "ap-northeast-1 (Tokyo)" },
+  { id: "us-west-2", label: "us-west-2 (Oregon)" },
 ];
+
+interface AlertItem {
+  id: string;
+  title: string;
+  severity: string;
+  asset_value?: string | null;
+  last_seen_at?: string | null;
+}
 
 export function TopBar({
   onToggleCloudShell,
@@ -34,10 +42,20 @@ export function TopBar({
   const [isRegionOpen, setIsRegionOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [alerts, setAlerts] = useState<AlertItem[] | null>(null);
   const [copiedAccountId, setCopiedAccountId] = useState(false);
 
   const pathname = usePathname();
   const currentRegion = activeRegion || "ap-southeast-1";
+
+  // Alerts are the org's real open findings, never a canned sample (§10.8).
+  useEffect(() => {
+    if (!isNotificationsOpen || alerts !== null) return;
+    fetch("/api/v1/findings?limit=5&status=open")
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j: { data?: AlertItem[] }) => setAlerts((j.data ?? []).slice(0, 5)))
+      .catch(() => setAlerts([]));
+  }, [isNotificationsOpen, alerts]);
 
   // Global hotkeys (AWS style: '/' or 'Alt+S' for search, '`' for CloudShell)
   useEffect(() => {
@@ -207,7 +225,6 @@ export function TopBar({
                       >
                         <div>
                           <div>{r.label}</div>
-                          <div className="text-[10px] text-faint">{r.status}</div>
                         </div>
                         {active && <span className="text-[10px] text-ink font-bold">●</span>}
                       </button>
@@ -230,52 +247,49 @@ export function TopBar({
               title="Notifications & Security Alerts"
             >
               <span>🔔</span>
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center border border-ink bg-ink text-[9px] font-bold text-canvas font-mono">
-                2
-              </span>
+              {alerts && alerts.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center border border-ink bg-ink text-[9px] font-bold text-canvas font-mono">
+                  {alerts.length}
+                </span>
+              )}
             </button>
 
             {isNotificationsOpen && (
               <div className="absolute right-0 top-full mt-1 w-80 border border-line bg-canvas p-3 font-mono shadow-xl z-50">
                 <div className="flex items-center justify-between border-b border-line pb-2 text-xs">
                   <span className="font-bold text-ink uppercase tracking-wider">
-                    Alerts (2 Unread)
+                    Open findings{alerts ? ` (${alerts.length})` : ""}
                   </span>
                   <Link
                     href="/settings/notifications"
                     onClick={() => setIsNotificationsOpen(false)}
                     className="text-[10px] text-muted hover:text-ink underline"
                   >
-                    Manage SIEM
+                    Manage channels
                   </Link>
                 </div>
 
                 <div className="mt-2 divide-y divide-line text-xs">
-                  <div className="py-2">
-                    <div className="flex items-center justify-between">
-                      <span className="border border-ink bg-ink px-1 text-[9px] font-bold text-canvas uppercase">
-                        CRITICAL
-                      </span>
-                      <span className="text-[10px] text-faint">4h ago</span>
-                    </div>
-                    <p className="mt-1 font-sans text-xs text-ink font-medium">
-                      TLS 1.0/1.1 accepted on gateway
-                    </p>
-                    <p className="text-[11px] text-muted">example.com · port 443</p>
-                  </div>
-
-                  <div className="py-2">
-                    <div className="flex items-center justify-between">
-                      <span className="border border-line bg-subtle px-1 text-[9px] font-bold text-ink uppercase">
-                        SCAN COMPLETED
-                      </span>
-                      <span className="text-[10px] text-faint">4h ago</span>
-                    </div>
-                    <p className="mt-1 font-sans text-xs text-ink font-medium">
-                      Standard scan scn-7b89f012 finished
-                    </p>
-                    <p className="text-[11px] text-muted">+3 new findings recorded</p>
-                  </div>
+                  {alerts === null ? (
+                    <div className="py-3 text-[11px] text-muted">Loading…</div>
+                  ) : alerts.length === 0 ? (
+                    <div className="py-3 text-[11px] text-muted">No open findings.</div>
+                  ) : (
+                    alerts.map((a) => (
+                      <div key={a.id} className="py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="border border-ink bg-ink px-1 text-[9px] font-bold text-canvas uppercase">
+                            {a.severity}
+                          </span>
+                          <span className="text-[10px] text-faint">
+                            {a.last_seen_at ? new Date(a.last_seen_at).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                        <p className="mt-1 font-sans text-xs text-ink font-medium">{a.title}</p>
+                        <p className="text-[11px] text-muted">{a.asset_value ?? ""}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-line text-center">

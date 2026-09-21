@@ -12,29 +12,24 @@ interface SearchItem {
   badge?: string;
 }
 
-const SEARCH_ITEMS: SearchItem[] = [
+const NAV_ITEMS: SearchItem[] = [
   // Services
   { id: "s-assets", title: "Assets & Attack Surface Inventory", category: "Services", href: "/assets", badge: "ASM", description: "View verified domains, subdomains, IPs, and CIDRs" },
   { id: "s-scans", title: "Vulnerability Scans & Executions", category: "Services", href: "/scans", badge: "SCN", description: "Historical and active scan jobs with event telemetry" },
   { id: "s-findings", title: "Findings & Vulnerabilities", category: "Services", href: "/findings", badge: "FND", description: "All detected security exposures, CVEs, and CVSS scores" },
   { id: "s-schedules", title: "Scan Schedules", category: "Services", href: "/schedules", badge: "SCH", description: "Recurring cron-based automated perimeter scanning" },
-  { id: "s-reports", title: "Compliance & Executive Reports", category: "Services", href: "/reports", badge: "REP", description: "Generate and download ISO 27001 / SOC 2 PDF reports" },
+  { id: "s-reports", title: "Compliance & Executive Reports", category: "Services", href: "/reports", badge: "REP", description: "Generate and download executive and technical reports" },
   { id: "s-dashboard", title: "Console Dashboard (Security Hub)", category: "Services", href: "/dashboard", badge: "HUB", description: "Central posture score, risk deltas, and inventory overview" },
-  { id: "s-audit", title: "CloudTrail & Audit Logs", category: "Services", href: "/settings/audit-log", badge: "ADT", description: "Append-only cryptographic administrative audit trail" },
+  { id: "s-audit", title: "Audit Logs", category: "Services", href: "/settings/audit-log", badge: "ADT", description: "Append-only administrative audit trail" },
   { id: "s-api-keys", title: "API Keys & Service Credentials", category: "Services", href: "/settings/api-keys", badge: "IAM", description: "Provision and revoke REST API tokens" },
   { id: "s-members", title: "IAM Members & RBAC Roles", category: "Services", href: "/settings/members", badge: "IAM", description: "Manage organization members, roles, and permissions" },
   { id: "s-billing", title: "Billing, Costs & Service Quotas", category: "Services", href: "/settings/billing", badge: "BIL", description: "Current tier capacity, metered usage, and invoice history" },
-  { id: "s-notifications", title: "Notification Channels & SIEM", category: "Services", href: "/settings/notifications", badge: "SIEM", description: "Configure Webhook, Slack, Discord, and Email alerts" },
+  { id: "s-notifications", title: "Notification Channels", category: "Services", href: "/settings/notifications", badge: "SIEM", description: "Configure Webhook, Slack, Discord, and Email alerts" },
 
   // Actions
   { id: "a-new-scan", title: "Launch New Security Scan", category: "Features & Actions", href: "/scans/new", badge: "ACTION", description: "Start an immediate Quick, Standard, or Deep scan" },
   { id: "a-new-asset", title: "Register Perimeter Asset", category: "Features & Actions", href: "/assets/new", badge: "ACTION", description: "Add a new domain, IP, or URL for ownership verification" },
   { id: "a-gen-report", title: "Generate Security Report", category: "Features & Actions", href: "/reports", badge: "ACTION", description: "Create an executive posture assessment document" },
-
-  // Assets
-  { id: "ast-ex", title: "example.com", category: "Perimeter Assets", href: "/assets/ast-001", badge: "DOMAIN", description: "Verified primary domain (3 findings active)" },
-  { id: "ast-api", title: "api.example.com", category: "Perimeter Assets", href: "/assets/ast-002", badge: "SUBDOMAIN", description: "Verified API gateway endpoint" },
-  { id: "ast-ip", title: "203.0.113.10", category: "Perimeter Assets", href: "/assets/ast-003", badge: "PUBLIC IP", description: "Verified perimeter IP gateway" },
 
   // Documentation
   { id: "d-quickstart", title: "Quickstart Guide", category: "Documentation", href: "/docs/quickstart", description: "Verify ownership and execute first scan in 4 minutes" },
@@ -51,6 +46,7 @@ export function AwsSearchPalette({
 }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [assets, setAssets] = useState<SearchItem[]>([]);
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -60,8 +56,30 @@ export function AwsSearchPalette({
     }
   }, [isOpen]);
 
+  // Real assets only: the palette never lists invented targets (§10.8).
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch("/api/v1/assets?limit=50")
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j: { data?: Array<{ id: string; value: string; type: string; verification_status: string }> }) => {
+        setAssets(
+          (j.data ?? []).map((a) => ({
+            id: `ast-${a.id}`,
+            title: a.value,
+            category: "Perimeter Assets" as const,
+            href: `/assets/${a.id}`,
+            badge: a.type.toUpperCase(),
+            description: `${a.verification_status} · ${a.type}`,
+          })),
+        );
+      })
+      .catch(() => setAssets([]));
+  }, [isOpen]);
+
+  const allItems = [...NAV_ITEMS, ...assets];
+
   const q = query.toLowerCase().trim();
-  const filtered = SEARCH_ITEMS.filter(
+  const filtered = allItems.filter(
     (item) =>
       !q ||
       item.title.toLowerCase().includes(q) ||

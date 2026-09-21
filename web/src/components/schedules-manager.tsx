@@ -59,54 +59,38 @@ export function SchedulesManager({ initialSchedules }: { initialSchedules: Sched
       });
 
       if (!res.ok) {
-        // Direct mock fallback if API route not proxied
-        const newSched: ScheduleItem = {
-          id: `sch-${Date.now().toString(36)}`,
-          cron,
-          profile,
-          timezone,
-          next_run_at: new Date(Date.now() + 24 * 3600000).toISOString(),
-          enabled,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        setSchedules([newSched, ...schedules]);
-      } else {
-        const data = await res.json();
-        setSchedules([data.schedule, ...schedules]);
+        const body = await res.json().catch(() => null);
+        setError(body?.error?.message ?? `Could not create the schedule (HTTP ${res.status}).`);
+        return;
       }
+      const data = await res.json();
+      setSchedules([data.schedule, ...schedules]);
       setIsModalOpen(false);
       router.refresh();
     } catch {
-      const newSched: ScheduleItem = {
-        id: `sch-${Date.now().toString(36)}`,
-        cron,
-        profile,
-        timezone,
-        next_run_at: new Date(Date.now() + 24 * 3600000).toISOString(),
-        enabled,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setSchedules([newSched, ...schedules]);
-      setIsModalOpen(false);
+      setError("Cannot reach the API. Is it running?");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleToggle = async (id: string, currentStatus: boolean) => {
-    const updated = schedules.map((s) => (s.id === id ? { ...s, enabled: !currentStatus } : s));
-    setSchedules(updated);
+    setSchedules(schedules.map((s) => (s.id === id ? { ...s, enabled: !currentStatus } : s)));
 
     try {
-      await fetch(`/api/v1/schedules/${id}`, {
+      const res = await fetch(`/api/v1/schedules/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !currentStatus }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error?.message ?? `Could not update the schedule (HTTP ${res.status}).`);
+        router.refresh();
+      }
     } catch {
-      // Handled via local state
+      setError("Cannot reach the API. Is it running?");
+      router.refresh();
     }
   };
 
@@ -115,9 +99,15 @@ export function SchedulesManager({ initialSchedules }: { initialSchedules: Sched
     setSchedules(schedules.filter((s) => s.id !== id));
 
     try {
-      await fetch(`/api/v1/schedules/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/v1/schedules/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error?.message ?? `Could not delete the schedule (HTTP ${res.status}).`);
+        router.refresh();
+      }
     } catch {
-      // Handled via local state
+      setError("Cannot reach the API. Is it running?");
+      router.refresh();
     }
   };
 

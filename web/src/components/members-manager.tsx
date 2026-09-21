@@ -42,40 +42,19 @@ export function MembersManager({ initialMembers }: { initialMembers: MemberItem[
         body: JSON.stringify({ email, role }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setMembers([...members, data.member]);
-        setMessage(`Invitation dispatched to ${email}.`);
-      } else {
-        // Fallback local addition
-        const newMem: MemberItem = {
-          id: `mem-${Date.now()}`,
-          org_id: "org-01",
-          user_id: `usr-${Date.now()}`,
-          role,
-          user_email: email,
-          user_name: email.split("@")[0],
-          created_at: new Date().toISOString(),
-        };
-        setMembers([...members, newMem]);
-        setMessage(`Invitation recorded for ${email}.`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setMessage(body?.error?.message ?? `Could not invite ${email} (HTTP ${res.status}).`);
+        return;
       }
+
+      const data = await res.json();
+      setMembers([...members, data.member]);
+      setMessage(`Invitation dispatched to ${email}.`);
       setEmail("");
       setIsInviteOpen(false);
     } catch {
-      const newMem: MemberItem = {
-        id: `mem-${Date.now()}`,
-        org_id: "org-01",
-        user_id: `usr-${Date.now()}`,
-        role,
-        user_email: email,
-        user_name: email.split("@")[0],
-        created_at: new Date().toISOString(),
-      };
-      setMembers([...members, newMem]);
-      setMessage(`Invitation recorded for ${email}.`);
-      setEmail("");
-      setIsInviteOpen(false);
+      setMessage("Cannot reach the API. Is it running?");
     } finally {
       setIsSubmitting(false);
       setTimeout(() => setMessage(null), 4000);
@@ -86,9 +65,15 @@ export function MembersManager({ initialMembers }: { initialMembers: MemberItem[
     if (!confirm(`Revoke workspace access for ${memberEmail}?`)) return;
 
     try {
-      await fetch(`/api/v1/org/members/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/v1/org/members/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setMessage(body?.error?.message ?? `Could not remove ${memberEmail} (HTTP ${res.status}).`);
+        return;
+      }
     } catch {
-      // ignore
+      setMessage("Cannot reach the API. Is it running?");
+      return;
     }
     setMembers(members.filter((m) => m.id !== id));
     setMessage(`Removed ${memberEmail} from workspace.`);

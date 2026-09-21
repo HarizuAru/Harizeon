@@ -34,25 +34,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
   }
 
-  // Fallback: simulated SSE stream for in-memory scan
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(
-        encoder.encode(`event: status\ndata: ${JSON.stringify({ status: "completed", phase: "report", progress_pct: 100 })}\n\n`),
-      );
-      controller.enqueue(
-        encoder.encode(`event: done\ndata: ${JSON.stringify({ status: "completed" })}\n\n`),
-      );
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
+  // The API is the only source of scan truth. Never simulate a "completed"
+  // stream: a security console that invents a finished scan is worse than one
+  // that reports a disconnect. A non-2xx makes EventSource fire `error`, which
+  // the client already handles.
+  return new Response("scan event stream unavailable", { status: 502 });
 }

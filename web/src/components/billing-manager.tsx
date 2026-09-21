@@ -124,6 +124,7 @@ export function BillingManager({
   const [calcAssets, setCalcAssets] = useState(initialUsage.assets_monitored || 5);
   const [currency, setCurrency] = useState<"MYR" | "USD">("MYR");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Metered calculator formula (§13.2)
@@ -160,45 +161,30 @@ export function BillingManager({
 
   async function handleSelectPlan(planCode: string) {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const res = await fetch("/api/v1/billing/checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan_code: planCode }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentPlan(data.plan);
-        setSuccessMessage(`Subscription updated: now on ${planCode.toUpperCase()} plan.`);
-      } else {
-        // Fallback local state update
-        const selected = AVAILABLE_PLANS.find((p) => p.code === planCode);
-        if (selected) {
-          setCurrentPlan({
-            id: `plan-${selected.code}`,
-            code: selected.code,
-            price_myr_month: selected.price,
-            limits: {
-              max_assets: selected.assets,
-              scans_per_month: selected.code === "scale" ? -1 : selected.code === "growth" ? 500 : 50,
-              profiles: ["quick", "standard", "deep"],
-              retention_days: selected.code === "free" ? 14 : 90,
-              seats: selected.seats,
-              pdf_reports: selected.code !== "free",
-              api: selected.code === "growth" || selected.code === "scale",
-              schedule: selected.schedule,
-            },
-          });
-        }
-        setSuccessMessage(`Plan switched to ${planCode.toUpperCase()}.`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setErrorMessage(body?.error?.message ?? `Could not change plan (HTTP ${res.status}).`);
+        return;
       }
+      const data = await res.json();
+      setCurrentPlan(data.plan);
+      setSuccessMessage(`Subscription updated: now on ${planCode.toUpperCase()} plan.`);
       setIsChangingPlan(false);
     } catch {
-      setSuccessMessage(`Plan updated to ${planCode.toUpperCase()}.`);
-      setIsChangingPlan(false);
+      setErrorMessage("Cannot reach the API. Is it running?");
     } finally {
       setIsLoading(false);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      setTimeout(() => {
+        setSuccessMessage(null);
+        setErrorMessage(null);
+      }, 5000);
     }
   }
 
@@ -218,6 +204,12 @@ export function BillingManager({
         title="Plan & Billing"
         description="Manage your subscription tier, track asset and scan quota utilization, and download tax invoices."
       />
+
+      {errorMessage && (
+        <div className="border border-ink bg-canvas p-4 font-mono text-sm text-ink">
+          [FAIL] {errorMessage}
+        </div>
+      )}
 
       {successMessage && (
         <div className="border border-ink bg-canvas p-4 font-mono text-sm text-ink">

@@ -18,26 +18,11 @@ export interface ChannelItem {
   updated_at: string;
 }
 
-function makeFallbackChannel(
-  type: ChannelItem["type"],
-  config: Record<string, unknown>,
-  minSeverity: ChannelItem["min_severity"],
-): ChannelItem {
-  const ts = new Date().toISOString();
-  return {
-    id: `chn-${ts.replace(/\D/g, "").slice(-8)}`,
-    type,
-    config,
-    min_severity: minSeverity,
-    enabled: true,
-    verified_at: ts,
-    created_at: ts,
-    updated_at: ts,
-  };
-}
-
 function generateWebhookSecret(): string {
-  return "hrz_sec_" + Math.random().toString(36).slice(2, 16);
+  // A webhook signing secret must come from a CSPRNG, not Math.random.
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return "hrz_sec_" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export function NotificationsManager({ initialChannels }: { initialChannels: ChannelItem[] }) {
@@ -113,20 +98,16 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
       });
 
       if (!res.ok) {
-        const fallbackChannel = makeFallbackChannel(channelType, config, minSeverity);
-        setChannels([fallbackChannel, ...channels]);
-      } else {
-        const data = await res.json();
-        setChannels([data.channel, ...channels]);
+        const body = await res.json().catch(() => null);
+        setError(body?.error?.message ?? `Could not add the channel (HTTP ${res.status}).`);
+        return;
       }
-
+      const data = await res.json();
+      setChannels([data.channel, ...channels]);
       setIsModalOpen(false);
       resetForm();
     } catch {
-      const fallbackChannel = makeFallbackChannel(channelType, config, minSeverity);
-      setChannels([fallbackChannel, ...channels]);
-      setIsModalOpen(false);
-      resetForm();
+      setError("Cannot reach the API. Is it running?");
     } finally {
       setIsSubmitting(false);
     }
@@ -145,47 +126,58 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
     setTestResult(null);
     try {
       const res = await fetch(`/api/v1/channels/${id}/test`, { method: "POST" });
-      const data = await res.json();
-      setTestResult({
-        id,
-        ok: true,
-        message:
-          data.message ||
-          "Dispatched test payload with HMAC-SHA256 signature (X-Harizeon-Signature) successfully.",
-      });
-      // Mark as verified locally
-      setChannels(
-        channels.map((c) => (c.id === id ? { ...c, verified_at: new Date().toISOString() } : c)),
-      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTestResult({
+          id,
+          ok: false,
+          message: data?.error?.message ?? `Test delivery failed (HTTP ${res.status}).`,
+        });
+        return;
+      }
+      // HTTP 200 can still carry a failed delivery: the body's ok is the truth.
+      setTestResult({ id, ok: data.ok === true, message: data.message ?? "Test delivery finished." });
+      if (data.ok === true) {
+        setChannels(channels.map((c) => (c.id === id ? { ...c, verified_at: new Date().toISOString() } : c)));
+      }
     } catch {
-      setTestResult({
-        id,
-        ok: true,
-        message: "Dispatched test payload with HMAC-SHA256 signature (X-Harizeon-Signature).",
-      });
+      setTestResult({ id, ok: false, message: "Cannot reach the API. Is it running?" });
     }
   };
 
   const handleToggle = async (id: string, currentStatus: boolean) => {
     setChannels(channels.map((c) => (c.id === id ? { ...c, enabled: !currentStatus } : c)));
     try {
-      await fetch(`/api/v1/channels/${id}`, {
+      const res = await fetch(`/api/v1/channels/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !currentStatus }),
       });
+      if (!res.ok) {
+        setChannels(channels.map((c) => (c.id === id ? { ...c, enabled: currentStatus } : c)));
+        const body = await res.json().catch(() => null);
+        setError(body?.error?.message ?? `Could not update the channel (HTTP ${res.status}).`);
+      }
     } catch {
-      // Handled in local state
+      setChannels(channels.map((c) => (c.id === id ? { ...c, enabled: currentStatus } : c)));
+      setError("Cannot reach the API. Is it running?");
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to remove this notification channel?")) return;
+    const previous = channels;
     setChannels(channels.filter((c) => c.id !== id));
     try {
-      await fetch(`/api/v1/channels/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/v1/channels/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setChannels(previous);
+        const body = await res.json().catch(() => null);
+        setError(body?.error?.message ?? `Could not remove the channel (HTTP ${res.status}).`);
+      }
     } catch {
-      // Handled in local state
+      setChannels(previous);
+      setError("Cannot reach the API. Is it running?");
     }
   };
 

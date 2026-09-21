@@ -15,10 +15,8 @@ interface CommandHistoryEntry {
   timestamp: string;
 }
 
-const INITIAL_GREETING = `Harizeon CloudShell v0.1.0-prod (x86_64-unknown-linux-musl)
-Connected to scanner cluster: ap-southeast-1 | Node: hz-worker-edge-04
-Authenticated as: hariziskandar0504@gmail.com (Role: SecurityAdmin, Org: hz-org-production)
-Type 'help' for available CLI commands, or click the quick action chips below.
+const INITIAL_GREETING = `Harizeon CloudShell v0.1.0
+A read-only client over the control-plane REST API. Type 'help'.
 `;
 
 export function CloudShellDrawer({ isOpen, onClose, activeRegion }: CloudShellDrawerProps) {
@@ -39,7 +37,7 @@ export function CloudShellDrawer({ isOpen, onClose, activeRegion }: CloudShellDr
 
   if (!isOpen) return null;
 
-  const runCommand = (rawCmd: string) => {
+  const runCommand = async (rawCmd: string) => {
     const cmd = rawCmd.trim();
     if (!cmd) return;
 
@@ -56,71 +54,41 @@ export function CloudShellDrawer({ isOpen, onClose, activeRegion }: CloudShellDr
       return;
     }
 
+    // Every data command reads the real API. This shell never invents rows.
+    const list = async (path: string, row: (r: Record<string, unknown>) => string, empty: string) => {
+      try {
+        const res = await fetch(`/api/v1${path}`);
+        if (!res.ok) return `error: HTTP ${res.status}`;
+        const json = (await res.json()) as { data?: Array<Record<string, unknown>> };
+        const items = json.data ?? [];
+        return items.length ? items.map(row).join("\n") : empty;
+      } catch {
+        return "error: cannot reach the API. Is it running?";
+      }
+    };
+
     if (primary === "help") {
-      output = `HARIZEON SECURITY CLI (hz) — Reference Guide:
-  hz assets list                  List verified perimeter assets and monitoring status
-  hz scan list                    Show recent scans, active phases, and progress
-  hz scan start --target <asset>  Enqueue an immediate vulnerability scan
-  hz findings                     Display active security findings and severity
-  hz status                       Query health of Fastify API, Redis Streams, & Workers
-  hz whoami                       Display active IAM session, role, and organization
-  hz regions                      List operational scanning cluster regions
-  clear                           Clear terminal buffer`;
+      output = `HARIZEON CLI (hz) — read-only:
+  hz assets     List perimeter assets and verification status
+  hz findings   List open findings by severity
+  hz scans      List recent scans and progress
+  date          Print the current time
+  clear         Clear the terminal
+Write actions live in the console or the REST API (see /docs/api).`;
     } else if (primary === "hz" || primary === "harizeon") {
       if (sub === "assets") {
-        output = `ID        TYPE       STATUS    VERIFIED  TARGET VALUE
-ast-001   domain     active    yes       example.com
-ast-002   subdomain  active    yes       api.example.com
-ast-003   ip         active    yes       203.0.113.10
-(3 assets monitored, 100% verified ownership)`;
-      } else if (sub === "scan") {
-        if (parts[2] === "start") {
-          const target = parts[4] || "example.com";
-          const scanSuffix = (history.length + 1).toString(16).padStart(6, "0");
-          output = `[+] Enqueuing scan for target: ${target}
-[+] Profile: standard (port recon, TLS handshake, HTTP security headers)
-[+] Region cluster: ${activeRegion}
-[+] Scan ID issued: scn-${scanSuffix}
-[i] Worker stream received job payload. Status: RUNNING. Check console at /scans.`;
-        } else {
-          output = `SCAN ID        PROFILE   STATUS     DURATION  FINDINGS  CREATED
-scn-7b89f012   standard  completed  42s       3 new     2026-09-19 06:00:00
-scn-3c11a098   quick     completed  14s       0 new     2026-09-18 12:00:00
-scn-1f99d872   deep      completed  2m 18s    1 new     2026-09-17 02:00:00`;
-        }
+        output = await list("/assets?limit=50", (a) => `${a.id}  ${a.type}  ${a.verification_status}  ${a.value}`, "No assets registered.");
       } else if (sub === "findings") {
-        output = `ID       SEVERITY  STATUS  CATEGORY         ASSET            TITLE
-fnd-101  CRITICAL  OPEN    tls              example.com      TLS 1.0/1.1 enabled on public gateway
-fnd-102  HIGH      OPEN    headers          example.com      Missing Content-Security-Policy header
-fnd-103  MEDIUM    OPEN    exposed_service  203.0.113.10     Exposed Redis port on public interface
-(3 open findings active. Total security score penalty: -13 pts)`;
-      } else if (sub === "status") {
-        output = `SYSTEM COMPONENT          STATUS       LATENCY   METRICS
-Fastify Control Plane     OPERATIONAL  14ms      API v1 active
-Redis Stream Workers      OPERATIONAL  1ms       Queue depth: 0, 4 consumers
-Discovery Engines (CT)    OPERATIONAL  180ms     crt.sh & RDAP reachable
-Probing Fleet (${activeRegion})  OPERATIONAL  24ms      Egress IP: 146.190.88.21`;
-      } else if (sub === "whoami") {
-        output = `User:           hariziskandar0504@gmail.com
-Account ID:     9073-7530-3530
-Role:           SecurityAdmin (Full RLS bypass on org assets)
-Organization:   Harizeon SecOps (ID: org-prod-01)
-Active Region:  ${activeRegion}`;
-      } else if (sub === "regions") {
-        output = `CLUSTER REGION              STATUS        LATENCY  FLEET SIZE
-● ap-southeast-1 (Singapore) OPERATIONAL   18ms     4 workers (Current)
-○ us-east-1 (N. Virginia)    OPERATIONAL   82ms     6 workers
-○ eu-west-1 (Ireland)        OPERATIONAL   110ms    4 workers
-○ ap-northeast-1 (Tokyo)     OPERATIONAL   64ms     4 workers`;
+        output = await list("/findings?limit=50&status=open", (f) => `${f.id}  ${f.severity}  ${f.status}  ${f.asset_value ?? "-"}  ${f.title}`, "No open findings.");
+      } else if (sub === "scans" || sub === "scan") {
+        output = await list("/scans?limit=20", (s) => `${s.id}  ${s.profile}  ${s.status}  ${s.progress_pct}%`, "No scans yet.");
       } else {
-        output = `Unknown hz subcommand: '${sub || ""}'. Type 'help' for command manual.`;
+        output = `Unknown hz subcommand: '${sub ?? ""}'. Type 'help'.`;
       }
-    } else if (primary === "whoami") {
-      output = `hariziskandar0504@gmail.com (Role: SecurityAdmin, Org: hz-org-production)`;
     } else if (primary === "date") {
       output = new Date().toUTCString();
     } else {
-      output = `bash: ${primary}: command not found. Try 'hz status' or 'help'.`;
+      output = `command not found: ${primary}. Type 'help'.`;
     }
 
     setHistory((prev) => [...prev, { command: cmd, output, timestamp: ts }]);

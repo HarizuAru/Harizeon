@@ -75,11 +75,18 @@ export async function authRoutes(app: FastifyInstance) {
         };
       }, orgId);
 
-      await sendEmail({
-        to: email,
-        subject: "Verify your Harizeon account",
-        text: `Verify your email: ${buildAuthUrl("/verify-email", created.verifyToken)}`,
-      });
+      // The account is committed; a broken mail provider must not turn a
+      // successful signup into a 500 (the user would exist but be told it
+      // failed, and a retry would hit "email_taken").
+      try {
+        await sendEmail({
+          to: email,
+          subject: "Verify your Harizeon account",
+          text: `Verify your email: ${buildAuthUrl("/verify-email", created.verifyToken)}`,
+        });
+      } catch (err) {
+        req.log.error({ err, email }, "signup verification email could not be sent");
+      }
 
       return reply.status(201).send({
         user: created.user,
@@ -186,11 +193,15 @@ export async function authRoutes(app: FastifyInstance) {
       const user = await findUserByEmail(db, email);
       if (user) {
         const { token } = await createToken(db, { userId: user.id, kind: "password_reset", ttlMinutes: 60 });
-        await sendEmail({
-          to: email,
-          subject: "Harizeon password reset",
-          text: `Reset your password: ${buildAuthUrl("/reset-password", token)}`,
-        });
+        try {
+          await sendEmail({
+            to: email,
+            subject: "Harizeon password reset",
+            text: `Reset your password: ${buildAuthUrl("/reset-password", token)}`,
+          });
+        } catch (err) {
+          req.log.error({ err, email }, "password reset email could not be sent");
+        }
         const orgId = (await orgIdsForUser(db, user.id))[0];
         if (orgId) {
           await withTx(async (client) => {

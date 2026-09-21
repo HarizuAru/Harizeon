@@ -10,10 +10,15 @@ import { apiFetch, ApiError } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
+/**
+ * A security console must never present fabricated data (§10.8): when the API
+ * is unreachable the dashboard shows what it knows (nothing) and says so.
+ */
 export default async function DashboardPage() {
   let findings: DashboardFinding[] = [];
   let assets: DashboardAsset[] = [];
   let scans: DashboardScan[] = [];
+  let error: string | null = null;
 
   try {
     const [findingsRes, assetsRes, scansRes] = await Promise.all([
@@ -25,57 +30,21 @@ export default async function DashboardPage() {
     assets = assetsRes.data ?? [];
     scans = scansRes.data ?? [];
   } catch (e: unknown) {
-    if (e instanceof ApiError && e.status === 401) {
-      redirect("/login");
-    }
-    // Fallback initial mock data if API is currently disconnected
-    assets = [
-      { id: "ast-001", value: "example.com", type: "domain", is_active: true, verification_status: "verified" },
-      { id: "ast-002", value: "api.example.com", type: "subdomain", is_active: true, verification_status: "verified" },
-      { id: "ast-003", value: "203.0.113.10", type: "ip", is_active: true, verification_status: "verified" },
-    ];
-    findings = [
-      {
-        id: "fnd-101",
-        title: "TLS 1.0/1.1 enabled on public gateway",
-        severity: "critical",
-        status: "open",
-        category: "tls",
-        asset_value: "example.com",
-        first_seen_at: "2026-09-19T06:00:00.000Z",
-        last_seen_at: "2026-09-19T10:00:00.000Z",
-      },
-      {
-        id: "fnd-102",
-        title: "Missing Content-Security-Policy (CSP) header",
-        severity: "low",
-        status: "open",
-        category: "http_headers",
-        asset_value: "api.example.com",
-        first_seen_at: "2026-09-19T06:00:00.000Z",
-        last_seen_at: "2026-09-19T10:00:00.000Z",
-      },
-      {
-        id: "fnd-103",
-        title: "Unauthenticated Redis service on public interface",
-        severity: "medium",
-        status: "open",
-        category: "exposed_service",
-        asset_value: "203.0.113.10",
-        first_seen_at: "2026-09-19T06:00:00.000Z",
-        last_seen_at: "2026-09-19T10:00:00.000Z",
-      },
-    ];
-    scans = [
-      {
-        id: "scn-7b89f012",
-        profile: "standard",
-        status: "completed",
-        created_at: "2026-09-19T06:00:00.000Z",
-        summary: { new: 3, resolved: 0, unchanged: 0 },
-      },
-    ];
+    if (e instanceof ApiError && e.status === 401) redirect("/login");
+    error = e instanceof ApiError ? e.message : "Cannot reach the API. Is it running?";
   }
 
-  return <DashboardView findings={findings} assets={assets} scans={scans} />;
+  return (
+    <div className="flex flex-col gap-6">
+      {error ? (
+        <div className="border border-line bg-canvas p-3">
+          <p className="font-mono text-xs font-bold text-ink">ERROR: {error}</p>
+          <p className="mt-1 text-sm text-muted">
+            Showing no data rather than invented data. Start the API and reload.
+          </p>
+        </div>
+      ) : null}
+      <DashboardView findings={findings} assets={assets} scans={scans} />
+    </div>
+  );
 }

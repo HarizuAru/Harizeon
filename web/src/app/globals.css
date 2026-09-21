@@ -131,3 +131,22 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Print: the report is a client-facing artifact (§9.2). Strip console chrome,
+   force black on white, and keep the sharp monochrome look on paper. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  @page {
+    margin: 18mm;
+  }
+  a[href]::after {
+    content: "";
+  }
+}

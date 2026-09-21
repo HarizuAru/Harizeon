@@ -41,8 +41,8 @@ export async function authRoutes(app: FastifyInstance) {
         const user = await createUser(client, { email, password, name, locale: "en" });
 
         await client.query(
-          `INSERT INTO orgs (id, name, slug, billing_status, currency)
-           VALUES ($1,$2,$3,'trialing','MYR')`,
+          `INSERT INTO orgs (id, name, slug, billing_status, currency, plan_id, trial_ends_at)
+           VALUES ($1,$2,$3,'trialing','MYR',(SELECT id FROM plans WHERE code = 'starter'), now() + interval '14 days')`,
           [orgId, orgName, orgSlug],
         );
         await createMembership(client, { orgId, userId: user.id, role: "owner" });

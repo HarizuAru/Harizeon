@@ -3,6 +3,7 @@ import { writeAudit } from "../lib/audit";
 import { badRequest, notFound } from "../lib/errors";
 import { isTerminal, type ScanStatus } from "../lib/scan-state";
 import { sha256Hex } from "../lib/tokens";
+import { assertScanAllowed, recordUsage } from "../lib/quota";
 import type { ScanJob, ScanQueue, WorkerEvent } from "../lib/queue";
 import * as repo from "../repo/scans";
 import * as assetsRepo from "../repo/assets";
@@ -128,6 +129,9 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
   }
 
   const { scan, job } = await withTx(async (client) => {
+    // §13.2 plan limits (profiles / scans per month / assets).
+    await assertScanAllowed(client, input.orgId, input.profile);
+
     const assets = await repo.resolveScanAssets(client, input.orgId, input.assetIds);
     if (assets.length !== input.assetIds.length) {
       throw badRequest("asset_not_found", "One or more assets were not found");
@@ -153,6 +157,8 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
       requestedBy: input.requestedBy,
     });
     await repo.insertScanTargets(client, row.id, input.assetIds);
+    // Meter the billable unit (§13.1): deep scans cost more than standard.
+    await recordUsage(client, input.orgId, `scan.${input.profile}`, input.profile === "deep" ? 5 : 0);
     await writeAudit(client, {
       orgId: input.orgId,
       actorType: input.requestedBy ? "user" : "system",

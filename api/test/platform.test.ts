@@ -127,6 +127,22 @@ test("platform routes work under RLS", { skip: !DATABASE_URL }, async () => {
     assert.equal(invoices.statusCode, 200);
     assert.deepEqual(invoices.json().invoices, [], "no fake invoice is fabricated");
 
+    // --- plan limits enforced (§13.2): starter trial excludes the deep profile
+    const deep = await authed("POST", "/v1/scans", { asset_ids: [assetId], profile: "deep" });
+    assert.equal(deep.statusCode, 400, deep.body);
+    assert.equal(deep.json().error.code, "profile_not_in_plan");
+
+    // Upgrading to scale unlocks deep, and the scan is metered.
+    const upgrade = await authed("POST", "/v1/billing/checkout-session", { plan_code: "scale" });
+    assert.equal(upgrade.statusCode, 200, upgrade.body);
+    assert.equal(upgrade.json().plan.code, "scale");
+    const deepAfter = await authed("POST", "/v1/scans", { asset_ids: [assetId], profile: "deep" });
+    assert.equal(deepAfter.statusCode, 201, deepAfter.body);
+
+    const usage = await authed("GET", "/v1/usage");
+    assert.equal(usage.statusCode, 200);
+    assert.ok(usage.json().usage.scans_this_month >= 1, "scans are counted");
+
     // --- RLS: another org cannot see any of it -----------------------------
     const s2 = await app.inject({
       method: "POST",

@@ -121,7 +121,9 @@ export async function getOrgPlanAndUsage(db: Queryable, orgId: string): Promise<
   const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59)).toISOString();
 
   const scanRes = await db.query<{ count: string }>(
-    `SELECT count(*)::text as count FROM scans WHERE org_id = $1 AND started_at >= $2`,
+    // created_at, not started_at: queued scans must count toward the quota or a
+    // user could bypass the limit by queueing work (§13.2, same basis as quota.ts).
+    `SELECT count(*)::text as count FROM scans WHERE org_id = $1 AND created_at >= $2`,
     [orgId, firstDay],
   );
   const scanCount = parseInt(scanRes.rows[0]?.count ?? "0", 10);
@@ -184,34 +186,26 @@ export async function switchPlan(
     orgId,
   ]);
 
-  // Upsert subscription
+  // Upsert subscription. One row per org; do it with a read-then-write because
+  // subscriptions has no unique constraint on (org_id, plan_id) and a failing
+  // ON CONFLICT inside withTx() would abort the whole transaction (25P02).
   const currentEnd = new Date(Date.now() + 30 * 86400000).toISOString();
-  const subRes = await db.query<SubscriptionRow>(
-    `INSERT INTO subscriptions (org_id, plan_id, provider, status, current_period_end, cancel_at_period_end)
-     VALUES ($1, $2, 'fpx_stripe', 'active', $3, false)
-     ON CONFLICT (org_id, plan_id) DO UPDATE SET status = 'active', current_period_end = $3, updated_at = now()
-     RETURNING *`,
-    [orgId, targetPlan.id, currentEnd],
-  ).catch(async () => {
-    // If no unique constraint on (org_id, plan_id), standard insert/update
-    const existing = await db.query<SubscriptionRow>(
-      `SELECT * FROM subscriptions WHERE org_id = $1 LIMIT 1`,
-      [orgId],
-    );
-    if (existing.rows.length > 0) {
-      const up = await db.query<SubscriptionRow>(
-        `UPDATE subscriptions SET plan_id = $1, status = 'active', current_period_end = $2, updated_at = now()
-         WHERE id = $3 RETURNING *`,
-        [targetPlan.id, currentEnd, existing.rows[0].id],
-      );
-      return up;
-    }
-    return db.query<SubscriptionRow>(
-      `INSERT INTO subscriptions (org_id, plan_id, provider, status, current_period_end, cancel_at_period_end)
-       VALUES ($1, $2, 'fpx_stripe', 'active', $3, false) RETURNING *`,
-      [orgId, targetPlan.id, currentEnd],
-    );
-  });
+  const existing = await db.query<SubscriptionRow>(
+    `SELECT id FROM subscriptions WHERE org_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [orgId],
+  );
+  const subRes =
+    existing.rows.length > 0
+      ? await db.query<SubscriptionRow>(
+          `UPDATE subscriptions SET plan_id = $1, status = 'active', current_period_end = $2, updated_at = now()
+           WHERE id = $3 RETURNING *`,
+          [targetPlan.id, currentEnd, existing.rows[0].id],
+        )
+      : await db.query<SubscriptionRow>(
+          `INSERT INTO subscriptions (org_id, plan_id, provider, status, current_period_end, cancel_at_period_end)
+           VALUES ($1, $2, 'fpx_stripe', 'active', $3, false) RETURNING *`,
+          [orgId, targetPlan.id, currentEnd],
+        );
 
   return {
     plan: targetPlan,

@@ -2,14 +2,14 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { withTx } from "../db";
 import { findUserByEmail, createUser, setEmailVerified, updateLastLogin } from "../repo/users";
-import { createSession, revokeAllUserSessions } from "../repo/sessions";
+import { createSession, revokeAllUserSessions, revokeSession } from "../repo/sessions";
 import { createToken, consumeToken } from "../repo/userTokens";
 import { createMembership, orgIdsForUser } from "../repo/memberships";
 import { verifyPassword, hashPassword } from "../lib/password";
 import { writeAudit } from "../lib/audit";
 import { sendEmail, buildAuthUrl } from "../lib/email";
 import { unauthorized, badRequest, conflict } from "../lib/errors";
-import { sha256Hex } from "../lib/tokens";
+import { invalidateSession } from "../plugins/auth";
 import { randomUUID } from "node:crypto";
 
 const SignupBody = z.object({
@@ -149,7 +149,10 @@ export async function authRoutes(app: FastifyInstance) {
     const cookie = req.cookies?.[SESSION_COOKIE];
     if (cookie && req.auth?.userId) {
       const { userId, orgId } = req.auth;
-      await revokeAllUserSessions(req.server.pg, userId, sha256Hex(cookie));
+      // Revoke THIS session: revokeAllUserSessions only touches the others, so
+      // logging out would otherwise leave the token in the cookie still valid.
+      await revokeSession(req.server.pg, cookie);
+      invalidateSession(cookie);
       await withTx(async (client) => {
         await writeAudit(client, { orgId, actorType: "user", actorId: userId, action: "user.logout" });
       }, orgId);

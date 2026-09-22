@@ -248,6 +248,34 @@ traffic always uses the internal ports and is unaffected.
 - One-command live smoke test (against a running api + worker):
   `cd api && API_BASE=http://localhost:8080 DATABASE_URL=postgresql://harizeon_app:<pw>@localhost:5432/harizeon DOMAIN=example.com node scripts/e2e-demo.mjs`
 
+## Capacity & scaling
+
+The API is a single Fastify process; the DB pool (default 10) and the absence
+of a proxy are the first limits. To run more than one API replica:
+
+1. Start every replica except one with `HARIZEON_RUN_LOOPS=0`. The ingest,
+   reaper, scheduler and re-verification loops must run in exactly one process,
+   otherwise each replica schedules scans and consumes the same jobs.
+2. Put a reverse proxy (nginx/Caddy) in front and enable `trustProxy` (already
+   on) so rate limiting sees the real client IP.
+3. Keep `API replicas × DB_POOL_MAX` under Postgres' `max_connections`; add
+   PgBouncer in transaction mode once the total approaches 100.
+4. Scale the scanner independently: `docker compose up -d --scale worker=4`
+   (workers use a Redis consumer group, so distributing is safe).
+
+Protections in place: `@fastify` `bodyLimit`, per-IP rate limiting
+(`RATE_LIMIT_PER_MIN`, tighter `RATE_LIMIT_AUTH_PER_MIN` for `/v1/auth/*`),
+`statement_timeout` + connect timeout on the pool, a short in-process session
+cache, and graceful shutdown on `SIGTERM`. Rate limiting and the loop flag have
+defaults that keep tests and single-process dev unaffected.
+
+Measure before promising a number:
+
+```bash
+cd api
+node scripts/loadtest.mjs http://localhost:8080 50 15   # url concurrency seconds
+```
+
 ## Non-negotiables
 
 - **No scanning without cryptographic ownership verification (§12).** There is

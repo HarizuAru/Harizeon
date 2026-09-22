@@ -1,9 +1,38 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { withTx, type Queryable } from "../db";
 import { sha256Hex } from "../lib/tokens";
-import { findSessionByToken } from "../repo/sessions";
+import { findSessionByToken, type SessionRow } from "../repo/sessions";
 import { findApiKeyByHash, updateApiKeyLastUsed } from "../repo/apiKeys";
 import { unauthorized } from "../lib/errors";
+
+/**
+ * Every authenticated request otherwise pays a sessions lookup before the
+ * handler starts. A short in-process cache removes that query on repeat
+ * requests; the TTL bounds how long a revoked session can linger, and logout
+ * clears the entry immediately. ponytail: per-process, so a burst across N
+ * replicas still warms N times — move to Redis if that ever matters.
+ */
+const SESSION_CACHE_TTL_MS = 5_000;
+const sessionCache = new Map<string, { session: SessionRow; at: number }>();
+
+export function invalidateSession(token: string): void {
+  sessionCache.delete(token);
+}
+
+async function sessionFor(db: Queryable, token: string): Promise<SessionRow | null> {
+  const now = Date.now();
+  const hit = sessionCache.get(token);
+  if (hit && now - hit.at < SESSION_CACHE_TTL_MS) return hit.session;
+
+  const session = await findSessionByToken(db, token);
+  if (!session) {
+    sessionCache.delete(token);
+    return null;
+  }
+  if (sessionCache.size > 10_000) sessionCache.clear();
+  sessionCache.set(token, { session, at: now });
+  return session;
+}
 
 /**
  * Authenticate-if-present. Populates `req.auth` from a Bearer API key or the
@@ -28,7 +57,7 @@ export async function authenticate(req: FastifyRequest, _reply: FastifyReply): P
   const cookie = req.cookies?.hz_session;
   if (!cookie) return;
 
-  const session = await findSessionByToken(db, cookie);
+  const session = await sessionFor(db, cookie);
   if (!session) return;
 
   const orgId = session.org_id ?? (await primaryOrgId(db, session.user_id));

@@ -17,6 +17,7 @@ import { auditLogRoutes } from "./routes/auditLog";
 import { healthRoutes } from "./routes/health";
 import { authenticate, requireAuth } from "./plugins/auth";
 import { requestIdHook, errorHandler } from "./lib/errors";
+import { rateLimit } from "./lib/ratelimit";
 import { startVerificationRecheck } from "./lib/recheck";
 import { scanQueue } from "./services/scanQueue";
 import { startIngest } from "./workers/ingest";
@@ -29,6 +30,10 @@ export async function buildServer() {
       level: config.NODE_ENV === "production" ? "info" : "debug",
       redact: ["req.headers.authorization", "req.headers.cookie"],
     },
+    // Cap request bodies; behind a proxy we need the real client IP for rate
+    // limiting (X-Forwarded-For is only trusted when trustProxy is on).
+    bodyLimit: config.BODY_LIMIT_BYTES,
+    trustProxy: true,
   });
 
   app.decorate("pg", pool);
@@ -40,6 +45,9 @@ export async function buildServer() {
 
   // Populate req.auth when a valid credential is present; never throws.
   app.addHook("preHandler", authenticate);
+  // Rate limit AFTER authenticate so the bucket can key on the authenticated
+  // user rather than the (shared) IP of the Next console.
+  app.addHook("preHandler", rateLimit);
 
   // Public
   await app.register(healthRoutes);
@@ -87,13 +95,36 @@ async function start() {
   const app = await buildServer();
   try {
     await app.listen({ port: config.PORT, host: "0.0.0.0" });
-    // Background control-plane loops (NOT started by buildServer, so tests stay quiet).
-    await scanQueue.ready();
-    startIngest(scanQueue);
-    startReaper(scanQueue);
-    startScheduler();
-    // Hourly ownership re-verification (background system task, not a request).
-    startVerificationRecheck();
+
+    // Background control-plane loops run in exactly ONE process. Extra API
+    // replicas must set HARIZEON_RUN_LOOPS=0, or each would schedule scans and
+    // consume the same Redis Streams jobs.
+    if (config.HARIZEON_RUN_LOOPS) {
+      // (NOT started by buildServer, so tests stay quiet.)
+      await scanQueue.ready();
+      startIngest(scanQueue);
+      startReaper(scanQueue);
+      startScheduler();
+      // Hourly ownership re-verification (background system task, not a request).
+      startVerificationRecheck();
+    } else {
+      app.log.warn(
+        "background loops disabled (HARIZEON_RUN_LOOPS=0): ensure one process runs them",
+      );
+    }
+
+    // Graceful shutdown so rolling restarts drain in-flight requests.
+    const shutdown = async (signal: string) => {
+      app.log.info({ signal }, "shutting down");
+      try {
+        await app.close();
+        await pool.end();
+      } finally {
+        process.exit(0);
+      }
+    };
+    process.on("SIGTERM", () => void shutdown("SIGTERM"));
+    process.on("SIGINT", () => void shutdown("SIGINT"));
   } catch (err) {
     app.log.error(err);
     process.exit(1);

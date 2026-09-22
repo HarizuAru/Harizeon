@@ -5,7 +5,17 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,
-  max: 10,
+  max: config.DB_POOL_MAX,
+  // Fail fast instead of queueing requests forever when the DB is saturated.
+  connectionTimeoutMillis: config.DB_CONNECT_TIMEOUT_MS,
+  idleTimeoutMillis: config.DB_IDLE_TIMEOUT_MS,
+  // Ignored when 0 (no server-side cap).
+  statement_timeout: config.DB_STATEMENT_TIMEOUT_MS || undefined,
+});
+
+// An idle client erroring (DB restart, network blip) must not crash the process.
+pool.on("error", (err) => {
+  console.error("[db] idle client error:", err.message);
 });
 
 /** Minimal interface satisfied by both Pool and PoolClient for read queries. */

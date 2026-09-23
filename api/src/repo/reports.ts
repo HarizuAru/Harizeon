@@ -1,6 +1,7 @@
 import type { Queryable } from "../db";
 import { badRequest, notFound } from "../lib/errors";
 import { calculateSecurityScore, type SecurityScoreBreakdown } from "../lib/securityScore";
+import { mapFindingsToControls, type ComplianceFrameworkResult } from "../lib/compliance";
 
 export type ReportType = "executive" | "technical" | "compliance";
 
@@ -51,6 +52,8 @@ export interface ReportContent {
     effort: "Low" | "Medium" | "High";
     action: string;
   }>;
+  /** Findings grouped by the controls they touch, per framework (§9.2). */
+  compliance: ComplianceFrameworkResult[];
   disclaimer: string;
 }
 
@@ -69,7 +72,7 @@ export type ReportRow = {
 };
 
 const DISCLAIMER =
-  "Automated testing only; not a substitute for a manual penetration test. Findings reflect detected state at the time of scan execution. Harizeon provides vulnerability identification and telemetry but does not certify immune status.";
+  "Automated testing only; not a substitute for a manual penetration test. Findings reflect detected state at the time of scan execution. Harizeon provides vulnerability identification and telemetry but does not certify immune status. Compliance control references are indicative mappings for guidance only and are not an audit opinion or a statement of certification.";
 
 export async function listReports(db: Queryable, orgId: string): Promise<ReportRow[]> {
   const res = await db.query<ReportRow>(
@@ -144,11 +147,12 @@ export async function createReport(
     status: string;
     asset_id: string;
     cwe_id: string | null;
+    category: string | null;
     first_seen_at: Date | string;
     description: string | null;
     remediation: string | null;
   }>(
-    `SELECT id, title, severity, status, asset_id, cwe_id, first_seen_at, description, remediation
+    `SELECT id, title, severity, status, asset_id, cwe_id, category, first_seen_at, description, remediation
      FROM findings
      WHERE org_id = $1
      ORDER BY CASE severity
@@ -183,7 +187,7 @@ export async function createReport(
       status: f.status,
       asset: assetMap.get(f.asset_id) ?? "unknown",
       cvss: f.severity === "critical" ? 9.2 : f.severity === "high" ? 7.5 : f.severity === "medium" ? 5.3 : 2.0,
-      category: f.cwe_id || "web_security",
+      category: f.category ?? f.cwe_id ?? undefined,
       what_it_is: f.description || `Detected ${f.title} on target asset.`,
       why_it_matters: `Presents security risk allowing unauthorized reconnaissance or manipulation.`,
       remediation: f.remediation || `Follow security guidelines and apply vendor patches.`,
@@ -237,6 +241,7 @@ export async function createReport(
     })),
     findings: findingsList,
     remediation_plan: remediationPlan,
+    compliance: mapFindingsToControls(findingsList),
     disclaimer: DISCLAIMER,
   };
 

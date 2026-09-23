@@ -108,6 +108,18 @@ test("platform routes work under RLS", { skip: !DATABASE_URL }, async () => {
     assert.equal(report.statusCode, 201, report.body);
     assert.equal(report.json().content.type, "executive");
     assert.equal(typeof report.json().content.security_score.score, "number");
+
+    // Compliance mapping is generated from real finding categories (§9.2).
+    const compliance = report.json().content.compliance as Array<{
+      framework: string;
+      controls: Array<{ control: string; status: string }>;
+      open_findings: number;
+    }>;
+    assert.ok(Array.isArray(compliance) && compliance.length > 0, "compliance mapping present");
+    const iso = compliance.find((f) => f.framework === "ISO/IEC 27001:2022");
+    assert.ok(iso, "ISO/IEC 27001 framework mapped");
+    assert.equal(iso!.controls.find((c) => c.control === "A.8.8")?.status, "attention");
+    assert.equal(iso!.open_findings, 1);
     const reportId = report.json().report.id as string;
 
     const one = await authed("GET", `/v1/reports/${reportId}`);

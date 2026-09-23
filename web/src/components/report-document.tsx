@@ -57,7 +57,28 @@ export interface ReportContent {
     effort: "Low" | "Medium" | "High";
     action: string;
   }>;
+  /** Absent on reports generated before compliance mapping existed. */
+  compliance?: ComplianceFrameworkResult[];
   disclaimer: string;
+}
+
+export interface ComplianceControlResult {
+  control: string;
+  title: string;
+  status: "attention" | "no_findings_detected";
+  findings: Array<{
+    id: string;
+    title: string;
+    severity: "critical" | "high" | "medium" | "low" | "info";
+    status: string;
+    asset: string;
+  }>;
+}
+
+export interface ComplianceFrameworkResult {
+  framework: string;
+  controls: ComplianceControlResult[];
+  open_findings: number;
 }
 
 export function ReportDocument({ content }: { content: ReportContent }) {
@@ -337,7 +358,70 @@ export function ReportDocument({ content }: { content: ReportContent }) {
           </div>
         </section>
 
-        {/* Section 5: Appendix & Disclaimer */}
+        {/* Section 5: Compliance mapping (evidence for auditors) */}
+        {content.compliance && content.compliance.length > 0 && (
+          <section className="mt-8 border-b border-line pb-8">
+            <h2 className="font-mono text-xs font-bold uppercase tracking-[0.1em] text-muted">
+              05 / Compliance Control Mapping
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              Findings grouped by the controls they touch. A control marked ATTENTION has at least one
+              open finding; &quot;no findings detected&quot; is not a statement of compliance.
+            </p>
+
+            {content.compliance.map((fw) => (
+              <div key={fw.framework} className="mt-5">
+                <div className="flex items-baseline justify-between border-b border-line pb-1">
+                  <h3 className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-ink">
+                    {fw.framework}
+                  </h3>
+                  <span className="font-mono text-[11px] text-muted">
+                    {fw.open_findings} open finding{fw.open_findings === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div className="mt-2 overflow-x-auto border border-line">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="border-b border-line bg-subtle uppercase text-muted">
+                      <tr>
+                        <th className="p-2.5">Control</th>
+                        <th className="p-2.5">Requirement</th>
+                        <th className="p-2.5">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {fw.controls.map((c) => (
+                        <tr key={`${fw.framework}-${c.control}`}>
+                          <td className="p-2.5 font-bold text-ink">{c.control}</td>
+                          <td className="p-2.5 text-muted">{c.title}</td>
+                          <td className="p-2.5">
+                            {c.status === "attention" ? (
+                              <div>
+                                <span className="font-bold text-ink">[!] ATTENTION</span>
+                                <ul className="mt-1 space-y-0.5">
+                                  {c.findings.map((f) => (
+                                    <li key={f.id} className="text-[10px] text-muted">
+                                      <SeverityChip severity={f.severity} /> {f.title} — {f.asset}
+                                      {f.status !== "open" ? ` (${f.status})` : ""}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : (
+                              <span className="text-muted">no findings detected</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* Section 6: Appendix & Disclaimer */}
         <footer className="mt-8 pt-4 font-mono text-[11px] text-muted leading-relaxed">
           <div className="border border-line bg-subtle p-4">
             <strong className="text-ink">METHODOLOGY & LEGAL DISCLAIMER (§09.2):</strong>

@@ -3,7 +3,7 @@ import { signWebhook } from "./seal";
 import { isPublicHost } from "./verify";
 
 export type NotifyEvent = {
-  kind: "scan.completed" | "channel.test";
+  kind: "scan.completed" | "channel.test" | "asset.discovered";
   orgId: string;
   title: string;
   message: string;

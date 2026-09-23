@@ -39,3 +39,39 @@ export async function notifyScanCompleted(orgId: string, scanId: string): Promis
     if (!result.ok) console.error(`[notify] channel ${channel.id} (${channel.type}) failed: ${result.error}`);
   }
 }
+
+/**
+ * Alert on newly discovered subdomains. This is the retention hook from the MVP
+ * definition of done ("a new subdomain appeared"), so it deliberately ignores
+ * min_severity: a discovery is an exposure *change*, not a severity-ranked
+ * finding, and a "critical only" channel would otherwise never hear about it.
+ */
+export async function notifyAssetsDiscovered(orgId: string, values: string[]): Promise<void> {
+  if (values.length === 0) return;
+  const channels = await withTx((c) => listChannels(c, orgId), orgId);
+  if (channels.length === 0) return;
+
+  const shown = values.slice(0, 10);
+  const more = values.length - shown.length;
+  const message =
+    `Discovery found ${values.length} new subdomain(s):\n` +
+    shown.map((v) => `  - ${v}`).join("\n") +
+    (more > 0 ? `\n  ...and ${more} more` : "") +
+    `\n\nReview and authorise them in the console before scanning.`;
+
+  for (const channel of channels) {
+    if (!channel.enabled) continue;
+    const result = await deliver(
+      { type: channel.type, config: openConfig(channel.config, config.HARIZEON_MASTER_KEY), min_severity: channel.min_severity },
+      {
+        kind: "asset.discovered",
+        orgId,
+        severity: "medium",
+        title: `Harizeon: ${values.length} new subdomain(s) discovered`,
+        message,
+      },
+      { force: true },
+    );
+    if (!result.ok) console.error(`[notify] channel ${channel.id} (${channel.type}) failed: ${result.error}`);
+  }
+}

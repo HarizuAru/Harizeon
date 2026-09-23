@@ -1,6 +1,6 @@
 import { withTx } from "../db";
 import { applyEvent } from "../services/scanService";
-import { notifyScanCompleted } from "../services/notify";
+import { notifyScanCompleted, notifyAssetsDiscovered } from "../services/notify";
 import type { ScanQueue } from "../lib/queue";
 
 /**
@@ -14,12 +14,16 @@ export async function runIngestOnce(queue: ScanQueue, batch = 50): Promise<numbe
 
   let applied = 0;
   const notify: { orgId: string; scanId: string }[] = [];
+  const discovered: { orgId: string; values: string[] }[] = [];
 
   for (const m of [...fresh, ...stranded]) {
     try {
-      await withTx(async (client) => applyEvent(client, m.event), m.event.org_id);
+      const result = await withTx(async (client) => applyEvent(client, m.event), m.event.org_id);
       await queue.ackEvent(m.id);
       applied += 1;
+      if (result.discoveredAssets.length > 0) {
+        discovered.push({ orgId: m.event.org_id, values: result.discoveredAssets });
+      }
       if (m.event.kind === "terminal" && m.event.status === "completed") {
         notify.push({ orgId: m.event.org_id, scanId: m.event.scan_id });
       }
@@ -30,6 +34,11 @@ export async function runIngestOnce(queue: ScanQueue, batch = 50): Promise<numbe
   }
 
   // Notifications run after commit and never block ingest.
+  for (const d of discovered) {
+    notifyAssetsDiscovered(d.orgId, d.values).catch((e: unknown) =>
+      console.error("[notify]", e instanceof Error ? e.message : e),
+    );
+  }
   for (const n of notify) {
     notifyScanCompleted(n.orgId, n.scanId).catch((e: unknown) =>
       console.error("[notify]", e instanceof Error ? e.message : e),

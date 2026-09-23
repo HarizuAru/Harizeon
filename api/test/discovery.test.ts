@@ -108,6 +108,20 @@ test("discovery ingest + inheritance", { skip: !DATABASE_URL }, async () => {
     const rejected = await authed("POST", "/v1/scans", { asset_ids: [orphanSub.json().asset.id], profile: "quick" });
     assert.equal(rejected.statusCode, 400);
     assert.equal(rejected.json().error.code, "asset_not_verified");
+
+    // Re-ingesting a known subdomain must NOT re-alert: the notification hook
+    // keys off the returned set, which contains only newly created assets.
+    // (Last, because it adds a row to the review queue.)
+    const { applyEvent } = await import("../src/services/scanService");
+    const replay = {
+      scan_id: scanId,
+      org_id: orgId,
+      kind: "discovered",
+      parent_asset_id: parentId,
+      discovered: JSON.stringify([{ fqdn: `www.${domain}` }, { fqdn: `fresh.${domain}` }]),
+    };
+    const result = await withTx(async (c) => applyEvent(c, replay as never), orgId);
+    assert.deepEqual(result.discoveredAssets, [`fresh.${domain}`], "only new assets are returned");
   } finally {
     // Leave no in-flight scans, or the dev reaper would requeue them into the
     // production stream (tests share the database with a running API).

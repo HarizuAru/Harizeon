@@ -50,8 +50,9 @@ export function parseDiscovered(raw: string | undefined): { fqdn: string }[] {
   return out;
 }
 
-/** Auto-create discovered subdomains (out of scope until reviewed) + link parent. */
-async function applyDiscovered(client: Queryable, ev: WorkerEvent): Promise<void> {
+/** Auto-create discovered subdomains (out of scope until reviewed) + link parent.
+ *  Returns the newly created hostnames so the caller can alert on them. */
+async function applyDiscovered(client: Queryable, ev: WorkerEvent): Promise<string[]> {
   const entries = parseDiscovered(ev.discovered);
   const parentId = ev.parent_asset_id || null;
 
@@ -72,6 +73,7 @@ async function applyDiscovered(client: Queryable, ev: WorkerEvent): Promise<void
     : entries;
 
   let created = 0;
+  const newValues: string[] = [];
   for (const entry of accepted) {
     const ins = await client.query(
       `INSERT INTO assets (org_id, type, value, parent_asset_id, discovered_by, is_active)
@@ -82,6 +84,7 @@ async function applyDiscovered(client: Queryable, ev: WorkerEvent): Promise<void
     );
     if ((ins.rowCount ?? 0) > 0) {
       created += 1;
+      newValues.push(entry.fqdn);
     } else {
       await client.query(
         `UPDATE assets SET last_seen_at = now(), updated_at = now(),
@@ -107,6 +110,8 @@ async function applyDiscovered(client: Queryable, ev: WorkerEvent): Promise<void
       metadata: { created, total: accepted.length },
     });
   }
+
+  return newValues;
 }
 
 export type CreateScanInput = {
@@ -275,19 +280,21 @@ async function applyFindings(client: Queryable, ev: WorkerEvent): Promise<void> 
  * inside withTx(org). Terminal transitions are first-writer-wins so a late event
  * cannot resurrect a cancelled/finished scan.
  */
-export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<void> {
+export type ApplyResult = { discoveredAssets: string[] };
+const NOTHING_DISCOVERED: ApplyResult = { discoveredAssets: [] };
+
+export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<ApplyResult> {
   // Ignore events for scans that no longer exist (avoids FK poison messages).
   const exists = await client.query(`SELECT 1 FROM scans WHERE id = $1`, [ev.scan_id]);
-  if ((exists.rowCount ?? 0) === 0) return;
+  if ((exists.rowCount ?? 0) === 0) return NOTHING_DISCOVERED;
 
   if (ev.kind === "discovered") {
-    await applyDiscovered(client, ev);
-    return;
+    return { discoveredAssets: await applyDiscovered(client, ev) };
   }
 
   if (ev.kind === "findings") {
     await applyFindings(client, ev);
-    return;
+    return NOTHING_DISCOVERED;
   }
 
   if (ev.kind === "event") {
@@ -297,7 +304,7 @@ export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<vo
       [ev.scan_id, ev.phase ?? null, ev.level ?? "info", ev.message ?? "", ev.at ?? null],
     );
     await client.query(`UPDATE scans SET updated_at = now() WHERE id = $1`, [ev.scan_id]);
-    return;
+    return NOTHING_DISCOVERED;
   }
 
   const sets: string[] = ["updated_at = now()"];
@@ -333,7 +340,7 @@ export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<vo
      WHERE id = $1 AND status NOT IN ${TERMINAL_SQL}`,
     params,
   );
-  if (res.rowCount === 0) return; // already terminal — ignore late transition
+  if (res.rowCount === 0) return NOTHING_DISCOVERED; // already terminal — ignore late transition
 
   if (ev.kind === "terminal") {
     const status = (ev.status ?? "completed") as ScanStatus;
@@ -355,6 +362,8 @@ export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<vo
       targetId: ev.scan_id,
     });
   }
+
+  return NOTHING_DISCOVERED;
 }
 
 /** Cancel an in-flight scan and signal the worker. */

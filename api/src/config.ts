@@ -48,3 +48,11 @@ const Env = z.object({  NODE_ENV: z.enum(["development", "test", "production"]).
 });
 
 export const config = Env.parse(process.env);
+
+// Fail at boot, not at first channel write: sealed secrets need the key, and a
+// production deployment without it would 500 on channel creation.
+if (config.NODE_ENV === "production" && !config.HARIZEON_MASTER_KEY) {
+  throw new Error(
+    "HARIZEON_MASTER_KEY is required in production (notification channel secrets are sealed with it)",
+  );
+}

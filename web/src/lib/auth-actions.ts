@@ -1,14 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { apiBase, forwardSessionCookie, apiFetch, clearSessionCookie } from "./api";
+import { apiBase, forwardSessionCookie, apiFetch, clearSessionCookie, DEMO_MODE } from "./api";
 import { handleMockAuthPost } from "./mock-service";
 
 export type ActionState = { error?: string } | null;
-
-/** Demo mode is explicit and off by default; a security product must never
- *  silently substitute fabricated data for a failed request (§10.8). */
-const DEMO_MODE = process.env.HARIZEON_DEMO_MODE === "1";
 
 async function postJson(path: string, body: unknown, mockAllowed: boolean): Promise<{ res: Response; json: unknown }> {
   try {

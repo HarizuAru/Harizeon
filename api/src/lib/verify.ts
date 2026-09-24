@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { resolveTxt as defaultResolveTxt } from "node:dns/promises";
+import { resolveTxt as defaultResolveTxt, lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 export const VERIFY_TXT_PREFIX = "harizeon-site-verification=";
@@ -176,4 +176,32 @@ export function isPublicHost(hostname: string): boolean {
   }
 
   return true;
+}
+
+export type LookupFn = (host: string) => Promise<Array<{ address: string }>>;
+
+const defaultLookup: LookupFn = (host) => lookup(host, { all: true });
+
+/**
+ * SSRF (§11): a destination hostname must resolve ONLY to public addresses.
+ * `isPublicHost` alone is defeated by a name pointing at 127.0.0.1 or an
+ * internal host, so resolve and require every answer to be public.
+ *
+ * ponytail: this validates the resolution, not the connection — a name that
+ * rebinds between this check and fetch() still slips through. Pin the socket
+ * (custom undici lookup) if that window ever matters.
+ */
+export async function resolvesToPublicOnly(
+  hostname: string,
+  lookupFn: LookupFn = defaultLookup,
+): Promise<boolean> {
+  if (!isPublicHost(hostname)) return false; // literal private IP / metadata host
+  const bare = hostname.trim().toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+  if (isIP(bare)) return true; // a public literal IP is already fully decided
+  try {
+    const answers = await lookupFn(bare);
+    return answers.length > 0 && answers.every((a) => isPublicHost(a.address));
+  } catch {
+    return false; // cannot prove public -> refuse (fail closed)
+  }
 }

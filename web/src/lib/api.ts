@@ -4,8 +4,13 @@ import { handleMockApi } from "./mock-service";
 export const SESSION_COOKIE = "hz_session";
 export const SESSION_MAX_AGE = 30 * 24 * 3600;
 
-/** Demo mode (in-memory mock) is explicit and off by default. */
-const DEMO_MODE = process.env.HARIZEON_DEMO_MODE === "1";
+/** Demo mode (in-memory mock) is explicit and off by default. It must never be
+ *  reachable in a production build: the mock fabricates data (§10.8). */
+const DEMO_REQUESTED = process.env.HARIZEON_DEMO_MODE === "1";
+if (DEMO_REQUESTED && process.env.NODE_ENV === "production") {
+  throw new Error("HARIZEON_DEMO_MODE must not be enabled in production");
+}
+export const DEMO_MODE = DEMO_REQUESTED;
 
 export function apiBase(): string {
   return process.env.HARIZEON_API_BASE ?? "http://localhost:8080";

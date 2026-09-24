@@ -19,6 +19,18 @@ class ScopeTests(unittest.TestCase):
                    "::1", "fe80::1", "fc00::1"]:
             self.assertFalse(scope.is_public_ip(ip), ip)
 
+    def test_first_public_ip_skips_internal_answers(self):
+        # A name resolving to a mix must yield the public one, not the private.
+        self.assertEqual(
+            scope.first_public_ip(["10.0.0.5", "93.184.216.34", "127.0.0.1"]),
+            "93.184.216.34",
+        )
+
+    def test_first_public_ip_none_when_all_internal(self):
+        self.assertIsNone(scope.first_public_ip(["10.0.0.5", "::1", "169.254.169.254"]))
+        self.assertIsNone(scope.first_public_ip([]))
+        self.assertIsNone(scope.first_public_ip(None))
+
     def test_names_allowed_ips_checked(self):
         self.assertTrue(scope.is_public_host("example.com"))
         self.assertFalse(scope.is_public_host("127.0.0.1"))

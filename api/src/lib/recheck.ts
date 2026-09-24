@@ -6,7 +6,7 @@ import {
   checkHttpFile,
   httpFileUrl,
   VERIFY_HTTP_PATH,
-  isPublicHost,
+  resolvesToPublicOnly,
   autoVerifiable,
 } from "./verify";
 
@@ -56,7 +56,7 @@ async function recheckOne(v: DueVerification): Promise<boolean> {
   // SSRF guard (§11): a target that is no longer public cannot be re-proven;
   // skip it (kept verified, backed off) rather than wrongfully revoking.
   // Relaxed only when VERIFY_ALLOW_PRIVATE is explicitly set (dev/test).
-  if (!config.VERIFY_ALLOW_PRIVATE && !isPublicHost(host)) return true;
+  if (!config.VERIFY_ALLOW_PRIVATE && !(await resolvesToPublicOnly(host))) return true;
   return (await checkHttpFile(url, v.token)).ok;
 }
 

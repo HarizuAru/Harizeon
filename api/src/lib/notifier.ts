@@ -1,6 +1,6 @@
 import { sendEmail } from "./email";
 import { signWebhook } from "./seal";
-import { isPublicHost } from "./verify";
+import { isPublicHost, resolvesToPublicOnly } from "./verify";
 
 export type NotifyEvent = {
   kind: "scan.completed" | "channel.test" | "asset.discovered";
@@ -44,6 +44,12 @@ async function postJson(url: string, body: string, headers: Record<string, strin
 
 export type DeliveryResult = { ok: boolean; error?: string };
 
+export type DeliverOpts = {
+  force?: boolean;
+  /** Test seam: defaults to a real DNS resolution check (§11). */
+  resolvePublic?: (host: string) => Promise<boolean>;
+};
+
 /**
  * Deliver one event to one channel. The destination (already unsealed by the
  * caller) is validated before any request. Never throws.
@@ -51,7 +57,7 @@ export type DeliveryResult = { ok: boolean; error?: string };
 export async function deliver(
   channel: { type: string; config: Record<string, unknown>; min_severity?: string },
   event: NotifyEvent,
-  opts: { force?: boolean } = {},
+  opts: DeliverOpts = {},
 ): Promise<DeliveryResult> {
   if (!opts.force && !meetsThreshold(event.severity, channel.min_severity ?? "high")) {
     return { ok: true }; // filtered by min_severity: not an error
@@ -69,6 +75,11 @@ export async function deliver(
     if (!url) return { ok: false, error: `${channel.type} channel has no webhook URL` };
     const invalid = validateDestination(url);
     if (invalid) return { ok: false, error: invalid };
+    // A public-looking name can still resolve to an internal address (§11).
+    const checkPublic = opts.resolvePublic ?? resolvesToPublicOnly;
+    if (!(await checkPublic(new URL(url).hostname))) {
+      return { ok: false, error: "destination does not resolve to a public host" };
+    }
 
     if (channel.type === "slack" || channel.type === "discord") {
       await postJson(url, JSON.stringify({ text: `*${event.title}*\n${event.message}` }), {

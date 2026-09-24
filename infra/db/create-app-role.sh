@@ -27,6 +27,21 @@ END $$;
 
 ALTER ROLE harizeon_app PASSWORD :'pw';
 
+-- Pin the privilege flags. A non-owner role is only subject to RLS if it is
+-- NOT superuser and does NOT have BYPASSRLS; an inherited or pre-elevated role
+-- would silently bypass every tenant policy.
+ALTER ROLE harizeon_app NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+
+DO $$
+DECLARE r RECORD;
+BEGIN
+  SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole
+    INTO r FROM pg_roles WHERE rolname = 'harizeon_app';
+  IF r.rolsuper OR r.rolbypassrls THEN
+    RAISE EXCEPTION 'harizeon_app must not be SUPERUSER or BYPASSRLS (RLS would not apply)';
+  END IF;
+END $$;
+
 GRANT USAGE ON SCHEMA public TO harizeon_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO harizeon_app;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO harizeon_app;

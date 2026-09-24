@@ -12,8 +12,23 @@ import httpx
 
 from cryptography import x509
 
+import scope
+
 TIMEOUT = 10.0
 USER_AGENT = "Harizeon-Worker/0.2"
+
+
+def resolve_public_ip(host, port):
+    """Resolve `host` and return a globally-routable IP, or None (§11).
+
+    Connecting to this IP (rather than to the name) closes the rebinding window
+    between the scope check and the connection.
+    """
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return None
+    return scope.first_public_ip([info[4][0] for info in infos])
 
 
 def http_get(url):
@@ -57,11 +72,30 @@ def tcp_probe(ip, port, timeout=1.5):
         return {"open": False, "banner": None}
 
 
+def _peer_cert_pem(ip, host, port, timeout):
+    """Handshake to a pinned IP (SNI = host) and return the peer cert as PEM."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    with socket.create_connection((ip, port), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=host) as tls:
+            return ssl.DER_cert_to_PEM_cert(tls.getpeercert(binary_form=True))
+
+
 def tls_info(host, port=443, timeout=4.0):
-    """Which TLS versions the endpoint accepts + certificate details."""
+    """Which TLS versions the endpoint accepts + certificate details.
+
+    Connects to a validated public IP, never by name (§11). If the name has no
+    public address, inspection is skipped rather than pointed somewhere internal.
+    """
     from cryptography import x509
 
-    info = {"host": host, "version": None}
+    info = {"host": host, "version": None, "not_after": None}
+
+    ip = resolve_public_ip(host, port)
+    if ip is None:
+        info["skipped"] = "no_public_address"
+        return info
 
     # Weakest protocol the server still accepts (legacy-protocol finding).
     for name, version in (("TLSv1", ssl.TLSVersion.TLSv1), ("TLSv1.1", ssl.TLSVersion.TLSv1_1)):
@@ -71,7 +105,7 @@ def tls_info(host, port=443, timeout=4.0):
             ctx.maximum_version = version
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            with socket.create_connection((host, port), timeout=timeout) as sock:
+            with socket.create_connection((ip, port), timeout=timeout) as sock:
                 with ctx.wrap_socket(sock, server_hostname=host):
                     info["version"] = name
                     break
@@ -82,7 +116,7 @@ def tls_info(host, port=443, timeout=4.0):
         info["version"] = "TLSv1.2+"
 
     try:
-        pem = ssl.get_server_certificate((host, port))
+        pem = _peer_cert_pem(ip, host, port, timeout)
         cert = x509.load_pem_x509_certificate(pem.encode())
         try:
             not_after = cert.not_valid_after_utc
@@ -103,7 +137,12 @@ def tls_info(host, port=443, timeout=4.0):
 
 def fetch_headers(url):
     """Security-header check on the FIRST response — redirects are not followed
-    (§11: a redirect could point the request at internal infrastructure)."""
+    (§11: a redirect could point the request at internal infrastructure).
+
+    ponytail: httpx still resolves the name itself, so a rebinding between the
+    caller's scope check and this request is not closed here. Pin it with a
+    custom httpx transport if that window ever matters; tls_info is already pinned.
+    """
     resp = httpx.get(url, timeout=TIMEOUT, follow_redirects=False, headers={"User-Agent": USER_AGENT})
     return {str(k).lower(): str(v) for k, v in resp.headers.items()}, resp.status_code
 

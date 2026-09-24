@@ -45,6 +45,7 @@ describe("notifier delivery", () => {
       const result = await deliver(
         webhookChannel({ url: "https://hooks.example.org/abc", secret: "s3cret" }),
         { kind: "scan.completed", orgId: "o1", title: "T", message: "M", severity: "high" },
+        { resolvePublic: async () => true },
       );
       assert.equal(result.ok, true, result.error);
       assert.equal(calls.length, 1);
@@ -92,7 +93,7 @@ describe("notifier delivery", () => {
       const result = await deliver(
         webhookChannel({ url: "https://hooks.example.org/abc" }, "critical"),
         { kind: "channel.test", orgId: "o1", title: "T", message: "M", severity: "critical" },
-        { force: true },
+        { force: true, resolvePublic: async () => true },
       );
       assert.equal(result.ok, true);
       assert.equal(called, true);
@@ -108,15 +109,35 @@ describe("notifier delivery", () => {
       throw new Error("connection refused");
     }) as never;
     try {
-      const result = await deliver(webhookChannel({ url: "https://hooks.example.org/abc" }), {
-        kind: "channel.test",
-        orgId: "o1",
-        title: "T",
-        message: "M",
-        severity: "high",
-      });
+      const result = await deliver(
+        webhookChannel({ url: "https://hooks.example.org/abc" }),
+        { kind: "channel.test", orgId: "o1", title: "T", message: "M", severity: "high" },
+        { resolvePublic: async () => true },
+      );
       assert.equal(result.ok, false);
       assert.match(result.error ?? "", /connection refused/);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  test("a destination that resolves to a private address is refused before any request", async () => {
+    const { deliver } = await mod();
+    const original = globalThis.fetch;
+    let called = false;
+    globalThis.fetch = (async () => {
+      called = true;
+      return { ok: true, status: 200 } as never;
+    }) as never;
+    try {
+      const result = await deliver(
+        webhookChannel({ url: "https://rebind.example.org/abc" }),
+        { kind: "channel.test", orgId: "o1", title: "T", message: "M", severity: "high" },
+        { resolvePublic: async () => false },
+      );
+      assert.equal(result.ok, false);
+      assert.match(result.error ?? "", /public host/);
+      assert.equal(called, false, "no outbound request is attempted");
     } finally {
       globalThis.fetch = original;
     }

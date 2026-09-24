@@ -38,3 +38,15 @@ def is_public_host(name_or_ip):
     except ValueError:
         return True
     return is_public_ip(host)
+
+
+def first_public_ip(addresses):
+    """Return the first globally-routable address, or None.
+
+    Used to pin a connection to a validated address instead of re-resolving the
+    name at connect time (§11: DNS rebinding between check and connect).
+    """
+    for addr in addresses or []:
+        if is_public_ip(addr):
+            return addr
+    return None

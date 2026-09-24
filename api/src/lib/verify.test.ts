@@ -10,6 +10,7 @@ import {
   hostnameForVerification,
   methodAllowedForType,
   isPublicHost,
+  resolvesToPublicOnly,
   autoVerifiable,
   requiresManualReview,
   VERIFY_TXT_PREFIX,
@@ -160,5 +161,35 @@ describe("isPublicHost (SSRF guard)", () => {
       assert.strictEqual(isPublicHost(h), false, h);
     }
     assert.strictEqual(isPublicHost("2606:4700:4700::1111"), true);
+  });
+});
+
+describe("resolvesToPublicOnly (SSRF via DNS rebinding, §11)", () => {
+  test("refuses a name that resolves to a private address", async () => {
+    assert.equal(await resolvesToPublicOnly("internal.example", async () => [{ address: "10.0.0.5" }]), false);
+  });
+
+  test("refuses when any answer is private (mixed A/AAAA)", async () => {
+    const mixed = async () => [{ address: "93.184.216.34" }, { address: "127.0.0.1" }];
+    assert.equal(await resolvesToPublicOnly("mixed.example", mixed), false);
+    const v6 = async () => [{ address: "2606:4700:4700::1111" }, { address: "::1" }];
+    assert.equal(await resolvesToPublicOnly("mixed6.example", v6), false);
+  });
+
+  test("allows a name that resolves only to public addresses", async () => {
+    assert.equal(await resolvesToPublicOnly("example.com", async () => [{ address: "93.184.216.34" }]), true);
+  });
+
+  test("fails closed when resolution errors or returns nothing", async () => {
+    assert.equal(await resolvesToPublicOnly("nx.example", async () => { throw new Error("ENOTFOUND"); }), false);
+    assert.equal(await resolvesToPublicOnly("empty.example", async () => []), false);
+  });
+
+  test("literal addresses are decided without a lookup", async () => {
+    let called = false;
+    const spy = async () => { called = true; return [{ address: "93.184.216.34" }]; };
+    assert.equal(await resolvesToPublicOnly("127.0.0.1", spy), false);
+    assert.equal(await resolvesToPublicOnly("1.1.1.1", spy), true);
+    assert.equal(called, false, "no DNS lookup for a literal IP");
   });
 });

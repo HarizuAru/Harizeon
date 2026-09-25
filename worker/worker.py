@@ -25,6 +25,7 @@ import adapters
 import discovery
 import inspect_ as checks
 import probe
+import scope
 import webchecks
 from heartbeat import Heartbeat
 from phases import PHASES, phase_message, planned_phases, progress_for_phase
@@ -260,6 +261,14 @@ def main():
     hb_ttl = int(os.environ.get("SCAN_HB_TTL", "20"))
     hb_every = float(os.environ.get("SCAN_HB_EVERY", "5"))
     consumer = os.environ.get("WORKER_NAME", "worker-%s" % socket.gethostname())
+
+    # Sandbox allowlist is a demo/test affordance. Refuse to run it in production
+    # so the §11 egress guard can never be weakened on a live deployment.
+    raw_sandbox = os.environ.get("HARIZEON_SANDBOX_HOSTS", "").strip()
+    if raw_sandbox and os.environ.get("NODE_ENV") == "production":
+        raise SystemExit("refusing to start: HARIZEON_SANDBOX_HOSTS must not be set in production")
+    if scope.sandbox_enabled():
+        print("worker %s SANDBOX MODE: allowlisted %s" % (consumer, raw_sandbox), flush=True)
 
     r = redis.Redis.from_url(url, decode_responses=True)
     ensure_group(r)

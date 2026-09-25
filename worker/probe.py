@@ -65,7 +65,8 @@ def probe_target(target_value, profile, resolve_fn, connect_fn, timeout=1.0):
         return {"host": host, "ips": [], "open": [], "skipped": "not a public host"}
 
     resolved = resolve_fn(host) or []
-    ips = [ip for ip in resolved if scope.is_public_ip(ip)]
+    # A sandbox host may legitimately resolve to a private address.
+    ips = [ip for ip in resolved if scope.is_public_ip(ip) or scope.is_sandbox_host(host)]
     if not ips:
         return {"host": host, "ips": [], "open": [], "skipped": "no public address"}
 

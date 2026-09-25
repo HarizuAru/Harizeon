@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from probe import (
@@ -183,6 +184,52 @@ class CombinedTests(unittest.TestCase):
         checks = {f["check_id"] for f in findings}
         self.assertIn("tls.legacy_protocol", checks)
         self.assertIn("tls.hsts_missing", checks)
+
+
+class SandboxScopeTests(unittest.TestCase):
+    """The sandbox allowlist is an explicit exception to the §11 egress guard."""
+
+    def setUp(self):
+        self._env = dict(os.environ)
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self._env)
+
+    def _probe(self):
+        return probe_target(
+            "sandbox", "quick",
+            lambda _h: ["172.20.0.9"],
+            lambda _ip, _port, _timeout: {"open": False, "banner": None},
+        )
+
+    def test_disabled_by_default(self):
+        os.environ.pop("HARIZEON_SANDBOX_HOSTS", None)
+        os.environ.pop("NODE_ENV", None)
+        self.assertFalse(scope.sandbox_enabled())
+        self.assertFalse(scope.is_public_ip("172.20.0.9"))
+        self.assertEqual(self._probe()["skipped"], "no public address")
+
+    def test_allowlist_permits_only_listed_host_and_address(self):
+        os.environ.pop("NODE_ENV", None)
+        os.environ["HARIZEON_SANDBOX_HOSTS"] = "sandbox, 172.20.0.9 "
+        self.assertTrue(scope.is_sandbox_host("SANDBOX"))
+        self.assertTrue(scope.is_public_ip("172.20.0.9"))
+        self.assertFalse(scope.is_public_ip("10.0.0.5"), "other private addresses stay blocked")
+
+    def test_probe_accepts_a_sandbox_host_resolving_to_a_private_ip(self):
+        os.environ.pop("NODE_ENV", None)
+        os.environ["HARIZEON_SANDBOX_HOSTS"] = "sandbox"
+        result = self._probe()
+        self.assertIsNone(result["skipped"])
+        self.assertEqual(result["ips"], ["172.20.0.9"])
+
+    def test_production_ignores_the_allowlist(self):
+        os.environ["HARIZEON_SANDBOX_HOSTS"] = "sandbox"
+        os.environ["NODE_ENV"] = "production"
+        self.assertFalse(scope.sandbox_enabled())
+        self.assertFalse(scope.is_sandbox_host("sandbox"))
+        self.assertEqual(self._probe()["skipped"], "no public address")
 
 
 if __name__ == "__main__":

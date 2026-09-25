@@ -41,7 +41,20 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       SCAN_STEP_MS: "500"
+      # Sandbox allowlist (comma-separated hosts/addresses). Empty by default;
+      # the worker refuses to start with this set when NODE_ENV=production.
+      HARIZEON_SANDBOX_HOSTS: ${HARIZEON_SANDBOX_HOSTS:-}
     restart: unless-stopped
+
+  # Intentionally-vulnerable target so scans can be demonstrated end-to-end
+  # against a host you own. Started only with `--profile sandbox`.
+  sandbox:
+    build:
+      context: ./sandbox
+    profiles: ["sandbox"]
+    ports:
+      - "127.0.0.1:8081:80"   # localhost only, for manual browsing
+    restart: "no"
 
   # One-shot schema migrator. `docker compose up` builds it (migrations are
   # copied into the image, so no host bind mount is needed), applies pending

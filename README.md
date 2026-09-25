@@ -248,6 +248,27 @@ traffic always uses the internal ports and is unaffected.
 - One-command live smoke test (against a running api + worker):
   `cd api && API_BASE=http://localhost:8080 DATABASE_URL=postgresql://harizeon_app:<pw>@localhost:5432/harizeon DOMAIN=example.com node scripts/e2e-demo.mjs`
 
+## Sandbox (safe end-to-end demo)
+
+You never need to scan a host you do not own: `sandbox/` is an
+intentionally-vulnerable target that makes the safe-to-demo checks fire
+(exposed `.git`/`.env`/SQL dump, Swagger UI, an unauthenticated Ollama-shaped
+`/api/tags`, and a JS bundle carrying a fake-but-shaped AI key).
+
+```bash
+docker compose --profile sandbox up -d --build     # adds the `sandbox` container
+export HARIZEON_SANDBOX_HOSTS=sandbox              # or set it in .env
+
+cd api && API_BASE=http://localhost:8080 \
+  DATABASE_URL=postgresql://harizeon_app:<pw>@localhost:5432/harizeon \
+  DOMAIN=sandbox node scripts/e2e-demo.mjs
+```
+
+`HARIZEON_SANDBOX_HOSTS` is the **only** exception to the §11 egress guard: it
+accepts just the listed hosts/addresses, and it is ignored entirely when
+`NODE_ENV=production` — the worker refuses to start with it set there. The
+`sandbox` container must never be deployed outside a local network.
+
 ## Capacity & scaling
 
 The API is a single Fastify process; the DB pool (default 10) and the absence

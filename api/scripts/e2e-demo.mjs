@@ -3,18 +3,24 @@
  *
  *   API_BASE=http://harizeon-api-live:8080 \
  *   DATABASE_URL=postgresql://harizeon_app:<pw>@db:5432/harizeon \
- *   DOMAIN=example.com \
+ *   DOMAIN=sandbox \
  *   node scripts/e2e-demo.mjs
  *
  * Creates an account, a verified asset (DB fixture), a scan, then waits for the
  * real worker to finish and prints the discovery result. Useful for a manual
  * "watch it work" pass and for smoke-testing a deploy.
+ *
+ * Defaults to DOMAIN=sandbox, the intentionally-vulnerable target started with
+ * `docker compose --profile sandbox up -d` and allowlisted in the worker via
+ * HARIZEON_SANDBOX_HOSTS=sandbox. The DB verification fixture is a demo-only
+ * shortcut: it fabricates ownership, which is safe *only* because the target is
+ * our own allowlisted container. Never point this at a host you do not own.
  */
 import { Pool } from "pg";
 
 const API = process.env.API_BASE ?? "http://localhost:8080";
 const DATABASE_URL = process.env.DATABASE_URL;
-const DOMAIN = process.env.DOMAIN ?? "example.com";
+const DOMAIN = process.env.DOMAIN ?? "sandbox";
 const TERMINAL = ["completed", "failed", "timeout", "cancelled"];
 
 if (!DATABASE_URL) {

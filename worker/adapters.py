@@ -19,16 +19,20 @@ USER_AGENT = "Harizeon-Worker/0.2"
 
 
 def resolve_public_ip(host, port):
-    """Resolve `host` and return a globally-routable IP, or None (§11).
+    """Resolve `host` and return a routable IP, or None (§11).
 
     Connecting to this IP (rather than to the name) closes the rebinding window
-    between the scope check and the connection.
+    between the scope check and the connection. A sandbox host may resolve to a
+    private address; it is allowlisted explicitly.
     """
     try:
         infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except OSError:
         return None
-    return scope.first_public_ip([info[4][0] for info in infos])
+    addresses = [info[4][0] for info in infos]
+    if scope.is_sandbox_host(host):
+        return addresses[0] if addresses else None
+    return scope.first_public_ip(addresses)
 
 
 def http_get(url):

@@ -39,6 +39,13 @@ export const CONTROL_MAP: Record<string, ComplianceControlRef[]> = {
     { framework: "SOC 2", control: "CC7.1", title: "Detection of vulnerabilities" },
     { framework: "BNM RMiT", control: "Cyber Security", title: "Vulnerability assessment and patching" },
   ],
+  ai_exposure: [
+    { framework: "ISO/IEC 27001:2022", control: "A.5.17", title: "Authentication information" },
+    { framework: "ISO/IEC 27001:2022", control: "A.8.20", title: "Networks security" },
+    { framework: "SOC 2", control: "CC6.1", title: "Logical access security" },
+    { framework: "SOC 2", control: "CC7.1", title: "Detection of vulnerabilities" },
+    { framework: "BNM RMiT", control: "Cyber Security", title: "Credential management and exposed-service controls" },
+  ],
   _default: [
     { framework: "ISO/IEC 27001:2022", control: "A.8.8", title: "Management of technical vulnerabilities" },
     { framework: "SOC 2", control: "CC7.1", title: "Detection of vulnerabilities" },

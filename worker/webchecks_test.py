@@ -110,5 +110,72 @@ class RunChecksTests(unittest.TestCase):
         self.assertEqual(run_web_checks(BASE, fetch), [])
 
 
+class AiExposureTests(unittest.TestCase):
+    def test_ollama_fingerprint_is_tight(self):
+        real = content(200, '{"models":[{"name":"llama3","modified_at":"2024-05-01T10:00:00Z","digest":"sha256:abc"}]}')
+        self.assertTrue(webchecks._ollama_tags(real))
+        self.assertFalse(webchecks._ollama_tags(content(200, '{"models":[]}')))
+        self.assertFalse(webchecks._ollama_tags(content(200, '{"models":[{"name":"x"}]}')))
+        self.assertFalse(webchecks._ollama_tags(content(404, "Not Found")))
+
+    def test_finds_and_redacts_provider_keys(self):
+        text = 'const a="sk-proj-abcdefghijklmnopqrstuvwx";const b="hf_%s";' % ("a" * 32)
+        hits = webchecks.find_leaked_ai_keys(text)  # [(redacted, provider)]
+        providers = {provider for _, provider in hits}
+        self.assertIn("OpenAI", providers)
+        self.assertIn("Hugging Face", providers)
+        for redacted, _ in hits:
+            self.assertNotIn("abcdefghijklmnopqrstuvwx", redacted)
+            self.assertNotIn("a" * 32, redacted)
+        openai = [r for r, p in hits if p == "OpenAI"][0]
+        self.assertEqual(openai, "sk-proj…uvwx")
+
+    def test_placeholder_keys_are_not_findings(self):
+        for text in [
+            "sk-your-api-key-placeholder-12345678",
+            "AIzaSyEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE12",
+            'OPENAI_API_KEY=changeme-changeme-changeme',
+        ]:
+            self.assertEqual(webchecks.find_leaked_ai_keys(text), [], text)
+
+    def test_extract_script_srcs_same_origin_only(self):
+        html = (
+            '<script src="/app.js"></script>'
+            '<script src="https://cdn.other.example/x.js"></script>'
+            '<script src="chunk-2.js"></script>'
+            '<script src="data:text/javascript,1"></script>'
+            '<script src="/app.js"></script>'
+        )
+        self.assertEqual(
+            webchecks.extract_script_srcs(html, "https://example.com/page"),
+            ["https://example.com/app.js", "https://example.com/chunk-2.js"],
+        )
+
+    def test_scan_client_scripts_reports_a_leaked_key_once(self):
+        def fetch(url):
+            if url.endswith("/app.js"):
+                return content(200, 'window.__ENV__={k:"sk-ant-abcdefghijklmnopqrstuvwx"};')
+            return content(200, '<script src="/app.js"></script><script src="/app.js"></script>')
+
+        findings = webchecks.scan_client_scripts("https://example.com", fetch)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["check_id"], "web.leaked_ai_credentials")
+        self.assertEqual(findings[0]["category"], "ai_exposure")
+        self.assertNotIn("abcdefghijklmnopqrstuvwx", findings[0]["evidence"])
+
+    def test_scan_client_scripts_clean_page_is_silent(self):
+        def fetch(url):
+            if url.endswith("/app.js"):
+                return content(200, "console.log('hello')")
+            return content(200, '<script src="/app.js"></script>')
+
+        self.assertEqual(webchecks.scan_client_scripts("https://example.com", fetch), [])
+
+    def test_ai_checks_are_wired_into_run_web_checks(self):
+        fired = run_web_checks("https://example.com", lambda _u: content(200, '{"models":[{"digest":"d","modified_at":"m"}]}'))
+        ids = [f["check_id"] for f in fired]
+        self.assertIn("web.exposed_ollama", ids)
+
+
 if __name__ == "__main__":
     unittest.main()

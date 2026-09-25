@@ -12,9 +12,108 @@ without a network. run_web_checks wires them over an injected fetch_fn.
 
 import re
 from typing import Callable
+from urllib.parse import urljoin, urlsplit
 
 
 Content = dict  # {"status": int, "body": str, "headers": dict}
+
+
+# --- Leaked AI provider credentials (client-side JS) -----------------------
+#
+# The agentic-era exposure: an API key baked into a JS bundle is a working
+# credential for anyone who reads the file. Patterns are deliberately tight
+# (prefix + length + charset) because a wrong "critical" costs trust.
+
+_AI_KEY_PATTERNS = [
+    ("OpenAI", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
+    ("OpenAI", re.compile(r"\bsk-proj-[A-Za-z0-9_-]{20,}\b")),
+    ("Anthropic", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b")),
+    ("Hugging Face", re.compile(r"\bhf_[A-Za-z0-9]{30,}\b")),
+    ("Google", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
+    ("Groq", re.compile(r"\bgsk_[A-Za-z0-9]{40,}\b")),
+]
+
+_PLACEHOLDER_MARKERS = ("example", "your", "xxx", "placeholder", "changeme", "redacted", "dummy", "sample")
+
+
+def redact_secret(value: str) -> str:
+    """Never echo a live credential into a finding or a log."""
+    if len(value) <= 12:
+        return "…"
+    return "%s…%s" % (value[:7], value[-4:])
+
+
+def find_leaked_ai_keys(text: str) -> list:
+    """Return [(provider, redacted)] for AI credentials found in `text`."""
+    if not text:
+        return []
+    found = {}
+    lowered = text.lower()
+    for provider, pattern in _AI_KEY_PATTERNS:
+        for match in pattern.finditer(text):
+            candidate = match.group(0)
+            if any(marker in candidate.lower() for marker in _PLACEHOLDER_MARKERS):
+                continue
+            # Cheap guard against long random blobs that merely share a prefix.
+            if any(marker in lowered[max(0, match.start() - 20):match.start()] for marker in ("example", "your_")):
+                continue
+            found[redact_secret(candidate)] = provider
+    return sorted(found.items(), key=lambda kv: kv[1])
+
+
+def extract_script_srcs(html: str, base_url: str) -> list:
+    """Same-origin <script src> URLs, absolute and de-duplicated, in order."""
+    if not html:
+        return []
+    origin = urlsplit(base_url)
+    out = []
+    seen = set()
+    for raw in re.findall(r"<script[^>]+src=[\"']([^\"']+)[\"']", html, re.IGNORECASE):
+        src = raw.strip().replace("&amp;", "&")
+        if not src or src.lower().startswith(("data:", "javascript:", "blob:")):
+            continue
+        absolute = urljoin(base_url, src)
+        parts = urlsplit(absolute)
+        if (parts.scheme, parts.netloc) != (origin.scheme, origin.netloc):
+            continue  # third-party CDN: not our asset to scan
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        out.append(absolute)
+    return out
+
+
+def scan_client_scripts(base_url: str, fetch_fn: Callable[[str], Content | None], max_scripts: int = 5) -> list:
+    """Fetch the page's own scripts (bounded) and report leaked AI keys.
+
+    Kept free of direct I/O by taking `fetch_fn`, so it is unit-testable with a
+    stub and cheap enough to run inside the existing `test` phase.
+    """
+    page = fetch_fn(base_url)
+    if not page:
+        return []
+    findings = []
+    seen_keys = set()
+    for script_url in extract_script_srcs(page.get("body") or "", base_url)[:max_scripts]:
+        content = fetch_fn(script_url)
+        if not content:
+            continue
+        for redacted, provider in find_leaked_ai_keys(content.get("body") or ""):
+            if redacted in seen_keys:
+                continue
+            seen_keys.add(redacted)
+            findings.append({
+                "check_id": "web.leaked_ai_credentials",
+                "location": script_url,
+                "severity": "critical",
+                "title": "AI provider credential exposed in client-side JavaScript (%s)" % provider,
+                "description": "A %s API key is shipped to the browser. Anyone who loads this script can extract and spend it; an automated agent finds it in seconds." % provider,
+                "remediation": "Remove the key from client code, rotate it immediately, and move calls behind your own authenticated backend.",
+                "cwe_id": "CWE-798",
+                "category": "ai_exposure",
+                "evidence": redacted,
+            })
+    return findings
 
 
 def _git_head(content: Content) -> bool:
@@ -43,6 +142,18 @@ def _swagger(content: Content) -> bool:
 def _backup_sql(content: Content) -> bool:
     body = content.get("body") or ""
     return content.get("status") == 200 and any(k in body for k in ("-- MySQL dump", "-- PostgreSQL database dump", "CREATE TABLE", "INSERT INTO"))
+
+
+def _ollama_tags(content: Content) -> bool:
+    """Ollama's /api/tags lists locally pulled models and, by default, has no
+    authentication. The JSON shape is distinctive, so the fingerprint is tight."""
+    body = content.get("body") or ""
+    return (
+        content.get("status") == 200
+        and '"models"' in body
+        and '"digest"' in body
+        and '"modified_at"' in body
+    )
 
 
 def _not_https_redirect(content: Content) -> bool:
@@ -120,6 +231,17 @@ CHECKS = [
         "remediation": "Immediately remove SQL dumps from public directories and store in an encrypted, off-site bucket.",
         "cwe_id": "CWE-530",
         "category": "web",
+    },
+    {
+        "check_id": "web.exposed_ollama",
+        "path": "/api/tags",
+        "evaluator": _ollama_tags,
+        "severity": "high",
+        "title": "Unauthenticated Ollama model API exposed",
+        "description": "An Ollama inference server is reachable without authentication. Anyone (or any agent) can enumerate and run the hosted models on your hardware.",
+        "remediation": "Bind Ollama to localhost or a private network, or require authentication via a reverse proxy. Never expose port 11434 to the internet.",
+        "cwe_id": "CWE-306",
+        "category": "ai_exposure",
     },
     {
         "check_id": "web.no_https_redirect",

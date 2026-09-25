@@ -159,6 +159,8 @@ def run_webcheck_phase(r, scan_id, org_id, targets, probe_results):
             scheme = "https" if scheme_port == 443 else "http"
             url = "%s://%s" % (scheme, host)
             findings = webchecks.run_web_checks(url, adapters.http_get_full)
+            # Client-side JS can ship a live AI provider key (agentic-era exposure).
+            findings += webchecks.scan_client_scripts(url, adapters.http_get_full)
             log(r, scan_id, org_id, "test", "test: %d web check(s) fired for %s" % (len(findings), url))
             publish_findings(r, scan_id, org_id, asset_id, "test", findings)
             total += len(findings)

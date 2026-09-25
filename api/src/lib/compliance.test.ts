@@ -42,6 +42,14 @@ test("compliance: unknown categories fall through instead of being dropped", () 
   assert.equal(iso.controls.find((c) => c.control === "A.8.8")!.status, "attention");
 });
 
+test("compliance: ai_exposure findings map to credential/access controls", () => {
+  const results = mapFindingsToControls([f({ category: "ai_exposure", title: "AI key leaked" })]);
+  const iso = results.find((r) => r.framework === "ISO/IEC 27001:2022")!;
+  assert.equal(iso.controls.find((c) => c.control === "A.5.17")!.status, "attention");
+  const soc2 = results.find((r) => r.framework === "SOC 2")!;
+  assert.equal(soc2.controls.find((c) => c.control === "CC6.1")!.status, "attention");
+});
+
 test("compliance: every mapped category has a framework and a title", () => {
   for (const [category, refs] of Object.entries(CONTROL_MAP)) {
     for (const ref of refs) {

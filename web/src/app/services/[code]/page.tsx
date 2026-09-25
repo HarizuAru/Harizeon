@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
+// Capability copy must match the code. Anything not implemented is marked
+// roadmap and says so plainly — a security product does not advertise
+// capabilities it has not built (§10.8).
 const SERVICE_REGISTRY: Record<
   string,
   {
@@ -11,7 +14,7 @@ const SERVICE_REGISTRY: Record<
     name: string;
     category: string;
     description: string;
-    status: string;
+    status: "available" | "roadmap";
     highlights: string[];
     technicalDetails: string;
   }
@@ -21,76 +24,77 @@ const SERVICE_REGISTRY: Record<
     name: "Harizeon Surface",
     category: "Attack Surface Discovery",
     description:
-      "Continuous external attack surface management. Tracks subdomains, DNS records, and orphan infrastructure without blind spots.",
+      "External attack-surface discovery. New subdomains are found from Certificate Transparency logs and DNS, then held for your review before they can be scanned.",
     status: "available",
     highlights: [
-      "Monitors Certificate Transparency logs globally in near-real-time.",
-      "Strict subdomain validation: prevents scope creep outside verified root domains.",
-      "Detects DNS dangling CNAME records susceptible to subdomain takeover.",
-      "Automatic correlation with Harizeon Scan to trigger scans on newly discovered endpoints.",
+      "Discovers subdomains from Certificate Transparency logs (crt.sh) and DNS resolution.",
+      "Strict boundary enforcement: only strict subdomains of a verified asset are accepted, so a buggy or compromised scanner cannot inject arbitrary hosts.",
+      "Discovered hosts are created out of scope and must be authorised in the console before scanning.",
+      "Alerts you when a new subdomain appears.",
+      "Ownership is re-verified continuously and revoked if the proof is lost.",
     ],
     technicalDetails:
-      "Worker queries crt.sh and Google CT API streams. Any discovered host is matched against verified tenant assets before insertion.",
+      "Discovery runs inside the scan worker. Results cross back to the control plane only as a validated `discovered` event, and are re-checked against the tenant's verified assets before any row is created.",
   },
   pro: {
     code: "PRO",
     name: "Harizeon Probe",
     category: "Perimeter Reconnaissance",
-    description:
-      "Fast, non-destructive network port probing and service banner identification.",
+    description: "Non-destructive TCP port probing and service banner identification.",
     status: "available",
     highlights: [
-      "SYN and TCP Connect scan modes with graceful rate backoff.",
-      "No exploit payloads sent: 100% non-destructive banner discovery.",
-      "Identifies unencrypted management services (Telnet, RDP, VNC, unauth Redis/Elasticsearch).",
+      "TCP connect probing across a common and an extended port set.",
+      "Banner capture without exploit delivery — no payloads are ever sent.",
+      "Flags services that must not face the internet (unauth Redis, Elasticsearch, Telnet, RDP, VNC).",
+      "Resolves the target, drops every non-public address, and connects to the validated IP.",
     ],
     technicalDetails:
-      "Ephemeral containerized workers dispatched via Redis Streams. Output normalized into standard service records.",
+      "Runs in an isolated worker container with no database credentials. Egress is restricted to globally routable addresses, and the connection is pinned to the validated address rather than the name.",
   },
   ins: {
     code: "INS",
     name: "Harizeon Inspect",
-    category: "Cryptographic & Protocol Audit",
-    description:
-      "Cryptographic posture evaluation, TLS certificate verification, and modern HTTP header compliance.",
+    category: "TLS & Protocol Audit",
+    description: "TLS protocol and certificate checks plus HTTP security-header compliance.",
     status: "available",
     highlights: [
-      "Evaluates TLS cipher suites against NIST SP 800-52r2 guidelines.",
-      "Monitors certificate validity, revocation status (OCSP/CRL), and automated renewal failures.",
-      "Audits CSP, HSTS, X-Content-Type-Options, and Referrer-Policy headers.",
+      "Detects accepted legacy protocols: SSLv2, SSLv3, TLS 1.0 and TLS 1.1.",
+      "Flags expired certificates and certificates expiring within 14 days.",
+      "Audits HSTS, Content-Security-Policy, X-Content-Type-Options and X-Frame-Options.",
+      "Reports Server banner disclosure.",
     ],
     technicalDetails:
-      "Deep handshake inspection across TLS 1.0, 1.1, 1.2, and 1.3 protocol variants.",
-  },
-  vlt: {
-    code: "VLT",
-    name: "Harizeon Vault",
-    category: "Credential & Secret Monitoring",
-    description:
-      "Continuous scanning of public repositories, pasties, and data leaks for exposed credentials.",
-    status: "beta",
-    highlights: [
-      "Searches public GitHub commits and gists for leaked domain secrets and API keys.",
-      "Monitors public breach indexes for compromised corporate email credentials.",
-      "Immediate alert dispatch via Webhooks and Slack upon detected compromise.",
-    ],
-    technicalDetails:
-      "High-frequency ingestion of public commit streams filtered through high-entropy regex patterns.",
+      "Handshakes are performed against the validated public IP with the hostname used for SNI. If the name has no public address, inspection is skipped rather than pointed at internal infrastructure.",
   },
   adt: {
     code: "ADT",
     name: "Harizeon Audit",
     category: "Compliance & Governance",
     description:
-      "Print-optimized executive compliance summaries and technical audit trail exports.",
+      "Executive and technical reports with a security score, a prioritised remediation plan and compliance control mapping.",
     status: "available",
     highlights: [
-      "Generates board-ready Executive Security Summaries with overall security posture scores.",
-      "Technical finding registers categorized by CVSS v3.1 score and remediation urgency.",
-      "Pre-mapped against ISO/IEC 27001:2022 Control A.8.8 and PCI DSS v4.0 Requirement 11.3.",
+      "Executive posture score (0–100) with a prioritised remediation plan.",
+      "Findings mapped to ISO/IEC 27001:2022, SOC 2, BNM RMiT and PDPA (MY) controls. Mapping is guidance for your auditor, not an audit opinion.",
+      "Print / save-as-PDF export directly from the console.",
+      "Append-only audit log of administrative actions.",
     ],
     technicalDetails:
-      "Native HTML print-engine with custom page numbering, black & white high-contrast styling, and verified cryptographic signatures.",
+      "Reports are generated from the tenant's own findings inside a transaction with row-level security enforced; reserved-open reads are impossible by construction.",
+  },
+  vlt: {
+    code: "VLT",
+    name: "Harizeon Vault",
+    category: "Credential & Secret Monitoring",
+    description:
+      "Planned: monitoring of public repositories and paste sites for credentials belonging to your domain.",
+    status: "roadmap",
+    highlights: [
+      "Not yet available — this service is on the roadmap.",
+      "Planned scope: public commit and paste monitoring for your domain's secrets.",
+      "Planned: alerting through the existing notification channels.",
+    ],
+    technicalDetails: "Not implemented. There is no code for this capability in the repository.",
   },
 };
 
@@ -134,18 +138,36 @@ export default async function ServiceDetailPage(props: {
               <span className="text-ink font-bold">{service.code}</span>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="border-2 border-ink px-3 py-1 font-mono text-base font-bold text-ink">
                 {service.code}
               </span>
               <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-ink font-sans">
                 {service.name}
               </h1>
+              <span
+                className={`px-2 py-0.5 font-mono text-[10px] uppercase ${
+                  service.status === "available"
+                    ? "border border-ink bg-ink text-canvas font-bold"
+                    : "border border-line text-muted"
+                }`}
+              >
+                {service.status}
+              </span>
             </div>
 
             <p className="mt-4 text-base text-muted max-w-2xl font-sans leading-relaxed">
               {service.description}
             </p>
+
+            {service.status !== "available" && (
+              <div className="mt-6 border border-ink bg-subtle p-4">
+                <p className="font-mono text-xs text-ink leading-relaxed">
+                  <span className="font-bold">NOT YET AVAILABLE.</span> This service is planned and
+                  has no implementation in the product. Nothing on this page is shipped today.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="border border-line bg-canvas p-8">
@@ -178,12 +200,18 @@ export default async function ServiceDetailPage(props: {
             >
               ← Back to Services Matrix
             </Link>
-            <Link
-              href="/signup"
-              className="border border-ink bg-ink text-canvas px-6 py-2 font-mono text-xs uppercase font-bold hover:bg-canvas hover:text-ink transition-colors"
-            >
-              Start Free Trial →
-            </Link>
+            {service.status === "available" ? (
+              <Link
+                href="/signup"
+                className="border border-ink bg-ink text-canvas px-6 py-2 font-mono text-xs uppercase font-bold hover:bg-canvas hover:text-ink transition-colors"
+              >
+                Start Free Trial →
+              </Link>
+            ) : (
+              <span className="border border-line px-6 py-2 font-mono text-xs uppercase text-muted">
+                Roadmap — not yet available
+              </span>
+            )}
           </div>
         </div>
       </main>

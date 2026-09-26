@@ -4,6 +4,7 @@ import { retryDecision } from "../lib/scan-state";
 import type { ScanJob, ScanQueue } from "../lib/queue";
 import { staleScans } from "../services/scanService";
 import * as repo from "../repo/scans";
+import * as assetsRepo from "../repo/assets";
 
 /**
  * Reclaim scans whose worker stopped heartbeating: retry (max 2, §06.4) or mark
@@ -60,6 +61,48 @@ export async function runReaperOnce(
 
         const targets = await repo.listScanTargets(client, s.scan_id);
         if (targets.length === 0) return null;
+
+        // §12: authorization is re-checked at execution time. A verification
+        // revoked since the scan started must stop the retry, not just block
+        // new scans — a stale scan of a lapsed asset is unauthorized work.
+        const targetIds = targets.map((t) => t.asset_id);
+        const resolved = await repo.resolveScanAssets(client, s.org_id, targetIds);
+        const authorized =
+          resolved.length === targetIds.length &&
+          (
+            await (async () => {
+              for (const a of resolved) {
+                if (!a.is_active) return false;
+                if (a.verification_status === "verified") continue;
+                if (await assetsRepo.isVerifiedOrInherited(client, s.org_id, a.id)) continue;
+                return false;
+              }
+              return true;
+            })()
+          );
+        if (!authorized) {
+          const res = await client.query(
+            `UPDATE scans SET status='cancelled', finished_at=now(), error_code='asset_not_verified', updated_at=now()
+             WHERE id=$1 AND status NOT IN ('completed','failed','timeout','cancelled')`,
+            [s.scan_id],
+          );
+          if ((res.rowCount ?? 0) > 0) {
+            await client.query(
+              `INSERT INTO scan_events (scan_id, level, message) VALUES ($1,'error',$2)`,
+              [s.scan_id, "target ownership no longer verified; scan not retried"],
+            );
+            await writeAudit(client, {
+              orgId: s.org_id,
+              actorType: "system",
+              action: "scan.cancel",
+              targetType: "scan",
+              targetId: s.scan_id,
+              metadata: { reason: "asset_not_verified" },
+            });
+          }
+          return null;
+        }
+
         return {
           profile: scan.profile as ScanJob["profile"],
           targets,

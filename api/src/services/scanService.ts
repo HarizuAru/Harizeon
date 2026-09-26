@@ -296,9 +296,19 @@ export type ApplyResult = { discoveredAssets: string[] };
 const NOTHING_DISCOVERED: ApplyResult = { discoveredAssets: [] };
 
 export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<ApplyResult> {
-  // Ignore events for scans that no longer exist (avoids FK poison messages).
-  const exists = await client.query(`SELECT 1 FROM scans WHERE id = $1`, [ev.scan_id]);
-  if ((exists.rowCount ?? 0) === 0) return NOTHING_DISCOVERED;
+  // Ignore events for scans that no longer exist (avoids FK poison messages),
+  // and fetch the scan's attempt for the staleness guard below.
+  const scanMeta = await client.query<{ attempt: number }>(
+    `SELECT attempt FROM scans WHERE id = $1`,
+    [ev.scan_id],
+  );
+  if ((scanMeta.rowCount ?? 0) === 0) return NOTHING_DISCOVERED;
+
+  // §06.4: once a scan is retried (reaper bumps the attempt), late events from
+  // the dead worker's run must not mutate the newer attempt's state.
+  if (typeof ev.attempt === "number" && ev.attempt < scanMeta.rows[0].attempt) {
+    return NOTHING_DISCOVERED;
+  }
 
   if (ev.kind === "discovered") {
     return { discoveredAssets: await applyDiscovered(client, ev) };

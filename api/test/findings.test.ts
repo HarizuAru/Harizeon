@@ -119,6 +119,49 @@ test("findings ingest + endpoint", { skip: !DATABASE_URL }, async () => {
     assert.equal(missing.statusCode, 404);
     const unauth = await app.inject({ method: "GET", url: "/v1/findings" });
     assert.equal(unauth.statusCode, 401);
+
+    // --- stale-attempt guard (§06.4): a retried scan must ignore its
+    // predecessor's late events, or attempt 1 could mutate attempt 2.
+    await withTx(async (c) => {
+      await c.query(`UPDATE scans SET attempt = 2 WHERE id = $1`, [scanId]);
+    }, orgId);
+    await scanQueue.publish({
+      scan_id: scanId, org_id: orgId, kind: "findings", parent_asset_id: assetId,
+      attempt: 1,
+      findings: JSON.stringify([{ check_id: "stale.check", location: "x:1", severity: "high", title: "Stale attempt finding" }]),
+    });
+    for (let i = 0; i < 3; i += 1) await runIngestOnce(scanQueue);
+    const staleList = await authed("GET", "/v1/findings");
+    assert.equal(
+      staleList.json().data.filter((f: { title: string }) => f.title === "Stale attempt finding").length,
+      0,
+      "an attempt-1 event must not mutate an attempt-2 scan",
+    );
+    await scanQueue.publish({
+      scan_id: scanId, org_id: orgId, kind: "findings", parent_asset_id: assetId,
+      attempt: 2,
+      findings: JSON.stringify([{ check_id: "stale.check", location: "x:1", severity: "high", title: "Current attempt finding" }]),
+    });
+    for (let i = 0; i < 3; i += 1) await runIngestOnce(scanQueue);
+    const currentList = await authed("GET", "/v1/findings");
+    assert.equal(
+      currentList.json().data.filter((f: { title: string }) => f.title === "Current attempt finding").length,
+      1,
+      "the current attempt's events still apply",
+    );
+
+    // --- reaper authorization (§12): a scan whose target's ownership lapsed
+    // must not be retried; it is cancelled instead.
+    const { runReaperOnce } = await import("../src/workers/reaper");
+    await withTx(async (c) => {
+      await c.query(`UPDATE scans SET attempt = 1 WHERE id = $1`, [scanId]);
+      await c.query(`UPDATE scans SET started_at = now() - interval '1 hour' WHERE id = $1`, [scanId]);
+      await c.query(`UPDATE asset_verifications SET status = 'revoked' WHERE org_id = $1 AND asset_id = $2`, [orgId, assetId]);
+    }, orgId);
+    await runReaperOnce(scanQueue, 30_000);
+    const scanRow = (await authed("GET", `/v1/scans/${scanId}`)).json().scan as { status: string; error_code?: string | null };
+    assert.equal(scanRow.status, "cancelled", "revoked-ownership scan is not retried");
+    assert.equal(scanRow.error_code, "asset_not_verified");
   } finally {
     if (orgId) {
       try {

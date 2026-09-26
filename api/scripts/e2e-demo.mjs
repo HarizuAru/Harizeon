@@ -10,17 +10,18 @@
  * real worker to finish and prints the discovery result. Useful for a manual
  * "watch it work" pass and for smoke-testing a deploy.
  *
- * Defaults to DOMAIN=sandbox, the intentionally-vulnerable target started with
- * `docker compose --profile sandbox up -d` and allowlisted in the worker via
- * HARIZEON_SANDBOX_HOSTS=sandbox. The DB verification fixture is a demo-only
- * shortcut: it fabricates ownership, which is safe *only* because the target is
- * our own allowlisted container. Never point this at a host you do not own.
+ * Defaults to DOMAIN=sandbox.test, the intentionally-vulnerable target started
+ * with `docker compose --profile sandbox up -d` and allowlisted in the worker
+ * via HARIZEON_SANDBOX_HOSTS=sandbox.test. The DB verification fixture is a
+ * demo-only shortcut: it fabricates ownership, which is safe *only* because the
+ * target is our own allowlisted container. Never point this at a host you do
+ * not own.
  */
 import { Pool } from "pg";
 
 const API = process.env.API_BASE ?? "http://localhost:8080";
 const DATABASE_URL = process.env.DATABASE_URL;
-const DOMAIN = process.env.DOMAIN ?? "sandbox";
+const DOMAIN = process.env.DOMAIN ?? "sandbox.test";
 const TERMINAL = ["completed", "failed", "timeout", "cancelled"];
 
 if (!DATABASE_URL) {

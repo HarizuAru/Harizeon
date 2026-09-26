@@ -54,6 +54,10 @@ services:
     profiles: ["sandbox"]
     ports:
       - "127.0.0.1:8081:80"   # localhost only, for manual browsing
+    networks:
+      default:
+        aliases:
+          - sandbox.test      # dotted so it passes domain validation
     restart: "no"
 
   # One-shot schema migrator. `docker compose up` builds it (migrations are
@@ -72,3 +76,7 @@ services:
 volumes:
   dbdata:
   redisdata:
+
+networks:
+  default:
+    name: harizeon_default

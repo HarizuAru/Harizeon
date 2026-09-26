@@ -49,7 +49,17 @@ def ensure_group(r):
 
 
 def publish(r, event):
-    r.xadd(EVENTS_STREAM, {k: v for k, v in event.items() if v is not None})
+    # Every event carries the attempt it belongs to, so the control plane can
+    # reject stragglers from a dead worker's run after a requeue (§06.4).
+    payload = dict(event)
+    payload.setdefault("attempt", _CURRENT["attempt"])
+    if payload.get("attempt") in (None, 0):
+        payload.pop("attempt", None)
+    r.xadd(EVENTS_STREAM, {k: v for k, v in payload.items() if v is not None})
+
+
+# Attempt of the job being processed; set in process() before any phase runs.
+_CURRENT = {"attempt": 0}
 
 
 def heartbeat(r, scan_id, ttl):
@@ -227,6 +237,7 @@ def process(r, fields, step_ms, hb_ttl, hb_every):
     org_id = fields["org_id"]
     profile = fields["profile"]
     attempt = int(fields.get("attempt", "0"))
+    _CURRENT["attempt"] = attempt
     targets = json.loads(fields["targets"])
 
     publish(r, {"scan_id": scan_id, "org_id": org_id, "kind": "status", "status": "claimed", "attempt": attempt})

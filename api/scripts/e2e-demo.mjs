@@ -69,6 +69,8 @@ async function main() {
 
   const asset = (await post("/v1/assets", { type: "domain", value: DOMAIN }, cookie)).json.asset;
   console.log(`asset: ${asset.value} (${asset.id.slice(0, 8)})`);
+  // Deterministic demo credentials so the meeting can log in as this tenant.
+  console.log(`demo login: ${EMAIL} / ${password}`);
 
   const client = await pool.connect();
   try {

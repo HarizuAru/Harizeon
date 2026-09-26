@@ -26,6 +26,7 @@ import discovery
 import inspect_ as checks
 import probe
 import scope
+import signatures
 import webchecks
 from heartbeat import Heartbeat
 from phases import PHASES, phase_message, planned_phases, progress_for_phase
@@ -106,9 +107,16 @@ def run_probe_phase(r, scan_id, org_id, profile, targets):
             log(r, scan_id, org_id, "probe", "probe: %d ports closed on %s" % (
                 len(probe.ports_for(profile)), value))
         results[target.get("asset_id", "")] = assets
-    # Findings: services that must not face the internet.
+    # Findings: services that must not face the internet, plus known-vulnerable
+    # software versions identified from the captured banners.
     for asset_id, probes in results.items():
         findings = probe.port_findings(probes)
+        for entry in probes:
+            banner = (entry.get("banner") or "").strip()
+            if not banner:
+                continue
+            location = "%s:%s" % (entry.get("ip", ""), entry.get("port", ""))
+            findings.extend(signatures.software_findings(banner, location))
         publish_findings(r, scan_id, org_id, asset_id, "probe", findings)
     return results
 

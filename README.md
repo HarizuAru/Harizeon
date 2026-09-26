@@ -238,7 +238,7 @@ traffic always uses the internal ports and is unaffected.
 - Schema: CI applies every migration against a real Postgres 16 service and
   asserts the append-only guard.
 - API typecheck/lint/unit: `cd api && npm run typecheck && npm run lint && npm test`
-- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test heartbeat_test probe_test webchecks_test`
+- Worker unit tests: `cd worker && python -m unittest -v test_worker discovery_test heartbeat_test probe_test webchecks_test signatures_test`
 - API integration (needs the stack up + app role): `cd api && npm run test:integration`
   with `DATABASE_URL` pointing at the `harizeon_app` role and `REDIS_URL` set;
   `db/verify.sql` asserts RLS tenant isolation and the append-only audit guard.

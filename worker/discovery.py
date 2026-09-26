@@ -25,8 +25,20 @@ COMMON_SUBDOMAINS = [
     "status", "ci", "beta", "demo",
 ]
 
+# Words teams really name environments with (§06.5). Mutation discovery is the
+# classic complement to CT logs: it finds hosts that were never certified.
+PERMUTATION_WORDS = [
+    "dev", "staging", "stage", "uat", "test", "qa", "prod", "internal",
+    "intranet", "corp", "old", "new", "legacy", "backup", "sso", "auth",
+    "vpn", "admin", "demo", "beta", "alpha", "pilot", "sandbox", "internal2",
+]
+
+PERMUTATION_PATTERNS = ("%s.%s.%s", "%s-%s.%s", "%s-%s.%s")  # dev.api | api-dev | dev-api
+MAX_PERMUTATIONS = 400
+
 _LABEL = r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
 _NAME_RE = re.compile(r"^(%s\.)+%s$" % (_LABEL, _LABEL))
+_LABEL_ONLY_RE = re.compile(r"^%s$" % _LABEL)
 
 
 def normalise_domain(domain):
@@ -95,11 +107,47 @@ def parse_rdap(payload):
     return whois
 
 
+def permutation_candidates(domain, known_subdomains, max_candidates=MAX_PERMUTATIONS):
+    """Naming-pattern mutations of known subdomains (dev.api, api-dev, devapi…).
+
+    Pure and bounded: the caller resolves these through the same budgeted loop
+    as every other candidate, so a large CT set cannot stall the worker.
+    """
+    domain = normalise_domain(domain)
+    if not domain:
+        return []
+    labels = set()
+    for name in known_subdomains or ():
+        label = (name or "").split(".")[0]
+        if label and len(label) <= 24 and _LABEL_ONLY_RE.match(label):
+            labels.add(label)
+    if not labels:
+        return []
+    out = set()
+    for label in sorted(labels):
+        for word in PERMUTATION_WORDS:
+            if word == label:
+                continue
+            out.add("%s.%s.%s" % (word, label, domain))
+            out.add("%s-%s.%s" % (word, label, domain))
+            out.add("%s-%s.%s" % (label, word, domain))
+    return sorted(out)[:max_candidates]
+
+
 def candidate_subdomains(domain, ct_names):
-    names = set(ct_names)
-    for label in COMMON_SUBDOMAINS:
-        names.add("%s.%s" % (label, domain))
-    return sorted(names)[:MAX_SUBDOMAINS]
+    """Priority-ordered candidates: CT findings first, then the wordlist, then
+    mutations of known names within the remaining budget — so a large mutation
+    set can never displace real certificate data."""
+    ct = sorted(set(ct_names))
+    wordlist = ["%s.%s" % (label, domain) for label in COMMON_SUBDOMAINS]
+    perms = permutation_candidates(domain, ct_names)
+    seen = set()
+    out = []
+    for name in ct + wordlist + perms:
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out[:MAX_SUBDOMAINS]
 
 
 def discover(domain, http_get, dns_lookup, max_resolutions=MAX_RESOLUTIONS, budget_seconds=RESOLVE_BUDGET_SECONDS):
@@ -138,6 +186,7 @@ def discover(domain, http_get, dns_lookup, max_resolutions=MAX_RESOLUTIONS, budg
         pass
 
     found = []
+    perms = set(permutation_candidates(domain, ct_names))
     started = time.monotonic()
     resolutions = 0
     for name in candidate_subdomains(domain, ct_names):
@@ -149,10 +198,11 @@ def discover(domain, http_get, dns_lookup, max_resolutions=MAX_RESOLUTIONS, budg
         except Exception:  # noqa: BLE001
             ips = []
         if ips:
+            source = "ct" if name in ct_names else ("mutation" if name in perms else "wordlist")
             found.append({
                 "fqdn": name,
                 "ips": ips,
-                "source": "ct" if name in ct_names else "wordlist",
+                "source": source,
             })
     result["subdomains"] = found
     return result

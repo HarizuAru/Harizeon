@@ -10,6 +10,7 @@ Evaluators are pure functions over Content {status, body, headers} so they run
 without a network. run_web_checks wires them over an injected fetch_fn.
 """
 
+import math
 import re
 from typing import Callable
 from urllib.parse import urljoin, urlsplit
@@ -21,19 +22,34 @@ Content = dict  # {"status": int, "body": str, "headers": dict}
 # --- Leaked AI provider credentials (client-side JS) -----------------------
 #
 # The agentic-era exposure: an API key baked into a JS bundle is a working
-# credential for anyone who reads the file. Patterns are deliberately tight
-# (prefix + length + charset) because a wrong "critical" costs trust.
+# credential for anyone who reads the file. Patterns capture the VARIABLE part
+# so an entropy check can separate a live key from a padded constant, because a
+# wrong "critical" costs trust.
 
 _AI_KEY_PATTERNS = [
-    ("OpenAI", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
-    ("OpenAI", re.compile(r"\bsk-proj-[A-Za-z0-9_-]{20,}\b")),
-    ("Anthropic", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b")),
-    ("Hugging Face", re.compile(r"\bhf_[A-Za-z0-9]{30,}\b")),
-    ("Google", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
-    ("Groq", re.compile(r"\bgsk_[A-Za-z0-9]{40,}\b")),
+    ("OpenAI", re.compile(r"\bsk-([A-Za-z0-9]{20,})\b")),
+    ("OpenAI", re.compile(r"\bsk-proj-([A-Za-z0-9_-]{20,})\b")),
+    ("Anthropic", re.compile(r"\bsk-ant-([A-Za-z0-9_-]{20,})\b")),
+    ("Hugging Face", re.compile(r"\bhf_([A-Za-z0-9]{30,})\b")),
+    ("Google", re.compile(r"\bAIza([0-9A-Za-z_-]{35})\b")),
+    ("Groq", re.compile(r"\bgsk_([A-Za-z0-9]{40,})\b")),
 ]
 
 _PLACEHOLDER_MARKERS = ("example", "your", "xxx", "placeholder", "changeme", "redacted", "dummy", "sample")
+
+# Real provider keys are random; a constant pretending to be one is not.
+MIN_KEY_ENTROPY = 3.0
+
+
+def shannon_entropy(text):
+    """Bits of information per character. 'aaaa…' -> ~0; random keys -> >4."""
+    if not text:
+        return 0.0
+    counts = {}
+    for ch in text:
+        counts[ch] = counts.get(ch, 0) + 1
+    n = len(text)
+    return -sum((c / n) * math.log2(c / n) for c in counts.values())
 
 
 def redact_secret(value: str) -> str:
@@ -52,7 +68,11 @@ def find_leaked_ai_keys(text: str) -> list:
     for provider, pattern in _AI_KEY_PATTERNS:
         for match in pattern.finditer(text):
             candidate = match.group(0)
+            variable = match.group(1)
             if any(marker in candidate.lower() for marker in _PLACEHOLDER_MARKERS):
+                continue
+            # A real key's variable part is high-entropy; constants are not.
+            if shannon_entropy(variable) < MIN_KEY_ENTROPY:
                 continue
             # Cheap guard against long random blobs that merely share a prefix.
             if any(marker in lowered[max(0, match.start() - 20):match.start()] for marker in ("example", "your_")):

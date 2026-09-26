@@ -9,6 +9,7 @@ from discovery import (
     normalise_domain,
     parse_ct_names,
     parse_rdap,
+    permutation_candidates,
 )
 
 CT = json.dumps([
@@ -114,6 +115,35 @@ class DiscoverTests(unittest.TestCase):
         # 1 root A lookup + at most 3 candidate A lookups
         self.assertLessEqual(a_calls["n"], 4)
         self.assertLessEqual(len(out["subdomains"]), 3)
+
+
+class PermutationTests(unittest.TestCase):
+    def test_mutations_are_strict_subdomains_of_the_root(self):
+        perms = permutation_candidates("example.com", ["api.example.com", "www.example.com"])
+        self.assertTrue(perms)
+        for name in perms:
+            self.assertTrue(is_subdomain(name, "example.com"), name)
+
+    def test_known_naming_patterns_are_generated(self):
+        perms = permutation_candidates("example.com", ["api.example.com"])
+        self.assertIn("dev.api.example.com", perms)
+        self.assertIn("api-dev.example.com", perms)
+        self.assertIn("dev-api.example.com", perms)
+
+    def test_bounded_and_deduplicated(self):
+        many = ["%s.example.com" % label for label in ("a", "b", "c", "d")]
+        perms = permutation_candidates("example.com", many)
+        self.assertLessEqual(len(perms), 400)
+        self.assertEqual(len(perms), len(set(perms)))
+
+    def test_ct_names_stay_ahead_of_mutations(self):
+        ct = ["real.example.com"]
+        candidates = candidate_subdomains("example.com", ct)
+        self.assertEqual(candidates[0], "real.example.com", "certificate data has priority")
+        self.assertLessEqual(len(candidates), MAX_SUBDOMAINS)
+
+    def test_no_known_subdomains_means_no_mutations(self):
+        self.assertEqual(permutation_candidates("example.com", []), [])
 
 
 if __name__ == "__main__":

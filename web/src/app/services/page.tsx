@@ -25,6 +25,7 @@ const ALL_SERVICES = [
       "TLS protocol acceptance (SSLv2/3, TLS 1.0/1.1) and certificate expiry",
       "Web checks: .git, .env, SQL dumps, phpinfo, Swagger UI, Actuator",
       "AI exposure: unauthenticated model endpoints and provider keys leaked in client-side JavaScript",
+      "Known-CVE matching for software versions identified from service banners (curated set)",
       "Deduplicated findings with evidence, remediation and status workflow",
     ],
   },

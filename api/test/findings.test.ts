@@ -51,7 +51,8 @@ test("findings ingest + endpoint", { skip: !DATABASE_URL }, async () => {
 
     const batch = [
       { check_id: "tls.legacy_protocol", location: `${domain}:443`, severity: "high",
-        title: "Legacy TLS enabled", description: "negotiates TLSv1", remediation: "Disable TLSv1", category: "tls" },
+        title: "Legacy TLS enabled", description: "negotiates TLSv1", remediation: "Disable TLSv1", category: "tls",
+        cve_ids: ["CVE-2023-9999", "not-a-cve"] },
       { check_id: "headers.csp_missing", location: `https://${domain}`, severity: "medium",
         title: "No CSP", category: "headers" },
       { check_id: "probe.exposed_service", location: "1.2.3.4:6379", severity: "critical",
@@ -70,9 +71,17 @@ test("findings ingest + endpoint", { skip: !DATABASE_URL }, async () => {
 
     const list = await authed("GET", "/v1/findings");
     assert.equal(list.statusCode, 200, list.body);
-    const rows = list.json().data as { id: string; title: string; severity: string; fingerprint: string; status: string }[];
+    const rows = list.json().data as { id: string; title: string; severity: string; fingerprint: string; status: string; cve_ids?: string[] }[];
     assert.equal(rows.length, 3, "invalid-severity finding dropped");
     assert.ok(rows.every((r) => r.status === "open"));
+    // CVE ids are stored only in CVE format; junk entries are dropped.
+    const legacy = rows.find((r) => r.title === "Legacy TLS enabled")!;
+    assert.deepEqual(legacy.cve_ids, ["CVE-2023-9999"], "malformed CVE ids are dropped");
+    assert.deepEqual(
+      rows.find((r) => r.title === "No CSP")!.cve_ids,
+      [],
+      "findings without CVEs carry an empty list",
+    );
     const byTitle = new Map(rows.map((r) => [r.title, r]));
 
     // Filters.

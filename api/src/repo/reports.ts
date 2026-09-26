@@ -39,6 +39,8 @@ export interface ReportContent {
     asset: string;
     cvss?: number;
     category?: string;
+    cves?: string[];
+    age_days?: number;
     what_it_is?: string;
     why_it_matters?: string;
     remediation?: string;
@@ -50,6 +52,7 @@ export interface ReportContent {
     asset: string;
     severity: string;
     effort: "Low" | "Medium" | "High";
+    age_days: number;
     action: string;
   }>;
   /** Findings grouped by the controls they touch, per framework (§9.2). */
@@ -148,11 +151,12 @@ export async function createReport(
     asset_id: string;
     cwe_id: string | null;
     category: string | null;
+    cve_ids: string[] | null;
     first_seen_at: Date | string;
     description: string | null;
     remediation: string | null;
   }>(
-    `SELECT id, title, severity, status, asset_id, cwe_id, category, first_seen_at, description, remediation
+    `SELECT id, title, severity, status, asset_id, cwe_id, category, cve_ids, first_seen_at, description, remediation
      FROM findings
      WHERE org_id = $1
      ORDER BY CASE severity
@@ -167,6 +171,10 @@ export async function createReport(
 
   const assetMap = new Map<string, string>();
   for (const a of assets) assetMap.set(a.id, a.value);
+
+  const generatedAt = new Date();
+  const ageDays = (seen: Date | string): number =>
+    Math.max(0, Math.floor((generatedAt.getTime() - new Date(seen).getTime()) / 86_400_000));
 
   const severityCounts: Record<string, number> = {
     critical: 0,
@@ -188,6 +196,8 @@ export async function createReport(
       asset: assetMap.get(f.asset_id) ?? "unknown",
       cvss: f.severity === "critical" ? 9.2 : f.severity === "high" ? 7.5 : f.severity === "medium" ? 5.3 : 2.0,
       category: f.category ?? f.cwe_id ?? undefined,
+      cves: f.cve_ids ?? [],
+      age_days: ageDays(f.first_seen_at),
       what_it_is: f.description || `Detected ${f.title} on target asset.`,
       why_it_matters: `Presents security risk allowing unauthorized reconnaissance or manipulation.`,
       remediation: f.remediation || `Follow security guidelines and apply vendor patches.`,
@@ -207,14 +217,23 @@ export async function createReport(
       impact: f.why_it_matters ?? "Exposes asset to exploitation",
     }));
 
+  // Prioritise by severity first, then by exposure age: an agent goes after the
+  // oldest unprotected exposure, so age is a real risk signal (§09.2).
+  const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   const remediationPlan = findingsList
     .filter((f) => f.status === "open" || f.status === "acknowledged")
+    .sort(
+      (a, b) =>
+        (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9) ||
+        b.age_days - a.age_days,
+    )
     .map((f, i) => ({
       priority: i + 1,
       title: f.title,
       asset: f.asset,
       severity: f.severity,
       effort: f.remediation_effort ?? "Medium",
+      age_days: f.age_days,
       action: f.remediation ?? "Apply configuration fix",
     }));
 
@@ -223,9 +242,9 @@ export async function createReport(
     org_id: orgId,
     org_name: orgName,
     type: input.type,
-    generated_at: new Date().toISOString(),
+    generated_at: generatedAt.toISOString(),
     period_start: input.period_start || null,
-    period_end: input.period_end || new Date().toISOString(),
+    period_end: input.period_end || generatedAt.toISOString(),
     security_score: securityScore,
     summary: {
       total_findings: findingsList.length,

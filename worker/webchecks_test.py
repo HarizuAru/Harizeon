@@ -119,16 +119,26 @@ class AiExposureTests(unittest.TestCase):
         self.assertFalse(webchecks._ollama_tags(content(404, "Not Found")))
 
     def test_finds_and_redacts_provider_keys(self):
-        text = 'const a="sk-proj-abcdefghijklmnopqrstuvwx";const b="hf_%s";' % ("a" * 32)
+        text = 'const a="sk-proj-abcdefghijklmnopqrstuvwx";const b="hf_%s";' % ("a1B2c3D4e5F6g7H8i9J0kKl2M3n4o5P6")
         hits = webchecks.find_leaked_ai_keys(text)  # [(redacted, provider)]
         providers = {provider for _, provider in hits}
         self.assertIn("OpenAI", providers)
         self.assertIn("Hugging Face", providers)
         for redacted, _ in hits:
             self.assertNotIn("abcdefghijklmnopqrstuvwx", redacted)
-            self.assertNotIn("a" * 32, redacted)
         openai = [r for r, p in hits if p == "OpenAI"][0]
         self.assertEqual(openai, "sk-proj…uvwx")
+
+    def test_low_entropy_constants_are_not_reported(self):
+        # Correct prefix and length, but the variable part is a repeated char:
+        # a configuration constant, not a live credential.
+        self.assertEqual(webchecks.find_leaked_ai_keys('const k="sk-proj-%s";' % ("a" * 32)), [])
+        self.assertEqual(webchecks.find_leaked_ai_keys('const k="hf_%s";' % ("a" * 32)), [])
+
+    def test_entropy_helper(self):
+        self.assertEqual(webchecks.shannon_entropy(""), 0.0)
+        self.assertEqual(webchecks.shannon_entropy("aaaa"), 0.0)
+        self.assertGreater(webchecks.shannon_entropy("a1B2c3D4e5F6g7H8"), webchecks.MIN_KEY_ENTROPY)
 
     def test_placeholder_keys_are_not_findings(self):
         for text in [

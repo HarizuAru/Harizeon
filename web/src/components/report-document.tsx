@@ -44,6 +44,8 @@ export interface ReportContent {
     asset: string;
     cvss: number;
     category: string;
+    cves?: string[];
+    age_days?: number;
     what_it_is: string;
     why_it_matters: string;
     remediation: string;
@@ -55,6 +57,7 @@ export interface ReportContent {
     asset: string;
     severity: "critical" | "high" | "medium" | "low" | "info";
     effort: "Low" | "Medium" | "High";
+    age_days: number;
     action: string;
   }>;
   /** Absent on reports generated before compliance mapping existed. */
@@ -291,7 +294,14 @@ export function ReportDocument({ content }: { content: ReportContent }) {
 
                 <div className="mt-2 font-mono text-[11px] text-muted">
                   Affected Target: <strong className="text-ink">{f.asset}</strong> | Category: {f.category}
+                  {f.age_days !== undefined ? <> | Open for <strong className="text-ink">{f.age_days} day{f.age_days === 1 ? "" : "s"}</strong></> : null}
                 </div>
+
+                {f.cves && f.cves.length > 0 && (
+                  <div className="mt-2 font-mono text-[11px] text-ink">
+                    Known vulnerabilities: <strong>{f.cves.join(", ")}</strong>
+                  </div>
+                )}
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
@@ -347,7 +357,9 @@ export function ReportDocument({ content }: { content: ReportContent }) {
                     </td>
                     <td className="p-2.5">
                       <span className="font-bold text-ink">{item.title}</span>
-                      <div className="text-[10px] text-muted">{item.asset}</div>
+                      <div className="text-[10px] text-muted">
+                        {item.asset} · open {item.age_days} day{item.age_days === 1 ? "" : "s"}
+                      </div>
                     </td>
                     <td className="p-2.5 uppercase text-muted">{item.effort}</td>
                     <td className="p-2.5 text-ink">{item.action}</td>

@@ -20,6 +20,7 @@ export type WorkerFinding = {
   cweId?: string;
   category?: string;
   evidence?: string;
+  cveIds?: string[];
 };
 
 export const SCAN_PROFILES = ["quick", "standard", "deep"] as const;
@@ -219,6 +220,12 @@ export function parseFindings(raw: string | undefined): WorkerFinding[] {
       cweId: typeof o.cwe_id === "string" ? o.cwe_id.slice(0, 20) : undefined,
       category: typeof o.category === "string" ? o.category.slice(0, 60) : undefined,
       evidence: typeof o.evidence === "string" ? o.evidence.slice(0, 2000) : undefined,
+      cveIds: Array.isArray(o.cve_ids)
+        ? (o.cve_ids as unknown[])
+            .map((v) => String(v).toUpperCase())
+            .filter((v) => /^CVE-\d{4}-\d{4,}$/.test(v))
+            .slice(0, 10)
+        : undefined,
     });
   }
   return out;
@@ -253,17 +260,19 @@ async function applyFindings(client: Queryable, ev: WorkerEvent): Promise<void> 
     if ((existing.rowCount ?? 0) === 0) {
       await client.query(
         `INSERT INTO findings (org_id, asset_id, scan_id, fingerprint, title, description,
-           severity, cwe_id, category, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7::severity,$8,$9,'open')`,
-        [ev.org_id, assetId, ev.scan_id, fingerprint, f.title, description, f.severity, f.cweId ?? null, f.category ?? null],
+           severity, cwe_id, category, cve_ids, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::severity,$8,$9,$10::text[],'open')`,
+        [ev.org_id, assetId, ev.scan_id, fingerprint, f.title, description, f.severity, f.cweId ?? null, f.category ?? null, f.cveIds ?? []],
       );
       created += 1;
     } else {
+      // cve_ids are replaced with the latest evidence: if the software was
+      // upgraded, an old CVE must not survive on a re-detected finding.
       await client.query(
         `UPDATE findings SET last_seen_at = now(), severity = $3::severity, description = $4,
-           remediation = COALESCE($5, remediation), updated_at = now()
+           remediation = COALESCE($5, remediation), cve_ids = $6::text[], updated_at = now()
          WHERE org_id = $1 AND fingerprint = $2`,
-        [ev.org_id, fingerprint, f.severity, description, f.remediation ?? null],
+        [ev.org_id, fingerprint, f.severity, description, f.remediation ?? null, f.cveIds ?? []],
       );
       updated += 1;
     }

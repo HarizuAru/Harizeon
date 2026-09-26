@@ -58,7 +58,7 @@ export interface MockScanEvent {
 
 export interface MockScan {
   id: string;
-  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  status: "queued" | "running" | "completed" | "failed" | "timeout" | "cancelled";
   profile: string;
   phase: string | null;
   progress_pct: number;
@@ -66,6 +66,9 @@ export interface MockScan {
   targets: { asset_id: string; type: string; value: string }[];
   events: MockScanEvent[];
   summary?: { new: number; resolved: number; unchanged: number } | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  attempt?: number;
 }
 
 export interface MockFindingEvent {
@@ -232,31 +235,157 @@ const initialDiscovered: MockDiscovered[] = [
   },
 ];
 
-const initialScans: MockScan[] = [
-  {
-    id: "scn-7b89f012",
-    status: "completed",
-    profile: "standard",
-    phase: "report",
-    progress_pct: 100,
-    created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
-    targets: [
-      { asset_id: "ast-001", type: "domain", value: "example.com" },
-      { asset_id: "ast-002", type: "subdomain", value: "api.example.com" },
-    ],
-    events: [
-      { seq: 1, phase: "verify", level: "info", message: "Ownership verified via DNS TXT record", at: new Date(Date.now() - 4 * 3600000).toISOString() },
-      { seq: 2, phase: "discover", level: "info", message: "Certificate transparency logs enumerated 3 subdomains", at: new Date(Date.now() - 4 * 3600000 + 1000).toISOString() },
-      { seq: 3, phase: "resolve", level: "info", message: "Resolved DNS A/AAAA records for targets", at: new Date(Date.now() - 4 * 3600000 + 2000).toISOString() },
-      { seq: 4, phase: "probe", level: "info", message: "Port audit completed: 80, 443, 6379 reachable", at: new Date(Date.now() - 4 * 3600000 + 3000).toISOString() },
-      { seq: 5, phase: "inspect", level: "warn", message: "TLS handshake accepted legacy protocol TLS 1.0", at: new Date(Date.now() - 4 * 3600000 + 4000).toISOString() },
-      { seq: 6, phase: "test", level: "info", message: "Inspected response headers: missing CSP", at: new Date(Date.now() - 4 * 3600000 + 5000).toISOString() },
-      { seq: 7, phase: "normalize", level: "info", message: "Deduplicated findings against existing baseline", at: new Date(Date.now() - 4 * 3600000 + 6000).toISOString() },
-      { seq: 8, phase: "report", level: "info", message: "Scan finished. 3 findings recorded.", at: new Date(Date.now() - 4 * 3600000 + 7000).toISOString() },
-    ],
-    summary: { new: 3, resolved: 0, unchanged: 0 },
-  },
-];
+function createInitialScans(): MockScan[] {
+  const baseScans: MockScan[] = [
+    {
+      id: "scn-7b89f012",
+      status: "completed",
+      profile: "standard",
+      phase: "report",
+      progress_pct: 100,
+      created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
+      targets: [
+        { asset_id: "ast-001", type: "domain", value: "example.com" },
+        { asset_id: "ast-002", type: "subdomain", value: "api.example.com" },
+      ],
+      events: [
+        { seq: 1, phase: "verify", level: "info", message: "Ownership verified via DNS TXT record", at: new Date(Date.now() - 4 * 3600000).toISOString() },
+        { seq: 2, phase: "discover", level: "info", message: "Certificate transparency logs enumerated 3 subdomains", at: new Date(Date.now() - 4 * 3600000 + 1000).toISOString() },
+        { seq: 3, phase: "resolve", level: "info", message: "Resolved DNS A/AAAA records for targets", at: new Date(Date.now() - 4 * 3600000 + 2000).toISOString() },
+        { seq: 4, phase: "probe", level: "info", message: "Port audit completed: 80, 443, 6379 reachable", at: new Date(Date.now() - 4 * 3600000 + 3000).toISOString() },
+        { seq: 5, phase: "inspect", level: "warn", message: "TLS handshake accepted legacy protocol TLS 1.0", at: new Date(Date.now() - 4 * 3600000 + 4000).toISOString() },
+        { seq: 6, phase: "test", level: "info", message: "Inspected response headers: missing CSP", at: new Date(Date.now() - 4 * 3600000 + 5000).toISOString() },
+        { seq: 7, phase: "normalize", level: "info", message: "Deduplicated findings against existing baseline", at: new Date(Date.now() - 4 * 3600000 + 6000).toISOString() },
+        { seq: 8, phase: "report", level: "info", message: "Scan finished. 3 findings recorded.", at: new Date(Date.now() - 4 * 3600000 + 7000).toISOString() },
+      ],
+      summary: { new: 3, resolved: 0, unchanged: 0 },
+    },
+    {
+      id: "scn-9a12c401",
+      status: "failed",
+      profile: "deep",
+      phase: "probe",
+      progress_pct: 45,
+      error_code: "ERR_CONNECTION_TIMEOUT",
+      error_message: "TCP port probe timed out on target 203.0.113.10:443. Remote firewall dropped SYN packets without responding.",
+      attempt: 2,
+      created_at: new Date(Date.now() - 42 * 60000).toISOString(),
+      targets: [{ asset_id: "ast-003", type: "ip", value: "203.0.113.10" }],
+      events: [
+        { seq: 1, phase: "verify", level: "info", message: "Ownership verified for asset 203.0.113.10", at: new Date(Date.now() - 42 * 60000).toISOString() },
+        { seq: 2, phase: "discover", level: "info", message: "Reverse DNS lookup returned gateway-ext.example.com", at: new Date(Date.now() - 42 * 60000 + 1000).toISOString() },
+        { seq: 3, phase: "probe", level: "warn", message: "Probing ports 80, 443, 8443, 9000... SYN timeouts detected", at: new Date(Date.now() - 42 * 60000 + 3000).toISOString() },
+        { seq: 4, phase: "probe", level: "error", message: "TCP handshake timeout on 203.0.113.10:443 after 10000ms. Perimeter firewall or security group dropped ingress packets.", at: new Date(Date.now() - 42 * 60000 + 13000).toISOString() },
+        { seq: 5, phase: "probe", level: "error", message: "Scan failed: ERR_CONNECTION_TIMEOUT. Max attempts (2) reached.", at: new Date(Date.now() - 40 * 60000).toISOString() },
+      ],
+      summary: null,
+    },
+    {
+      id: "scn-8f43b190",
+      status: "timeout",
+      profile: "standard",
+      phase: "inspect",
+      progress_pct: 62,
+      error_code: "ERR_WORKER_TIMEOUT",
+      error_message: "Worker heartbeat expired after 60s without progress during deep JS crawl inspection. Scan reclaimed and terminated by reaper.",
+      attempt: 2,
+      created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+      targets: [{ asset_id: "ast-001", type: "domain", value: "staging.example.com" }],
+      events: [
+        { seq: 1, phase: "verify", level: "info", message: "Asset verification validated", at: new Date(Date.now() - 2 * 3600000).toISOString() },
+        { seq: 2, phase: "discover", level: "info", message: "Found 4 web endpoints", at: new Date(Date.now() - 2 * 3600000 + 1000).toISOString() },
+        { seq: 3, phase: "resolve", level: "info", message: "Resolved DNS records", at: new Date(Date.now() - 2 * 3600000 + 2000).toISOString() },
+        { seq: 4, phase: "probe", level: "info", message: "Ports 80, 443 open", at: new Date(Date.now() - 2 * 3600000 + 3000).toISOString() },
+        { seq: 5, phase: "inspect", level: "warn", message: "Complex SPA dynamic router detected; crawl taking longer than expected", at: new Date(Date.now() - 2 * 3600000 + 10000).toISOString() },
+        { seq: 6, phase: "inspect", level: "error", message: "Worker heartbeat stalled for >60s; reclaimed by control-plane reaper (ERR_WORKER_TIMEOUT)", at: new Date(Date.now() - 2 * 3600000 + 120000).toISOString() },
+      ],
+      summary: null,
+    },
+    {
+      id: "scn-6e71d882",
+      status: "failed",
+      profile: "quick",
+      phase: "resolve",
+      progress_pct: 20,
+      error_code: "ERR_DNS_NXDOMAIN",
+      error_message: "Authoritative nameserver returned NXDOMAIN (RCODE 3). Target subdomain has no valid A or AAAA records published to public resolvers.",
+      attempt: 1,
+      created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+      targets: [{ asset_id: "ast-002", type: "subdomain", value: "internal-docs.example.com" }],
+      events: [
+        { seq: 1, phase: "verify", level: "info", message: "Target selected: internal-docs.example.com", at: new Date(Date.now() - 5 * 3600000).toISOString() },
+        { seq: 2, phase: "resolve", level: "error", message: "Query failed: NXDOMAIN returned by authoritative nameservers for internal-docs.example.com", at: new Date(Date.now() - 5 * 3600000 + 4000).toISOString() },
+      ],
+      summary: null,
+    },
+  ];
+
+  // Seed 30-day historical scans
+  const now = Date.now();
+  const dayMs = 86400000;
+  const failureDays = new Set([2, 5, 9, 14, 19, 23, 27]);
+
+  for (let day = 1; day <= 29; day++) {
+    const dayBase = now - day * dayMs;
+    // Morning scan (always completed)
+    baseScans.push({
+      id: `scn-hist-${day}a`,
+      status: "completed",
+      profile: day % 3 === 0 ? "deep" : day % 2 === 0 ? "quick" : "standard",
+      phase: "report",
+      progress_pct: 100,
+      created_at: new Date(dayBase + 3600000 * 3).toISOString(),
+      targets: [{ asset_id: "ast-001", type: "domain", value: "example.com" }],
+      events: [
+        { seq: 1, phase: "verify", level: "info", message: "Ownership verified", at: new Date(dayBase + 3600000 * 3).toISOString() },
+        { seq: 2, phase: "report", level: "info", message: "Audit complete", at: new Date(dayBase + 3600000 * 3 + 400000).toISOString() },
+      ],
+      summary: { new: day % 6 === 0 ? 1 : 0, resolved: day % 4 === 0 ? 1 : 0, unchanged: 2 },
+    });
+
+    // Afternoon scan on most days
+    if (day % 3 !== 1) {
+      baseScans.push({
+        id: `scn-hist-${day}b`,
+        status: "completed",
+        profile: "standard",
+        phase: "report",
+        progress_pct: 100,
+        created_at: new Date(dayBase + 3600000 * 8).toISOString(),
+        targets: [{ asset_id: "ast-002", type: "subdomain", value: "api.example.com" }],
+        events: [
+          { seq: 1, phase: "verify", level: "info", message: "Ownership verified", at: new Date(dayBase + 3600000 * 8).toISOString() },
+          { seq: 2, phase: "report", level: "info", message: "Audit complete", at: new Date(dayBase + 3600000 * 8 + 500000).toISOString() },
+        ],
+        summary: { new: 0, resolved: 0, unchanged: 1 },
+      });
+    }
+
+    // Failure on designated days to create realistic trend variations
+    if (failureDays.has(day)) {
+      baseScans.push({
+        id: `scn-hist-${day}f`,
+        status: day % 2 === 0 ? "timeout" : "failed",
+        profile: "deep",
+        phase: day % 2 === 0 ? "inspect" : "probe",
+        progress_pct: 35,
+        error_code: day % 2 === 0 ? "ERR_WORKER_TIMEOUT" : "ERR_CONNECTION_TIMEOUT",
+        error_message: day % 2 === 0 ? "Worker heartbeat timed out during SPA crawl" : "TCP probe dropped by perimeter firewall",
+        created_at: new Date(dayBase + 3600000 * 12).toISOString(),
+        targets: [{ asset_id: "ast-003", type: "ip", value: "203.0.113.10" }],
+        events: [
+          { seq: 1, phase: "verify", level: "info", message: "Ownership verified", at: new Date(dayBase + 3600000 * 12).toISOString() },
+          { seq: 2, phase: "probe", level: "error", message: "Execution error encountered", at: new Date(dayBase + 3600000 * 12 + 100000).toISOString() },
+        ],
+        summary: null,
+      });
+    }
+  }
+
+  return baseScans.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+const initialScans: MockScan[] = createInitialScans();
 
 const initialFindings: MockFinding[] = [
   {
@@ -706,6 +835,227 @@ export async function handleMockApi<T>(
     return updated as T;
   }
 
+  // GET /system/health
+  if (pathname === "/system/health" && method === "GET") {
+    const failedScans = store.scans.filter(
+      (s) => s.status === "failed" || s.status === "timeout" || s.status === "cancelled",
+    );
+    const failureItems = failedScans.map((s) => {
+      let title = "Scan Execution Interrupted";
+      let rootCause = "The scan encountered an unexpected error during execution.";
+      let category: "network_firewall" | "worker_timeout" | "dns_resolution" | "waf_rate_limit" | "tls_crypto" | "asset_verification" = "network_firewall";
+      let steps = [
+        "Check network reachability of the target host.",
+        "Review target firewall and security group rules.",
+        "Relaunch the scan with a Quick profile.",
+      ];
+
+      if (s.error_code === "ERR_CONNECTION_TIMEOUT" || s.error_code === "connection_timeout") {
+        title = "Perimeter Firewall / TCP SYN Probe Timeout";
+        category = "network_firewall";
+        rootCause = "Target perimeter firewall (AWS Security Group / Cloudflare Magic Transit / iptables) dropped scanner ingress packets. Harizeon scanner egress IP ranges are not whitelisted on target ingress rules.";
+        steps = [
+          "Whitelist Harizeon scanner egress IP CIDRs (203.0.113.0/24, 198.51.100.0/24) in your cloud security groups or perimeter firewall.",
+          "Check that port 443 is publicly reachable: test with `nc -zv -w 5 <target> 443`.",
+          "Verify web server daemon status (nginx/httpd) and inspect firewall audit logs on the destination server.",
+          "Run a 'Quick' scan profile first to confirm baseline TCP reachability before executing deep sweeps.",
+        ];
+      } else if (s.error_code === "ERR_WORKER_TIMEOUT" || s.error_code === "worker_timeout") {
+        title = "Worker Heartbeat Expired / Reaped Execution";
+        category = "worker_timeout";
+        rootCause = "The target website contains recursive SPA client-side routes or an infinite crawler trap, which stalled the headless browser inspection engine past the 60-second heartbeat ceiling.";
+        steps = [
+          "Review target web application for recursive URL links or infinite pagination without canonical tags.",
+          "Switch scan profile to 'Quick' or disable deep web crawling to avoid heavy single-page application execution loops.",
+          "Ensure server response time under load is under 2,000ms: prolonged response latencies multiply crawler execution time.",
+          "Check Worker Fleet load to ensure worker containers have adequate CPU headroom for headless browser rendering.",
+        ];
+      } else if (s.error_code === "ERR_DNS_NXDOMAIN" || s.error_code === "dns_unresolvable") {
+        title = "DNS A/AAAA Record Unresolvable";
+        category = "dns_resolution";
+        rootCause = "The asset is hosted on internal split-horizon DNS (e.g. AWS Route 53 Private Hosted Zone) or the DNS record has been decommissioned while remaining in the monitored asset registry.";
+        steps = [
+          "Verify public DNS resolution using public resolvers: `dig +short <target> @8.8.8.8`.",
+          "If this target is an internal intranet host not reachable from the public internet, decommission it or mark it inactive in Assets.",
+          "Check domain registrar NS delegation and verify DNSSEC signatures are valid and not throwing SERVFAIL.",
+          "Once public DNS records are established, trigger an asset re-verification before relaunching the scan.",
+        ];
+      }
+
+      return {
+        id: s.id,
+        profile: s.profile,
+        status: s.status as "failed" | "timeout" | "cancelled",
+        phase: s.phase,
+        error_code: s.error_code || "ERR_SCAN_FAILURE",
+        error_title: title,
+        error_message: s.error_message || "Scan terminated prematurely without completing final report phase.",
+        root_cause: rootCause,
+        troubleshooting_steps: steps,
+        suggested_action: "Relaunch scan with adjusted settings",
+        action_href: `/scans/new?target=${encodeURIComponent(s.targets[0]?.value || "")}`,
+        targets: s.targets,
+        attempt: s.attempt || 1,
+        max_attempts: 2,
+        created_at: s.created_at,
+        failed_at: s.created_at,
+        category,
+      };
+    });
+
+    const activeWorkers = 4;
+    const totalSlots = 16;
+    const runningScansCount = store.scans.filter((s) => s.status === "running").length;
+    const usedSlots = Math.min(totalSlots, 7 + runningScansCount * 2);
+
+    return {
+      timestamp: new Date().toISOString(),
+      status: failedScans.length > 0 ? "degraded" : "operational",
+      cluster: {
+        region: "ap-southeast-1",
+        fleet_name: "cluster-sg-prod-01",
+        total_workers: activeWorkers,
+        active_workers: activeWorkers,
+        total_slots: totalSlots,
+        used_slots: usedSlots,
+        fleet_load_percent: Math.round((usedSlots / totalSlots) * 1000) / 10,
+        avg_job_duration_sec: 42,
+      },
+      workers: [
+        {
+          id: "wkr-ap-se1-01",
+          name: "Worker 01 (Core Prober)",
+          region: "ap-southeast-1a",
+          status: "busy",
+          current_scan_id: "scn-7b89f012",
+          current_target: "api.example.com",
+          current_phase: "probe",
+          slots_total: 4,
+          slots_used: 3,
+          cpu_percent: 48,
+          memory_mb: 184,
+          heartbeat_at: new Date(Date.now() - 2000).toISOString(),
+          uptime_seconds: 345600,
+          jobs_completed: 184,
+          jobs_failed: 1,
+        },
+        {
+          id: "wkr-ap-se1-02",
+          name: "Worker 02 (TLS & Crypto)",
+          region: "ap-southeast-1a",
+          status: "busy",
+          current_scan_id: "scn-batch-49a",
+          current_target: "example.com",
+          current_phase: "inspect",
+          slots_total: 4,
+          slots_used: 4,
+          cpu_percent: 72,
+          memory_mb: 236,
+          heartbeat_at: new Date(Date.now() - 3000).toISOString(),
+          uptime_seconds: 345600,
+          jobs_completed: 162,
+          jobs_failed: 2,
+        },
+        {
+          id: "wkr-ap-se1-03",
+          name: "Worker 03 (Web & CSP Inspector)",
+          region: "ap-southeast-1b",
+          status: "busy",
+          current_scan_id: "scn-web-live",
+          current_target: "staging.example.com",
+          current_phase: "test",
+          slots_total: 4,
+          slots_used: 3,
+          cpu_percent: 39,
+          memory_mb: 165,
+          heartbeat_at: new Date(Date.now() - 4000).toISOString(),
+          uptime_seconds: 259200,
+          jobs_completed: 139,
+          jobs_failed: 0,
+        },
+        {
+          id: "wkr-ap-se1-04",
+          name: "Worker 04 (Discovery & DNS)",
+          region: "ap-southeast-1c",
+          status: "idle",
+          current_scan_id: null,
+          current_target: null,
+          current_phase: null,
+          slots_total: 4,
+          slots_used: 1,
+          cpu_percent: 14,
+          memory_mb: 118,
+          heartbeat_at: new Date(Date.now() - 1000).toISOString(),
+          uptime_seconds: 432000,
+          jobs_completed: 210,
+          jobs_failed: 0,
+        },
+      ],
+      queues: {
+        jobs: {
+          name: "Scan Jobs Stream",
+          stream_key: "harizeon:scans:jobs",
+          type: "jobs",
+          length: store.scans.filter((s) => s.status === "queued").length + 2,
+          in_flight: runningScansCount + 2,
+          consumer_group: "workers",
+          consumers_active: 4,
+          lag: 0,
+          status: "nominal",
+          throughput_per_min: 8.4,
+          avg_latency_ms: 18,
+        },
+        events: {
+          name: "Worker Events Stream",
+          stream_key: "harizeon:scans:events",
+          type: "events",
+          length: 12,
+          in_flight: 0,
+          consumer_group: "ingest",
+          consumers_active: 1,
+          lag: 0,
+          status: "nominal",
+          throughput_per_min: 52.0,
+          avg_latency_ms: 6,
+        },
+        reaper: {
+          interval_sec: 15,
+          last_run_at: new Date(Date.now() - 8000).toISOString(),
+          scans_reaped_24h: 1,
+          status: "operational",
+        },
+      },
+      recent_failures: failureItems,
+      diagnostics: {
+        total_recent_failures: failureItems.length,
+        primary_failure_cause:
+          failureItems.length > 0
+            ? "Target perimeter firewall dropping scanner probe traffic (TCP timeouts)"
+            : null,
+        recommendations: [
+          {
+            title: "Perimeter Firewall Allowlisting Required",
+            description: "2 recent scans timed out during port probing. Whitelist Harizeon scanner egress CIDRs (203.0.113.0/24) on target cloud security groups.",
+            code: "NET_FW_ALLOWLIST",
+            affected_scans_count: 1,
+          },
+          {
+            title: "Crawler Timeout on Complex Single-Page Apps",
+            description: "1 scan exceeded the 60s worker heartbeat limit. Use the 'Quick' profile for SPA targets or tune web crawling limits.",
+            code: "CRAWLER_TIMEOUT_TUNE",
+            affected_scans_count: 1,
+          },
+          {
+            title: "Decommissioned or Split-Horizon Subdomain",
+            description: "1 scan failed during DNS resolution with NXDOMAIN. Ensure monitored assets have publicly resolvable A/AAAA records.",
+            code: "DNS_PUBLIC_VERIFY",
+            affected_scans_count: 1,
+          },
+        ],
+      },
+    } as T;
+  }
+
   // GET /scans
   if (pathname === "/scans" && method === "GET") {
     return { data: store.scans } as T;
@@ -791,6 +1141,9 @@ export async function handleMockApi<T>(
         phase: scan.phase,
         progress_pct: scan.progress_pct,
         profile: scan.profile,
+        error_code: scan.error_code,
+        error_message: scan.error_message,
+        attempt: scan.attempt,
       },
       targets: scan.targets,
       events: scan.events,
@@ -814,6 +1167,77 @@ export async function handleMockApi<T>(
       });
     }
     return { ok: true } as T;
+  }
+
+  // POST /scans/:id/retry
+  const scanRetryMatch = pathname.match(/^\/scans\/([^/]+)\/retry$/);
+  if (scanRetryMatch && method === "POST") {
+    const id = scanRetryMatch[1];
+    const oldScan = store.scans.find((s) => s.id === id);
+    if (!oldScan) {
+      throw { status: 404, message: "Scan not found", code: "not_found" };
+    }
+    const scanId = `scn-${Math.random().toString(36).slice(2, 10)}`;
+    const newScan: MockScan = {
+      id: scanId,
+      status: "running",
+      profile: oldScan.profile,
+      phase: "verify",
+      progress_pct: 15,
+      created_at: new Date().toISOString(),
+      targets: [...oldScan.targets],
+      events: [
+        {
+          seq: 1,
+          phase: "verify",
+          level: "info",
+          message: `Scan job re-triggered for target assets (previous scan: ${oldScan.id})`,
+          at: new Date().toISOString(),
+        },
+        {
+          seq: 2,
+          phase: "verify",
+          level: "info",
+          message: "Pre-scan asset ownership verified",
+          at: new Date().toISOString(),
+        },
+        {
+          seq: 3,
+          phase: "discover",
+          level: "info",
+          message: `Active prober engaged with ${oldScan.profile} profile on ${oldScan.targets.length} target(s)`,
+          at: new Date().toISOString(),
+        },
+      ],
+      summary: null,
+      attempt: (oldScan.attempt ?? 1) + 1,
+    };
+
+    store.scans.unshift(newScan);
+
+    // Simulate completion asynchronously
+    setTimeout(() => {
+      newScan.phase = "report";
+      newScan.progress_pct = 100;
+      newScan.status = "completed";
+      newScan.events.push({
+        seq: 4,
+        phase: "probe",
+        level: "info",
+        message: "Network ports and protocols audited successfully",
+        at: new Date().toISOString(),
+      });
+      newScan.events.push({
+        seq: 5,
+        phase: "report",
+        level: "info",
+        message: "Retry scan completed. All target checks resolved.",
+        at: new Date().toISOString(),
+      });
+      newScan.summary = { new: 0, resolved: 1, unchanged: 2 };
+    }, 4500);
+
+    return { scan: newScan } as T;
   }
 
   // GET /findings

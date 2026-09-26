@@ -39,3 +39,34 @@ export async function cancelScanAction(
     return { ok: false, error: "Cannot reach the API. Is it running?" };
   }
 }
+
+export async function retryScanAction(
+  scanId: string,
+  assetIds?: string[],
+  profile?: string,
+): Promise<{ ok: boolean; scanId?: string; error?: string }> {
+  try {
+    let res: { scan: { id: string } };
+    try {
+      res = await apiFetch<{ scan: { id: string } }>(`/scans/${scanId}/retry`, {
+        method: "POST",
+        body: {},
+      });
+    } catch (e: unknown) {
+      if (assetIds && assetIds.length > 0) {
+        res = await apiFetch<{ scan: { id: string } }>("/scans", {
+          method: "POST",
+          body: { asset_ids: assetIds, profile: profile ?? "standard" },
+        });
+      } else {
+        throw e;
+      }
+    }
+    return { ok: true, scanId: res.scan.id };
+  } catch (e: unknown) {
+    if (e instanceof ApiError && e.status === 401) redirect("/login");
+    if (e instanceof ApiError) return { ok: false, error: e.message };
+    return { ok: false, error: "Cannot reach the API. Is it running?" };
+  }
+}
+

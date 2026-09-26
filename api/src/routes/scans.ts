@@ -138,4 +138,24 @@ export async function scanRoutes(app: FastifyInstance) {
     const scan = await cancelScan(scanQueue, orgId, id, actorId);
     return { scan };
   });
+
+  // POST /v1/scans/:id/retry — automatically trigger a new scan for the same target asset configuration
+  app.post("/scans/:id/retry", async (req: FastifyRequest, reply: FastifyReply) => {
+    const orgId = req.auth!.orgId;
+    const { id } = req.params as { id: string };
+    const scan = await withTx((c) => repo.getScan(c, orgId, id), orgId);
+    if (!scan) throw notFound("scan_not_found", "Scan not found");
+    const targets = await withTx((c) => repo.listScanTargets(c, id), orgId);
+    if (targets.length === 0) throw badRequest("no_targets", "Scan has no target assets to retry");
+    const project = await withTx((c) => getProjectByOrg(c, orgId), orgId);
+    const newScan = await createScan(scanQueue, {
+      orgId,
+      projectId: project?.id ?? null,
+      profile: scan.profile,
+      triggerSource: req.auth!.actorType === "api_key" ? "api" : "manual",
+      requestedBy: req.auth!.userId ?? req.auth!.apiKeyId ?? null,
+      assetIds: targets.map((t) => t.asset_id),
+    });
+    return reply.status(201).send({ scan: newScan });
+  });
 }

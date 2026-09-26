@@ -5,6 +5,10 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { SeverityChip } from "@/components/ui/severity-chip";
 import { Button } from "@/components/ui/button";
+import {
+  SystemHealthDashboard,
+  type SystemHealthData,
+} from "@/components/system-health-dashboard";
 
 export interface DashboardFinding {
   id: string;
@@ -29,6 +33,11 @@ export interface DashboardScan {
   id: string;
   profile: string;
   status: string;
+  phase?: string | null;
+  progress_pct?: number;
+  error_code?: string | null;
+  error_message?: string | null;
+  attempt?: number;
   created_at: string;
   summary?: { new: number; resolved: number; unchanged: number } | null;
 }
@@ -58,6 +67,13 @@ const RECENT_SERVICES = [
     stat: "1 Completed",
   },
   {
+    code: "SYS",
+    name: "System Health",
+    description: "Real-time worker load, queue sizes & failure diagnostics",
+    href: "#system-health",
+    stat: "Telemetry",
+  },
+  {
     code: "FND",
     name: "Findings & CVEs",
     description: "Prioritized vulnerabilities and remediation steps",
@@ -78,24 +94,19 @@ const RECENT_SERVICES = [
     href: "/reports",
     stat: "2 Ready",
   },
-  {
-    code: "ADT",
-    name: "CloudTrail & Audit",
-    description: "Append-only administrative operations log",
-    href: "/settings/audit-log",
-    stat: "Immutable",
-  },
 ];
 
 export function DashboardView({
   findings,
   assets,
   scans,
+  systemHealth,
   currentTime = 1789800000000,
 }: {
   findings: DashboardFinding[];
   assets: DashboardAsset[];
   scans: DashboardScan[];
+  systemHealth?: SystemHealthData | null;
   currentTime?: number;
 }) {
   const [showMethodology, setShowMethodology] = useState(false);
@@ -193,6 +204,9 @@ export function DashboardView({
         description="Continuous Attack Surface Management & Threat Telemetry"
         actions={
           <div className="flex items-center gap-2">
+            <a href="#system-health">
+              <Button variant="ghost">System Health</Button>
+            </a>
             <Link href="/reports">
               <Button variant="ghost">Reports</Button>
             </Link>
@@ -582,130 +596,62 @@ export function DashboardView({
         )}
       </div>
 
-      {/* AWS CONSOLE TWO-COLUMN WIDGET: Service Health + Service Quotas / Billing */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left 60%: AWS Service Health style widget */}
-        <div className="border border-line bg-canvas p-4 lg:col-span-7 font-mono text-xs">
-          <div className="flex items-center justify-between border-b border-line pb-3">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-ink">
-                Service Health &amp; Scanner Cluster
-              </h3>
-              <p className="text-[11px] text-muted font-sans mt-0.5">
-                Real-time operational status of Harizeon infrastructure components.
-              </p>
+      {/* WIDGET: Real-Time System Health & Scan Worker Telemetry Dashboard */}
+      <div id="system-health" className="scroll-mt-6">
+        <SystemHealthDashboard initialData={systemHealth} />
+      </div>
+
+      {/* AWS CONSOLE WIDGET: Service Quotas & Billing Capacity */}
+      <div className="border border-line bg-canvas p-5 font-mono text-xs">
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-ink">
+              Cost &amp; Service Quotas
+            </h3>
+            <p className="text-[11px] text-muted font-sans mt-0.5">
+              Current tier capacity and metered monthly consumption across scanner fleet and verified assets.
+            </p>
+          </div>
+          <Link href="/settings/billing" className="text-[11px] text-muted hover:text-ink underline">
+            Manage Tier →
+          </Link>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div>
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span>Scans Quota</span>
+              <span>14 / 500 scans (2.8%)</span>
             </div>
-            <Link href="/status" className="text-[11px] text-muted hover:text-ink underline">
-              Status Dashboard →
-            </Link>
+            <div className="h-2 w-full border border-line bg-subtle">
+              <div className="h-full bg-ink" style={{ width: "2.8%" }} />
+            </div>
           </div>
 
-          <div className="mt-3 divide-y divide-line">
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-2">
-                <span className="text-ink font-bold">●</span>
-                <span className="font-semibold text-ink">Fastify Control Plane (API v1)</span>
-              </div>
-              <div className="flex items-center gap-4 text-muted">
-                <span>Latency: 14ms</span>
-                <span className="border border-line bg-subtle px-1.5 py-0.5 text-[10px] text-ink font-bold">OPERATIONAL</span>
-              </div>
+          <div>
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span>Monitored Assets</span>
+              <span>{assets.length} / 25 assets</span>
             </div>
-
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-2">
-                <span className="text-ink font-bold">●</span>
-                <span className="font-semibold text-ink">Redis Streams (Queue &amp; Events)</span>
-              </div>
-              <div className="flex items-center gap-4 text-muted">
-                <span>Backlog: 0</span>
-                <span className="border border-line bg-subtle px-1.5 py-0.5 text-[10px] text-ink font-bold">OPERATIONAL</span>
-              </div>
+            <div className="h-2 w-full border border-line bg-subtle">
+              <div className="h-full bg-ink" style={{ width: `${Math.min(100, (assets.length / 25) * 100)}%` }} />
             </div>
+          </div>
 
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-2">
-                <span className="text-ink font-bold">●</span>
-                <span className="font-semibold text-ink">Worker Pool (ap-southeast-1)</span>
-              </div>
-              <div className="flex items-center gap-4 text-muted">
-                <span>4 Active Nodes</span>
-                <span className="border border-line bg-subtle px-1.5 py-0.5 text-[10px] text-ink font-bold">OPERATIONAL</span>
-              </div>
+          <div>
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span>Team Seats (RBAC)</span>
+              <span>1 / 3 seats</span>
             </div>
-
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-2">
-                <span className="text-ink font-bold">●</span>
-                <span className="font-semibold text-ink">CT Logs &amp; DNS Discovery</span>
-              </div>
-              <div className="flex items-center gap-4 text-muted">
-                <span>crt.sh &amp; RDAP</span>
-                <span className="border border-line bg-subtle px-1.5 py-0.5 text-[10px] text-ink font-bold">OPERATIONAL</span>
-              </div>
+            <div className="h-2 w-full border border-line bg-subtle">
+              <div className="h-full bg-ink" style={{ width: "33%" }} />
             </div>
           </div>
         </div>
 
-        {/* Right 40%: AWS Billing & Service Quotas widget */}
-        <div className="border border-line bg-canvas p-4 lg:col-span-5 font-mono text-xs">
-          <div className="flex items-center justify-between border-b border-line pb-3">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-ink">
-                Cost &amp; Service Quotas
-              </h3>
-              <p className="text-[11px] text-muted font-sans mt-0.5">
-                Current tier capacity and metered monthly consumption.
-              </p>
-            </div>
-            <Link href="/settings/billing" className="text-[11px] text-muted hover:text-ink underline">
-              Manage Tier →
-            </Link>
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Active Plan:</span>
-                <span className="font-bold text-ink uppercase">Growth Tier ($249/mo)</span>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span>Scans Quota</span>
-                <span>14 / 500 scans (2.8%)</span>
-              </div>
-              <div className="h-2 w-full border border-line bg-subtle">
-                <div className="h-full bg-ink" style={{ width: "2.8%" }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span>Monitored Assets</span>
-                <span>3 / 25 assets (12%)</span>
-              </div>
-              <div className="h-2 w-full border border-line bg-subtle">
-                <div className="h-full bg-ink" style={{ width: "12%" }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span>Team Seats (RBAC)</span>
-                <span>1 / 3 seats</span>
-              </div>
-              <div className="h-2 w-full border border-line bg-subtle">
-                <div className="h-full bg-ink" style={{ width: "33%" }} />
-              </div>
-            </div>
-
-            <div className="border-t border-line pt-2 text-[10px] text-faint flex justify-between">
-              <span>Next billing cycle: Oct 1, 2026</span>
-              <span className="text-ink">No overages</span>
-            </div>
-          </div>
+        <div className="mt-4 border-t border-line pt-2 text-[10px] text-faint flex justify-between">
+          <span>Active Plan: Growth Tier ($249/mo) · Next billing cycle: Oct 1, 2026</span>
+          <span className="text-ink font-semibold">Zero overages detected</span>
         </div>
       </div>
 

@@ -121,6 +121,8 @@ export type CreateScanInput = {
   profile: string;
   triggerSource: "manual" | "scheduled" | "api" | "webhook";
   requestedBy: string | null;
+  /** Set when the scan is raised by the scheduler, so it can pace itself. */
+  scheduleId?: string | null;
   assetIds: string[];
 };
 
@@ -161,6 +163,7 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
       triggerSource: input.triggerSource,
       profile: input.profile,
       requestedBy: input.requestedBy,
+      scheduleId: input.scheduleId ?? null,
     });
     await repo.insertScanTargets(client, row.id, input.assetIds);
     // Meter the billable unit (§13.1): deep scans cost more than standard.

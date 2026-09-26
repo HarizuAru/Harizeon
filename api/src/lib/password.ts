@@ -1,13 +1,15 @@
 import { hash, verify } from "@node-rs/argon2";
+import { config } from "../config";
 
 /**
  * Hash a password with Argon2id (OWASP-recommended parameters).
- * Returns a PHC-encoded string containing salt, parameters, and hash.
+ * Returns a PHC-encoded string containing salt, parameters, and hash, so
+ * verification always uses the parameters recorded at hash time.
  */
 export async function hashPassword(password: string): Promise<string> {
   return hash(password, {
-    memoryCost: 19456, // 19 MiB
-    timeCost: 2,
+    memoryCost: config.HARIZEON_ARGON2_MEMORY_COST, // KiB, default 19 MiB
+    timeCost: config.HARIZEON_ARGON2_TIME_COST,
     parallelism: 1,
     outputLen: 32,
     algorithm: 2, // Argon2id

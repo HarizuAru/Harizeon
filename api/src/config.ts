@@ -45,6 +45,10 @@ const Env = z.object({  NODE_ENV: z.enum(["development", "test", "production"]).
   RATE_LIMIT_ENABLED: bool(isProd),
   RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(300),
   RATE_LIMIT_AUTH_PER_MIN: z.coerce.number().int().positive().default(20),
+  // Argon2id cost (OWASP baseline 19 MiB / t=2). Login is deliberately CPU-bound;
+  // tune per threat model and capacity — every hash already records its params.
+  HARIZEON_ARGON2_TIME_COST: z.coerce.number().int().min(1).max(10).default(2),
+  HARIZEON_ARGON2_MEMORY_COST: z.coerce.number().int().min(1024).max(1_048_576).default(19456),
 });
 
 export const config = Env.parse(process.env);

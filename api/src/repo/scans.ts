@@ -32,7 +32,7 @@ export type ResolvedAsset = {
 
 export const SCAN_COLS = `id, org_id, project_id, trigger_source, profile, status,
   phase, progress_pct, started_at, finished_at, error_code, requested_by,
-  engine_versions, attempt, created_at, updated_at`;
+  engine_versions, attempt, schedule_id, created_at, updated_at`;
 
 export async function createScanRow(
   db: Queryable,
@@ -42,13 +42,14 @@ export async function createScanRow(
     triggerSource: string;
     profile: string;
     requestedBy: string | null;
+    scheduleId?: string | null;
   },
 ): Promise<ScanRow> {
   const res = await db.query<ScanRow>(
-    `INSERT INTO scans (org_id, project_id, trigger_source, profile, status, progress_pct, requested_by)
-     VALUES ($1,$2,$3::scan_trigger,$4::scan_profile,'queued',0,$5)
+    `INSERT INTO scans (org_id, project_id, trigger_source, profile, status, progress_pct, requested_by, schedule_id)
+     VALUES ($1,$2,$3::scan_trigger,$4::scan_profile,'queued',0,$5,$6)
      RETURNING ${SCAN_COLS}`,
-    [input.orgId, input.projectId, input.triggerSource, input.profile, input.requestedBy],
+    [input.orgId, input.projectId, input.triggerSource, input.profile, input.requestedBy, input.scheduleId ?? null],
   );
   return res.rows[0];
 }

@@ -1,6 +1,7 @@
 import os
 import unittest
 
+import probe
 from probe import (
     EXTENDED_PORTS, COMMON_PORTS, normalise_host, ports_for, port_findings,
     probe_target,
@@ -91,6 +92,20 @@ class ProbeTests(unittest.TestCase):
             return {"open": False}
         out = probe_target("example.com", "standard", lambda h: ["8.8.8.8"], connect)
         self.assertEqual(out["open"], [])
+
+    def test_parallel_probe_keeps_profile_port_order(self):
+        import time
+
+        def connect(ip, port, timeout):
+            if port == 21:
+                time.sleep(0.12)  # the first profile port finishes last
+            return {"open": port in (21, 443)}
+
+        out = probe_target("example.com", "standard", lambda h: ["8.8.8.8"], connect, max_workers=8)
+        self.assertEqual([p["port"] for p in out["open"]], [21, 443], "order follows the port list, not completion")
+
+    def test_probe_concurrency_is_bounded(self):
+        self.assertLessEqual(probe._probe_concurrency(), 64)
 
 
 class PortFindingTests(unittest.TestCase):

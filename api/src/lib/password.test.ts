@@ -1,6 +1,10 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { hashPassword, verifyPassword, validatePasswordPolicy } from "./password";
+
+// password -> config reads env at import; unit tests run without a DB.
+process.env.DATABASE_URL ??= "postgresql://unused/unused";
+
+const { hashPassword, verifyPassword, validatePasswordPolicy } = await import("./password");
 
 describe("password hashing (Argon2id)", () => {
   test("hash + verify roundtrip", async () => {

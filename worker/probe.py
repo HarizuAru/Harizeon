@@ -3,9 +3,15 @@
 Pure logic with injected `resolve_fn` and `connect_fn`; the socket implementation
 lives in adapters.py. Scope rules (scope.py) are enforced: only public IPs are
 ever connected to.
+
+Port probes run in a bounded thread pool (SCAN_PROBE_CONCURRENCY, default 16):
+each probe waits on a socket timeout, so parallel connect calls turn
+`ports × timeout` of serial wall clock into roughly one timeout.
 """
 
+import os
 import scope
+from concurrent.futures import ThreadPoolExecutor
 
 # (port, service) — the ports a small team actually runs (§09.2 "common ports").
 COMMON_PORTS = [
@@ -52,11 +58,29 @@ def normalise_host(value):
     return host.split("/")[0].split(":")[0]
 
 
-def probe_target(target_value, profile, resolve_fn, connect_fn, timeout=1.0):
+def _probe_concurrency():
+    """Bounded probe parallelism; an env var cannot exceed 64 sockets at once."""
+    try:
+        value = int(os.environ.get("SCAN_PROBE_CONCURRENCY", "16"))
+    except ValueError:
+        value = 16
+    return max(1, min(value, 64))
+
+
+def _safe_connect(connect_fn, ip, port, timeout):
+    try:
+        return connect_fn(ip, port, timeout)
+    except Exception:  # noqa: BLE001 - a refused/timeout port is normal
+        return {"open": False, "banner": None}
+
+
+def probe_target(target_value, profile, resolve_fn, connect_fn, timeout=1.0, max_workers=None):
     """Scan one target. Returns {"host", "ips", "open", "skipped"}.
 
     resolve_fn(host) -> list[str]
     connect_fn(ip, port, timeout) -> {"open": bool, "banner": str | None}
+
+    Output is ordered by the profile's port list regardless of completion order.
     """
     host = normalise_host(target_value)
     if not host:
@@ -70,13 +94,27 @@ def probe_target(target_value, profile, resolve_fn, connect_fn, timeout=1.0):
     if not ips:
         return {"host": host, "ips": [], "open": [], "skipped": "no public address"}
 
+    ports = ports_for(profile)
+    candidates = [(ip, port) for port, _service in ports for ip in ips[:2]]
+
+    results = {}
+    workers = min(len(candidates), max_workers if max_workers is not None else _probe_concurrency())
+    if workers <= 1:
+        for ip, port in candidates:
+            results[(port, ip)] = _safe_connect(connect_fn, ip, port, timeout)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(_safe_connect, connect_fn, ip, port, timeout): (port, ip)
+                for ip, port in candidates
+            }
+            for future, key in futures.items():
+                results[key] = future.result()
+
     open_ports = []
-    for port, service in ports_for(profile):
+    for port, service in ports:
         for ip in ips[:2]:
-            try:
-                result = connect_fn(ip, port, timeout)
-            except Exception:  # noqa: BLE001 - a refused/timeout port is normal
-                result = {"open": False, "banner": None}
+            result = results.get((port, ip))
             if result and result.get("open"):
                 open_ports.append({
                     "port": port,

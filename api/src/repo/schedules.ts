@@ -133,3 +133,50 @@ export async function projectAssetIds(db: Queryable, orgId: string): Promise<str
   );
   return res.rows.map((r) => r.id);
 }
+
+/**
+ * Change-aware pacing input: the schedule's consecutive quiet runs, plus how
+ * many NEW findings its most recent completed scheduled scan produced
+ * (null = no completed run yet, so no verdict). Runs inside withTx(org).
+ */
+export async function schedulePace(
+  db: Queryable,
+  orgId: string,
+  scheduleId: string,
+): Promise<{ quiet_runs: number; new_findings: number | null }> {
+  const res = await db.query<{ quiet_runs: number; last_scan_id: string | null }>(
+    `SELECT sch.quiet_runs, last_scan.id AS last_scan_id
+     FROM schedules sch
+     LEFT JOIN LATERAL (
+       SELECT id FROM scans
+       WHERE schedule_id = sch.id AND status = 'completed'
+       ORDER BY finished_at DESC NULLS LAST
+       LIMIT 1
+     ) last_scan ON true
+     WHERE sch.org_id = $1 AND sch.id = $2`,
+    [orgId, scheduleId],
+  );
+  const row = res.rows[0];
+  if (!row) throw notFound("schedule_not_found", "Schedule not found");
+  if (!row.last_scan_id) return { quiet_runs: Number(row.quiet_runs ?? 0), new_findings: null };
+  const count = await db.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM findings WHERE org_id = $1 AND scan_id = $2`,
+    [orgId, row.last_scan_id],
+  );
+  return { quiet_runs: Number(row.quiet_runs ?? 0), new_findings: Number(count.rows[0]?.count ?? "0") };
+}
+
+/** Store the pace decision. nextRunAt=null leaves the computed next run alone. */
+export async function setSchedulePace(
+  db: Queryable,
+  orgId: string,
+  scheduleId: string,
+  quietRuns: number,
+  nextRunAt: Date | null,
+): Promise<void> {
+  await db.query(
+    `UPDATE schedules SET quiet_runs = $3, next_run_at = COALESCE($4, next_run_at), updated_at = now()
+     WHERE org_id = $1 AND id = $2`,
+    [orgId, scheduleId, quietRuns, nextRunAt],
+  );
+}

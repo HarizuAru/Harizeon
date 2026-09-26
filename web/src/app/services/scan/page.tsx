@@ -6,7 +6,7 @@ import { PublicFooter } from "@/components/public-footer";
 export const metadata: Metadata = {
   title: "Harizeon Scan (SCN) — Autonomous External Vulnerability Scanner",
   description:
-    "Active and passive vulnerability assessment engine. Non-destructive port probing, TLS verification, CVE matching, and reproducible findings.",
+    "Non-destructive external vulnerability scanning: port probing, TLS and certificate checks, exposed files and admin panels, AI-exposure checks, and known-CVE matching from service banners.",
 };
 
 export default function ServiceScanPage() {
@@ -34,56 +34,56 @@ export default function ServiceScanPage() {
             </div>
 
             <p className="mt-4 text-base text-muted max-w-2xl font-sans leading-relaxed">
-              An autonomous, non-destructive external vulnerability scanner that continuously inspects your perimeter, normalizes findings, provides reproduction curl commands, and tracks fixes.
+              An autonomous, non-destructive external vulnerability scanner that continuously inspects your verified perimeter, normalises findings with evidence, and alerts you when something changes.
             </p>
           </div>
 
-          {/* What It Checks (§9.2) */}
+          {/* What It Checks (§9.2) — every claim here matches a shipped check */}
           <div className="border border-line bg-canvas p-8">
             <h2 className="font-mono text-base font-bold uppercase tracking-wider text-ink mb-6">
-              What Harizeon Scan Probes & Validates
+              What Harizeon Scan Probes &amp; Validates
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
               <div className="border border-line p-4">
-                <span className="font-bold text-ink block mb-1">01. Port & Service Reconnaissance</span>
+                <span className="font-bold text-ink block mb-1">01. Port &amp; Service Reconnaissance</span>
                 <p className="text-muted text-[11px] leading-relaxed">
-                  Scans top 100 or full 65,535 ports on verified domain targets. Extracts service banners without triggering intrusion prevention throttling.
+                  TCP connect probing over a common and an extended port set on verified targets, with banner capture. No exploit payloads are ever sent, and connections are pinned to validated public addresses only.
                 </p>
               </div>
 
               <div className="border border-line p-4">
-                <span className="font-bold text-ink block mb-1">02. Cryptographic Protocol & TLS Audit</span>
+                <span className="font-bold text-ink block mb-1">02. TLS &amp; Certificate Audit</span>
                 <p className="text-muted text-[11px] leading-relaxed">
-                  Detects deprecated TLS 1.0/1.1 protocols, export-grade ciphers (RC4, 3DES), certificate expiration, and lack of HSTS preload headers.
+                  Detects accepted legacy protocols (SSLv2, SSLv3, TLS 1.0, TLS 1.1), flags expired certificates and certificates expiring within 14 days, and checks that HSTS is present.
                 </p>
               </div>
 
               <div className="border border-line p-4">
-                <span className="font-bold text-ink block mb-1">03. HTTP Daemon & Component Fingerprinting</span>
+                <span className="font-bold text-ink block mb-1">03. Exposed Files &amp; Admin Panels</span>
                 <p className="text-muted text-[11px] leading-relaxed">
-                  Identifies outdated web server versions (Nginx, Apache, IIS), exposed debug endpoints (Git, env files), and missing Content-Security-Policy headers.
+                  Web checks for exposed .git directories, .env files, SQL dumps, phpinfo, Swagger UI and Spring Actuator endpoints, plus missing Content-Security-Policy and related security headers.
                 </p>
               </div>
 
               <div className="border border-line p-4">
-                <span className="font-bold text-ink block mb-1">04. Email Security Drift (SPF / DMARC / DKIM)</span>
+                <span className="font-bold text-ink block mb-1">04. AI Exposure (agentic-era surface)</span>
                 <p className="text-muted text-[11px] leading-relaxed">
-                  Validates DNS records for spoofing resilience, ensuring strict DMARC rejection policies and preventing domain brand hijacking.
+                  Detects unauthenticated Ollama-style model endpoints and live AI provider keys (OpenAI, Anthropic, Hugging Face, Google, Groq) leaked inside your own client-side JavaScript — redacted in evidence, never echoed.
                 </p>
               </div>
 
               <div className="border border-line p-4">
-                <span className="font-bold text-ink block mb-1">05. Automated CVE Correlation</span>
+                <span className="font-bold text-ink block mb-1">05. Known-CVE Matching</span>
                 <p className="text-muted text-[11px] leading-relaxed">
-                  Direct cross-referencing of extracted version banners with NIST National Vulnerability Database (NVD) and CISA Known Exploited Vulnerabilities (KEV).
+                  Software versions identified from service banners (OpenSSH, nginx, Apache, OpenSSL, vsFTPD and more) are checked against a curated known-vulnerability set, and the matching CVE ids are recorded on the finding.
                 </p>
               </div>
 
               <div className="border border-line p-4">
-                <span className="font-bold text-ink block mb-1">06. Ephemeral Discovery & Subdomain Drift</span>
+                <span className="font-bold text-ink block mb-1">06. Subdomain Discovery &amp; Alerts</span>
                 <p className="text-muted text-[11px] leading-relaxed">
-                  Correlates new subdomains found via Certificate Transparency logs strictly against the verified root domain boundary.
+                  New subdomains are discovered from Certificate Transparency logs, DNS and naming mutations of known hosts, validated strictly against the verified root domain, held for your review, and alerted on when they appear.
                 </p>
               </div>
             </div>
@@ -168,7 +168,7 @@ $ curl -X GET https://api.harizeon.com/v1/scans/scn_01H... \\
           <div className="border border-line bg-canvas">
             <div className="p-4 border-b border-line">
               <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-ink">
-                Scan Profile & Quota Limits
+                Scan Profile &amp; Quota Limits
               </h2>
             </div>
             <div className="overflow-x-auto">
@@ -176,37 +176,37 @@ $ curl -X GET https://api.harizeon.com/v1/scans/scn_01H... \\
                 <thead className="border-b border-line bg-subtle text-muted uppercase text-[10px]">
                   <tr>
                     <th className="px-4 py-3">Profile</th>
-                    <th className="px-4 py-3">Port Scope</th>
-                    <th className="px-4 py-3">Inspection Depth</th>
-                    <th className="px-4 py-3">Max Runtime</th>
-                    <th className="px-4 py-3">Available On</th>
+                    <th className="px-4 py-3">Coverage</th>
+                    <th className="px-4 py-3">What Runs</th>
+                    <th className="px-4 py-3">Availability</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
                   <tr>
                     <td className="px-4 py-3 font-bold text-ink">Quick</td>
-                    <td className="px-4 py-3 text-muted">Top 20 ports</td>
-                    <td className="px-4 py-3 text-muted">Header check, TLS cert</td>
-                    <td className="px-4 py-3 text-muted">3 minutes</td>
-                    <td className="px-4 py-3 text-ink">All Plans (Free+)</td>
+                    <td className="px-4 py-3 text-muted">Passive only — no port probing</td>
+                    <td className="px-4 py-3 text-muted">Ownership verify, discovery, resolve, report</td>
+                    <td className="px-4 py-3 text-ink">All plans (free tier)</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-bold text-ink">Standard</td>
-                    <td className="px-4 py-3 text-muted">Top 100 ports</td>
-                    <td className="px-4 py-3 text-muted">Full TLS audit, CVE mapping</td>
-                    <td className="px-4 py-3 text-muted">15 minutes</td>
-                    <td className="px-4 py-3 text-ink">Starter, Growth, Scale</td>
+                    <td className="px-4 py-3 text-muted">Common port set</td>
+                    <td className="px-4 py-3 text-muted">All phases: probing, TLS, headers, web checks, CVE matching</td>
+                    <td className="px-4 py-3 text-ink">Starter trial, Starter, Growth, Scale</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-bold text-ink">Deep</td>
-                    <td className="px-4 py-3 text-muted">Top 1,000 + Custom</td>
-                    <td className="px-4 py-3 text-muted">Deep probing, historical diffs</td>
-                    <td className="px-4 py-3 text-muted">45 minutes</td>
+                    <td className="px-4 py-3 text-muted">Extended port set (adds Telnet, SMB, Docker, VNC, Elasticsearch, MongoDB, K8s)</td>
+                    <td className="px-4 py-3 text-muted">Same as Standard over the extended set</td>
                     <td className="px-4 py-3 text-ink">Growth, Scale</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+            <p className="px-4 py-3 text-[10px] text-muted font-mono border-t border-line">
+              Workers heartbeat while running; a stalled scan is retried up to twice and then marked
+              timeout. Scans of assets whose ownership proof lapses are cancelled, never retried.
+            </p>
           </div>
 
           {/* CTA Box */}

@@ -23,6 +23,7 @@ import { scanQueue } from "./services/scanQueue";
 import { startIngest } from "./workers/ingest";
 import { startReaper } from "./workers/reaper";
 import { startScheduler } from "./workers/scheduler";
+import { startOutboxDispatcher } from "./workers/outbox";
 
 export async function buildServer() {
   const app = Fastify({
@@ -102,6 +103,7 @@ async function start() {
     if (config.HARIZEON_RUN_LOOPS) {
       // (NOT started by buildServer, so tests stay quiet.)
       await scanQueue.ready();
+      startOutboxDispatcher(scanQueue);
       startIngest(scanQueue);
       startReaper(scanQueue);
       startScheduler();

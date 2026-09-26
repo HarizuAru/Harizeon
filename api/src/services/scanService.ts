@@ -7,6 +7,7 @@ import { assertScanAllowed, recordUsage } from "../lib/quota";
 import type { ScanJob, ScanQueue, WorkerEvent } from "../lib/queue";
 import * as repo from "../repo/scans";
 import * as assetsRepo from "../repo/assets";
+import * as outboxRepo from "../repo/outbox";
 
 const SEVERITIES = new Set(["info", "low", "medium", "high", "critical"]);
 
@@ -136,7 +137,7 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
     throw badRequest("too_many_targets", `At most ${MAX_TARGETS} assets per scan`);
   }
 
-  const { scan, job } = await withTx(async (client) => {
+  const { scan } = await withTx(async (client) => {
     // §13.2 plan limits (profiles / scans per month / assets).
     await assertScanAllowed(client, input.orgId, input.profile);
 
@@ -185,15 +186,13 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
       attempt: 0,
       targets: assets.map((a) => ({ asset_id: a.id, type: a.type, value: a.value })),
     };
-    return { scan: row, job };
+    // Transactional outbox: the scan row and its dispatch intent commit in ONE
+    // transaction (§06.1). The dispatcher publishes it; the reaper stays as the
+    // backstop for anything older than the stale cutoff.
+    await outboxRepo.stageScanJob(client, input.orgId, row.id, job);
+    return { scan: row };
   }, input.orgId);
 
-  try {
-    await queue.enqueue(job);
-  } catch (e) {
-    // Scan row exists; the reaper will requeue it after the stale cutoff.
-    console.error("[scan] enqueue failed:", e instanceof Error ? e.message : e);
-  }
   return scan;
 }
 

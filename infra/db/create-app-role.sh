@@ -57,6 +57,9 @@ GRANT EXECUTE ON FUNCTION verifications_due_for_recheck(timestamptz) TO harizeon
 GRANT EXECUTE ON FUNCTION scans_stale(timestamptz) TO harizeon_app;
 -- System-level due-schedule lookup for the W09 scheduler.
 GRANT EXECUTE ON FUNCTION schedules_due(timestamptz) TO harizeon_app;
+-- Transactional outbox dispatcher (0008): pending intents + mark sent.
+GRANT EXECUTE ON FUNCTION outbox_pending(integer) TO harizeon_app;
+GRANT EXECUTE ON FUNCTION outbox_mark_published(uuid[]) TO harizeon_app;
 
 -- Future tables/sequences created by the owner also grant to the app role.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO harizeon_app;

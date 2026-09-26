@@ -269,6 +269,28 @@ accepts just the listed hosts/addresses, and it is ignored entirely when
 `NODE_ENV=production` — the worker refuses to start with it set there. The
 `sandbox` container must never be deployed outside a local network.
 
+## Production deployment (§07.5)
+
+1. **Secrets** live in `.env` (gitignored, copy `.env.example`). In production the
+   API refuses to boot without `HARIZEON_MASTER_KEY`; set `COOKIE_SECURE=true`
+   behind TLS, and `HARIZEON_EMAIL_API_KEY` (Resend) if alert mail is wanted —
+   unset, email endpoints fail honestly instead of silently dropping.
+2. **Transport**: terminate TLS with Caddy (`infra/proxy/Caddyfile`) in front of
+   the console (:3000) and the API (:8080). Nothing else is public.
+3. **Private data stores**: Postgres and Redis are published on `127.0.0.1`
+   only (compose). The worker needs no database access at all.
+4. **Migrations**: `docker compose up` builds and runs the one-shot `migrate`
+   service; safe to re-run. Then provision the app role once
+   (`infra/db/create-app-role.sh`).
+5. **Demo mode** must stay off: the web build refuses
+   `HARIZEON_DEMO_MODE=1` when `NODE_ENV=production`, and the worker refuses
+   `HARIZEON_SANDBOX_HOSTS` there too.
+6. **Backup / restore**: `infra/db/backup.sh` (logical dump to stdout) and
+   `infra/db/restore.sh` (refuses to overwrite a non-empty database). Restore
+   into a fresh database, then re-provision the app role.
+7. **Scale-out**: extra API replicas with `HARIZEON_RUN_LOOPS=0`; workers via
+   `docker compose up -d --scale worker=N`.
+
 ## Capacity & scaling
 
 The API is a single Fastify process; the DB pool (default 10) and the absence

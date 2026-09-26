@@ -7,7 +7,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harizeon}
       POSTGRES_DB: ${POSTGRES_DB:-harizeon}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Localhost only: the database and broker must never be reachable from
+      # the network. In-cluster traffic uses the internal ports (§07.5).
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - dbdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +23,8 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      # Localhost only (§07.5): the broker is control-plane/data-plane internal.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:

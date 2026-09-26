@@ -9,7 +9,7 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts src/lib/verify.test.ts src/lib/scan-state.test.ts src/lib/queue.test.ts src/lib/seal.test.ts src/lib/cron.test.ts src/lib/notifier.test.ts src/lib/securityScore.test.ts src/lib/ratelimit.test.ts src/lib/compliance.test.ts",
+    "test": "node --import tsx --test src/lib/password.test.ts src/lib/tokens.test.ts src/lib/verify.test.ts src/lib/scan-state.test.ts src/lib/queue.test.ts src/lib/seal.test.ts src/lib/cron.test.ts src/lib/notifier.test.ts src/lib/securityScore.test.ts src/lib/ratelimit.test.ts src/lib/compliance.test.ts src/lib/email.test.ts",
     "test:integration": "node --import tsx --test --test-concurrency=1 test/integration.test.ts test/assets.test.ts test/scans.test.ts test/discovery.test.ts test/findings.test.ts test/workflow.test.ts test/platform.test.ts test/scheduler.test.ts"
   },
   "dependencies": {

@@ -74,6 +74,28 @@ test("scan job pipeline end-to-end", { skip: !DATABASE_URL }, async () => {
     assert.equal(created.json().scan.status, "queued");
     const scanId = created.json().scan.id as string;
 
+    // The dispatch intent is committed WITH the scan row (transactional outbox);
+    // the dispatcher then publishes it to the stream.
+    const staged = await withTx(async (c) => {
+      const r = await c.query(
+        `SELECT count(*)::int AS n FROM scan_outbox WHERE scan_id = $1 AND published_at IS NULL`,
+        [scanId],
+      );
+      return Number(r.rows[0]?.n ?? 0);
+    }, orgId);
+    assert.equal(staged, 1, "scan row and dispatch intent committed together");
+
+    const { runOutboxOnce } = await import("../src/workers/outbox");
+    await runOutboxOnce(scanQueue);
+    const stagedAfter = await withTx(async (c) => {
+      const r = await c.query(
+        `SELECT count(*)::int AS n FROM scan_outbox WHERE scan_id = $1 AND published_at IS NOT NULL`,
+        [scanId],
+      );
+      return Number(r.rows[0]?.n ?? 0);
+    }, orgId);
+    assert.equal(stagedAfter, 1, "the dispatcher publishes and marks the intent sent");
+
     const claimed = await scanQueue.claimJobs(`t-${stamp}`, 200);
     const mine = claimed.find((c) => c.job.scan_id === scanId);
     assert.ok(mine, "job should be enqueued");

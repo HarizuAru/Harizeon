@@ -27,6 +27,10 @@ const Env = z.object({  NODE_ENV: z.enum(["development", "test", "production"]).
   HARIZEON_SESSION_SECRET: z.string().min(32).optional(),
   HARIZEON_MASTER_KEY: z.string().min(32).optional(),
   PUBLIC_API_BASE: z.string().url().default("http://localhost:8080"),
+  // Transactional email (Resend). Unset in production = email endpoints fail
+  // honestly instead of silently dropping mail (§08).
+  HARIZEON_EMAIL_API_KEY: z.string().optional(),
+  HARIZEON_EMAIL_FROM: z.string().default("Harizeon <alerts@harizeon.local>"),
   // Allow verification fetches to non-public hosts (loopback/test). NEVER true
   // in production — the SSRF guard (§11) must stay enforced where it matters.
   VERIFY_ALLOW_PRIVATE: bool(false),

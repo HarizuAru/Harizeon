@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
+import { SystemHealthTrendCard } from "@/components/system-health-trend-card";
 
 export interface WorkerNode {
   id: string;
@@ -220,7 +221,7 @@ export const FALLBACK_SYSTEM_HEALTH: SystemHealthData = {
       error_code: "ERR_CONNECTION_TIMEOUT",
       error_title: "Perimeter Firewall / TCP SYN Probe Timeout",
       error_message: "TCP port probe timed out on target 203.0.113.10:443. Remote firewall dropped SYN packets without responding.",
-      root_cause: "Target perimeter firewall (AWS Security Group / Cloudflare Magic Transit / iptables) dropped scanner ingress packets. Harizeon scanner egress IP ranges are not whitelisted on target ingress rules.",
+      root_cause: "Target perimeter firewall (Cloud Security Group / Edge Filter / iptables) dropped scanner ingress packets. Harizeon scanner egress IP ranges are not whitelisted on target ingress rules.",
       troubleshooting_steps: [
         "Whitelist Harizeon scanner egress IP CIDRs (203.0.113.0/24, 198.51.100.0/24) in your cloud security groups or perimeter firewall.",
         "Check that port 443 is publicly reachable: test with `nc -zv -w 5 203.0.113.10 443`.",
@@ -268,7 +269,7 @@ export const FALLBACK_SYSTEM_HEALTH: SystemHealthData = {
       error_code: "ERR_DNS_NXDOMAIN",
       error_title: "DNS A/AAAA Record Unresolvable",
       error_message: "Authoritative nameserver returned NXDOMAIN (RCODE 3). Target subdomain has no valid A or AAAA records published to public resolvers.",
-      root_cause: "The asset 'internal-docs.example.com' is hosted on internal split-horizon DNS (e.g. AWS Route 53 Private Hosted Zone) or the DNS record has been decommissioned while remaining in the monitored asset registry.",
+      root_cause: "The asset 'internal-docs.example.com' is hosted on internal split-horizon DNS (e.g. Private Hosted Zone DNS) or the DNS record has been decommissioned while remaining in the monitored asset registry.",
       troubleshooting_steps: [
         "Verify public DNS resolution using public resolvers: `dig +short internal-docs.example.com @8.8.8.8`.",
         "If this target is an internal intranet host not reachable from the public internet, decommission it or mark it inactive in Assets.",
@@ -782,118 +783,8 @@ export function SystemHealthDashboard({
             </div>
           </div>
 
-          {/* Quick Two-Column: Active Worker Nodes Preview + Pipeline Flow */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left 60%: Worker Nodes Summary */}
-            <div className="border border-line p-4 lg:col-span-7">
-              <div className="flex items-center justify-between border-b border-line pb-2 mb-3">
-                <span className="font-mono text-xs font-bold uppercase tracking-wider text-ink">
-                  Worker Nodes Execution Load
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("workers")}
-                  className="font-mono text-[11px] text-muted hover:text-ink underline"
-                >
-                  Full node metrics →
-                </button>
-              </div>
-
-              <div className="divide-y divide-line font-mono text-xs">
-                {workers.map((w) => (
-                  <div key={w.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className={cx(
-                          "px-1 py-0.2 text-[10px] font-bold border",
-                          w.status === "busy" ? "border-ink bg-ink text-canvas" : "border-line bg-canvas text-muted",
-                        )}>
-                          {w.status.toUpperCase()}
-                        </span>
-                        <span className="font-bold text-ink">{w.name}</span>
-                        <span className="text-[10px] text-faint">({w.region})</span>
-                      </div>
-                      <div className="mt-1 text-[11px] text-muted">
-                        {w.current_scan_id ? (
-                          <span>
-                            Scanning: <strong className="text-ink">{w.current_target}</strong> [{w.current_phase}]
-                          </span>
-                        ) : (
-                          <span className="text-faint">Standing by for next Redis job claim</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 sm:text-right">
-                      <div>
-                        <div className="text-[11px] font-bold text-ink">
-                          {w.slots_used}/{w.slots_total} Slots
-                        </div>
-                        <div className="text-[10px] text-faint">
-                          {w.cpu_percent}% CPU · {w.memory_mb} MB
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Right 40%: Architecture Seam & Queue Flow */}
-            <div className="border border-line p-4 lg:col-span-5 font-mono text-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between border-b border-line pb-2 mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-ink">
-                    Queue Architecture Seam (§06.1)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("queues")}
-                    className="text-[11px] text-muted hover:text-ink underline"
-                  >
-                    View queues →
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-2.5 text-[11px] text-muted leading-relaxed">
-                  <div className="border border-line bg-subtle p-2">
-                    <div className="font-bold text-ink flex justify-between">
-                      <span>1. Fastify Control Plane</span>
-                      <span className="text-faint">HTTP / PostgreSQL</span>
-                    </div>
-                    <p className="text-[10px] text-muted mt-0.5 font-sans">
-                      Validates asset ownership (§12), enqueues to Redis Streams, sets org RLS.
-                    </p>
-                  </div>
-
-                  <div className="border border-line bg-subtle p-2">
-                    <div className="font-bold text-ink flex justify-between">
-                      <span>2. Jobs Stream (harizeon:scans:jobs)</span>
-                      <span className="text-ink">{queues.jobs.length} in queue</span>
-                    </div>
-                    <p className="text-[10px] text-muted mt-0.5 font-sans">
-                      Consumer group &apos;workers&apos; claims jobs via XREADGROUP. Zero direct DB credentials.
-                    </p>
-                  </div>
-
-                  <div className="border border-line bg-subtle p-2">
-                    <div className="font-bold text-ink flex justify-between">
-                      <span>3. Ingest Pipeline (harizeon:scans:events)</span>
-                      <span className="text-ink">{queues.events.lag} lag</span>
-                    </div>
-                    <p className="text-[10px] text-muted mt-0.5 font-sans">
-                      Ingests finding events, updates status machine, sends notifications.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 pt-2 border-t border-line text-[10px] text-faint flex justify-between">
-                <span>Heartbeat: TTL 30s</span>
-                <span className="text-ink font-semibold">Reaper: 60s timeout ceiling</span>
-              </div>
-            </div>
-          </div>
+          {/* System Health Trend: 24-Hour Recharts Line Chart */}
+          <SystemHealthTrendCard systemHealth={data} />
         </div>
       )}
 

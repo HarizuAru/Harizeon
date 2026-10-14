@@ -6,6 +6,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { SeverityChip } from "@/components/ui/severity-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { labelClass, inputClass, selectClass } from "@/lib/ui";
+import { ScanStatusAlertConfig } from "@/components/scan-status-alert-config";
+import { AssetDriftAlertConfig } from "@/components/asset-drift-alert-config";
 
 export interface ChannelItem {
   id: string;
@@ -207,6 +209,12 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
           Add channel
         </Button>
       </div>
+
+      {/* Scan Status & Long-Running Scan Alert Configuration */}
+      <ScanStatusAlertConfig existingChannels={channels} />
+
+      {/* Asset Drift & Subdomain Change Alert Configuration */}
+      <AssetDriftAlertConfig existingChannels={channels} />
 
       {/* Global alert preferences */}
       <div className="border border-line bg-canvas p-4">

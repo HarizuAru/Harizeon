@@ -14,7 +14,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const pathname = usePathname();
 
-  // Compute AWS-style breadcrumb trail
+  // Compute breadcrumb trail
   const segments = pathname.split("/").filter(Boolean);
   const breadcrumbName =
     segments.length === 0
@@ -25,7 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-ink">
-      {/* Top AWS Console Global Header */}
+      {/* Top Global Header */}
       <TopBar
         isCloudShellOpen={isCloudShellOpen}
         onToggleCloudShell={() => setIsCloudShellOpen(!isCloudShellOpen)}
@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
 
-      {/* AWS Console Sub-Header / Breadcrumb & Status Bar */}
+      {/* Console Sub-Header / Breadcrumb & Status Bar */}
       <div className="flex h-9 items-center justify-between border-b border-line bg-subtle/50 px-4 font-mono text-[11px] select-none">
         <div className="flex items-center gap-2 text-muted">
           <button
@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="flex-1 min-w-0 p-4 sm:p-6 overflow-x-auto">{children}</main>
       </div>
 
-      {/* Interactive AWS CloudShell Bottom Drawer */}
+      {/* Interactive CloudShell Bottom Drawer */}
       <CloudShellDrawer
         isOpen={isCloudShellOpen}
         onClose={() => setIsCloudShellOpen(false)}

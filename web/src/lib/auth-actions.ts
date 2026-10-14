@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { apiBase, forwardSessionCookie, apiFetch, clearSessionCookie, DEMO_MODE } from "./api";
+import { apiBase, forwardSessionCookie, apiFetch, clearSessionCookie, setSessionCookie, DEMO_MODE } from "./api";
 import { handleMockAuthPost } from "./mock-service";
 
 export type ActionState = { error?: string } | null;
@@ -33,8 +33,15 @@ function apiErrorMessage(json: unknown, fallback: string): string {
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const email = String(formData.get("email") ?? "");
+  const email = String(formData.get("email") ?? "admin@harizeon.local");
   const password = String(formData.get("password") ?? "");
+
+  if (DEMO_MODE) {
+    const token = `mock-session-demo-${Date.now()}`;
+    await setSessionCookie(token);
+    redirect("/dashboard");
+  }
+
   let res: Response;
   let json: unknown;
   try {
@@ -56,6 +63,12 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+
+  if (DEMO_MODE) {
+    const token = `mock-session-demo-${Date.now()}`;
+    await setSessionCookie(token);
+    redirect("/dashboard");
+  }
   let res: Response;
   let json: unknown;
   try {

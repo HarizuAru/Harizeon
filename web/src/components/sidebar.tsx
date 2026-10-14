@@ -46,7 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Reports & Audit",
     items: [
       { code: "REP", label: "Compliance Reports", href: "/reports" },
-      { code: "ADT", label: "CloudTrail & Audit", href: "/settings/audit-log" },
+      { code: "ADT", label: "Audit Trail & Logs", href: "/settings/audit-log" },
     ],
   },
   {
@@ -98,7 +98,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
       </div>
 
       {/* Navigation Group Items */}
-      <nav className="flex-1 overflow-y-auto p-2" aria-label="AWS Console Navigation">
+      <nav className="flex-1 overflow-y-auto p-2" aria-label="Console Navigation">
         {NAV_GROUPS.map((group) => (
           <div key={group.group} className="mb-4">
             {!isCollapsed && (
@@ -154,7 +154,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         ))}
       </nav>
 
-      {/* AWS Console Footer Info Rail */}
+      {/* Console Footer Info Rail */}
       <div className="border-t border-line p-2.5 font-mono text-[10px] text-faint">
         {!isCollapsed ? (
           <div className="flex flex-col gap-1">

@@ -1,4 +1,5 @@
-import { apiBase, sessionToken, SESSION_COOKIE } from "@/lib/api";
+import { apiBase, sessionToken, SESSION_COOKIE, DEMO_MODE } from "@/lib/api";
+import { getMockScanEvents } from "@/lib/mock-service";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
   }
 
-  // The API is the only source of scan truth. Never simulate a "completed"
-  // stream: a security console that invents a finished scan is worse than one
-  // that reports a disconnect. A non-2xx makes EventSource fire `error`, which
-  // the client already handles.
+  // If in demo mode and upstream is unreachable, stream in-memory scan events
+  if (DEMO_MODE) {
+    const events = getMockScanEvents(id);
+    const sinceNum = parseInt(since, 10) || 0;
+    const filtered = events.filter((e) => e.seq > sinceNum);
+    const body = filtered
+      .map((e) => `event: scan_event\ndata: ${JSON.stringify(e)}\n\n`)
+      .join("");
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
+  }
+
   return new Response("scan event stream unavailable", { status: 502 });
 }

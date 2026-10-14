@@ -37,7 +37,7 @@ const NAV_ITEMS: SearchItem[] = [
   { id: "d-status", title: "Service Status & Health", category: "Documentation", href: "/status", description: "Scanner cluster uptime and operational telemetry" },
 ];
 
-export function AwsSearchPalette({
+export function UnifiedSearchPalette({
   isOpen,
   onClose,
 }: {
@@ -117,7 +117,7 @@ export function AwsSearchPalette({
       />
 
       <div className="relative w-full max-w-2xl border border-line bg-canvas font-mono shadow-2xl">
-        {/* Search Input Bar (AWS style) */}
+        {/* Global Search Input Bar */}
         <div className="flex items-center border-b border-line bg-subtle px-4 py-3">
           <span className="mr-3 text-muted">🔍</span>
           <input

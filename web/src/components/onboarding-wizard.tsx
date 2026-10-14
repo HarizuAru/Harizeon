@@ -245,7 +245,7 @@ export function OnboardingWizard() {
             {verificationMethod === "dns_txt" ? (
               <div className="flex flex-col gap-3 font-mono text-xs">
                 <p className="text-muted text-[11px]">
-                  Add a TXT record at your DNS provider (Cloudflare, AWS Route53, Google Cloud DNS, GoDaddy):
+                  Add a TXT record at your DNS provider (Cloudflare, Route 53, Cloud DNS, GoDaddy):
                 </p>
                 <div className="border border-line bg-subtle p-3 flex flex-col gap-2">
                   <div>

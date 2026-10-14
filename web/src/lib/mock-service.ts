@@ -63,6 +63,9 @@ export interface MockScan {
   phase: string | null;
   progress_pct: number;
   created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  updated_at?: string | null;
   targets: { asset_id: string; type: string; value: string }[];
   events: MockScanEvent[];
   summary?: { new: number; resolved: number; unchanged: number } | null;
@@ -244,6 +247,8 @@ function createInitialScans(): MockScan[] {
       phase: "report",
       progress_pct: 100,
       created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
+      started_at: new Date(Date.now() - 4 * 3600000).toISOString(),
+      finished_at: new Date(Date.now() - 4 * 3600000 + 420000).toISOString(),
       targets: [
         { asset_id: "ast-001", type: "domain", value: "example.com" },
         { asset_id: "ast-002", type: "subdomain", value: "api.example.com" },
@@ -270,6 +275,8 @@ function createInitialScans(): MockScan[] {
       error_message: "TCP port probe timed out on target 203.0.113.10:443. Remote firewall dropped SYN packets without responding.",
       attempt: 2,
       created_at: new Date(Date.now() - 42 * 60000).toISOString(),
+      started_at: new Date(Date.now() - 42 * 60000).toISOString(),
+      finished_at: new Date(Date.now() - 40 * 60000).toISOString(),
       targets: [{ asset_id: "ast-003", type: "ip", value: "203.0.113.10" }],
       events: [
         { seq: 1, phase: "verify", level: "info", message: "Ownership verified for asset 203.0.113.10", at: new Date(Date.now() - 42 * 60000).toISOString() },
@@ -290,6 +297,8 @@ function createInitialScans(): MockScan[] {
       error_message: "Worker heartbeat expired after 60s without progress during deep JS crawl inspection. Scan reclaimed and terminated by reaper.",
       attempt: 2,
       created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+      started_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+      finished_at: new Date(Date.now() - 2 * 3600000 + 120000).toISOString(),
       targets: [{ asset_id: "ast-001", type: "domain", value: "staging.example.com" }],
       events: [
         { seq: 1, phase: "verify", level: "info", message: "Asset verification validated", at: new Date(Date.now() - 2 * 3600000).toISOString() },
@@ -311,6 +320,8 @@ function createInitialScans(): MockScan[] {
       error_message: "Authoritative nameserver returned NXDOMAIN (RCODE 3). Target subdomain has no valid A or AAAA records published to public resolvers.",
       attempt: 1,
       created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+      started_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+      finished_at: new Date(Date.now() - 5 * 3600000 + 15000).toISOString(),
       targets: [{ asset_id: "ast-002", type: "subdomain", value: "internal-docs.example.com" }],
       events: [
         { seq: 1, phase: "verify", level: "info", message: "Target selected: internal-docs.example.com", at: new Date(Date.now() - 5 * 3600000).toISOString() },
@@ -328,6 +339,7 @@ function createInitialScans(): MockScan[] {
   for (let day = 1; day <= 29; day++) {
     const dayBase = now - day * dayMs;
     // Morning scan (always completed)
+    const morningDuration = day % 3 === 0 ? 1440000 : day % 2 === 0 ? 95000 : 380000;
     baseScans.push({
       id: `scn-hist-${day}a`,
       status: "completed",
@@ -335,16 +347,19 @@ function createInitialScans(): MockScan[] {
       phase: "report",
       progress_pct: 100,
       created_at: new Date(dayBase + 3600000 * 3).toISOString(),
+      started_at: new Date(dayBase + 3600000 * 3).toISOString(),
+      finished_at: new Date(dayBase + 3600000 * 3 + morningDuration).toISOString(),
       targets: [{ asset_id: "ast-001", type: "domain", value: "example.com" }],
       events: [
         { seq: 1, phase: "verify", level: "info", message: "Ownership verified", at: new Date(dayBase + 3600000 * 3).toISOString() },
-        { seq: 2, phase: "report", level: "info", message: "Audit complete", at: new Date(dayBase + 3600000 * 3 + 400000).toISOString() },
+        { seq: 2, phase: "report", level: "info", message: "Audit complete", at: new Date(dayBase + 3600000 * 3 + morningDuration).toISOString() },
       ],
       summary: { new: day % 6 === 0 ? 1 : 0, resolved: day % 4 === 0 ? 1 : 0, unchanged: 2 },
     });
 
     // Afternoon scan on most days
     if (day % 3 !== 1) {
+      const afternoonDuration = 325000;
       baseScans.push({
         id: `scn-hist-${day}b`,
         status: "completed",
@@ -352,10 +367,12 @@ function createInitialScans(): MockScan[] {
         phase: "report",
         progress_pct: 100,
         created_at: new Date(dayBase + 3600000 * 8).toISOString(),
+        started_at: new Date(dayBase + 3600000 * 8).toISOString(),
+        finished_at: new Date(dayBase + 3600000 * 8 + afternoonDuration).toISOString(),
         targets: [{ asset_id: "ast-002", type: "subdomain", value: "api.example.com" }],
         events: [
           { seq: 1, phase: "verify", level: "info", message: "Ownership verified", at: new Date(dayBase + 3600000 * 8).toISOString() },
-          { seq: 2, phase: "report", level: "info", message: "Audit complete", at: new Date(dayBase + 3600000 * 8 + 500000).toISOString() },
+          { seq: 2, phase: "report", level: "info", message: "Audit complete", at: new Date(dayBase + 3600000 * 8 + afternoonDuration).toISOString() },
         ],
         summary: { new: 0, resolved: 0, unchanged: 1 },
       });
@@ -363,6 +380,7 @@ function createInitialScans(): MockScan[] {
 
     // Failure on designated days to create realistic trend variations
     if (failureDays.has(day)) {
+      const failDuration = 115000;
       baseScans.push({
         id: `scn-hist-${day}f`,
         status: day % 2 === 0 ? "timeout" : "failed",
@@ -372,10 +390,12 @@ function createInitialScans(): MockScan[] {
         error_code: day % 2 === 0 ? "ERR_WORKER_TIMEOUT" : "ERR_CONNECTION_TIMEOUT",
         error_message: day % 2 === 0 ? "Worker heartbeat timed out during SPA crawl" : "TCP probe dropped by perimeter firewall",
         created_at: new Date(dayBase + 3600000 * 12).toISOString(),
+        started_at: new Date(dayBase + 3600000 * 12).toISOString(),
+        finished_at: new Date(dayBase + 3600000 * 12 + failDuration).toISOString(),
         targets: [{ asset_id: "ast-003", type: "ip", value: "203.0.113.10" }],
         events: [
           { seq: 1, phase: "verify", level: "info", message: "Ownership verified", at: new Date(dayBase + 3600000 * 12).toISOString() },
-          { seq: 2, phase: "probe", level: "error", message: "Execution error encountered", at: new Date(dayBase + 3600000 * 12 + 100000).toISOString() },
+          { seq: 2, phase: "probe", level: "error", message: "Execution error encountered", at: new Date(dayBase + 3600000 * 12 + failDuration).toISOString() },
         ],
         summary: null,
       });
@@ -853,7 +873,7 @@ export async function handleMockApi<T>(
       if (s.error_code === "ERR_CONNECTION_TIMEOUT" || s.error_code === "connection_timeout") {
         title = "Perimeter Firewall / TCP SYN Probe Timeout";
         category = "network_firewall";
-        rootCause = "Target perimeter firewall (AWS Security Group / Cloudflare Magic Transit / iptables) dropped scanner ingress packets. Harizeon scanner egress IP ranges are not whitelisted on target ingress rules.";
+        rootCause = "Target perimeter firewall (Cloud Security Group / Edge Filter / iptables) dropped scanner ingress packets. Harizeon scanner egress IP ranges are not whitelisted on target ingress rules.";
         steps = [
           "Whitelist Harizeon scanner egress IP CIDRs (203.0.113.0/24, 198.51.100.0/24) in your cloud security groups or perimeter firewall.",
           "Check that port 443 is publicly reachable: test with `nc -zv -w 5 <target> 443`.",
@@ -873,7 +893,7 @@ export async function handleMockApi<T>(
       } else if (s.error_code === "ERR_DNS_NXDOMAIN" || s.error_code === "dns_unresolvable") {
         title = "DNS A/AAAA Record Unresolvable";
         category = "dns_resolution";
-        rootCause = "The asset is hosted on internal split-horizon DNS (e.g. AWS Route 53 Private Hosted Zone) or the DNS record has been decommissioned while remaining in the monitored asset registry.";
+        rootCause = "The asset is hosted on internal split-horizon DNS (e.g. Private Hosted Zone DNS) or the DNS record has been decommissioned while remaining in the monitored asset registry.";
         steps = [
           "Verify public DNS resolution using public resolvers: `dig +short <target> @8.8.8.8`.",
           "If this target is an internal intranet host not reachable from the public internet, decommission it or mark it inactive in Assets.",
@@ -1113,6 +1133,7 @@ export async function handleMockApi<T>(
       newScan.phase = "report";
       newScan.progress_pct = 100;
       newScan.status = "completed";
+      newScan.finished_at = new Date().toISOString();
       newScan.events.push({
         seq: 4,
         phase: "report",
@@ -1144,6 +1165,8 @@ export async function handleMockApi<T>(
         error_code: scan.error_code,
         error_message: scan.error_message,
         attempt: scan.attempt,
+        started_at: scan.started_at ?? scan.created_at,
+        finished_at: scan.finished_at ?? null,
       },
       targets: scan.targets,
       events: scan.events,
@@ -1158,6 +1181,7 @@ export async function handleMockApi<T>(
     const scan = store.scans.find((s) => s.id === id);
     if (scan) {
       scan.status = "cancelled";
+      scan.finished_at = new Date().toISOString();
       scan.events.push({
         seq: scan.events.length + 1,
         phase: scan.phase,
@@ -1185,6 +1209,7 @@ export async function handleMockApi<T>(
       phase: "verify",
       progress_pct: 15,
       created_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
       targets: [...oldScan.targets],
       events: [
         {
@@ -1220,6 +1245,7 @@ export async function handleMockApi<T>(
       newScan.phase = "report";
       newScan.progress_pct = 100;
       newScan.status = "completed";
+      newScan.finished_at = new Date().toISOString();
       newScan.events.push({
         seq: 4,
         phase: "probe",
@@ -1548,4 +1574,12 @@ export async function handleMockAuthPost(
     res: new Response(JSON.stringify({ error: { message: "Not found" } }), { status: 404 }),
     json: { error: { message: "Not found" } },
   };
+}
+
+/**
+ * Retrieve events for a mock scan (used by SSE proxy when API daemon is offline).
+ */
+export function getMockScanEvents(id: string): MockScanEvent[] {
+  const scan = store.scans.find((s) => s.id === id);
+  return scan ? [...scan.events] : [];
 }

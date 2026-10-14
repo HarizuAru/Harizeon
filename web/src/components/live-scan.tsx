@@ -7,6 +7,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
 import { cancelScanAction, retryScanAction } from "@/lib/scan-actions";
+import { ScanPerformance } from "@/components/scan-performance";
+import { ScanProfileDurationHistoryChart } from "@/components/scan-profile-duration-history-chart";
+import type { Scan } from "@/components/scans-list-table";
 
 const PHASES = [
   "verify",
@@ -36,6 +39,8 @@ export function LiveScan({
   targets = [],
   errorCode,
   errorMessage,
+  createdAt,
+  recentScans = [],
 }: {
   scanId: string;
   initialStatus: string;
@@ -47,6 +52,8 @@ export function LiveScan({
   targets?: Target[];
   errorCode?: string;
   errorMessage?: string;
+  createdAt?: string;
+  recentScans?: Scan[];
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
@@ -55,6 +62,7 @@ export function LiveScan({
   const [events, setEvents] = useState<LogEvent[]>(initialEvents);
   const [note, setNote] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [exported, setExported] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const sinceRef = useRef(initialEvents.length > 0 ? initialEvents[initialEvents.length - 1].seq : 0);
   const done = TERMINAL.has(status);
@@ -121,6 +129,41 @@ export function LiveScan({
     }
   }
 
+  const handleExportJson = () => {
+    const exportData = {
+      export_version: "1.0",
+      exported_at: new Date().toISOString(),
+      scan: {
+        id: scanId,
+        profile,
+        status,
+        phase,
+        progress_pct: progress,
+        created_at: createdAt ?? null,
+        error_code: errorCode ?? null,
+        error_message: errorMessage ?? null,
+      },
+      targets,
+      events_count: events.length,
+      events,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `scan-${scanId.slice(0, 12)}-events.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setExported(true);
+    setTimeout(() => setExported(false), 2000);
+  };
+
   // Derive root failure message from events if explicit message is missing
   const lastErrorMsg = errorMessage ?? [...events].reverse().find((e) => e.level === "error" || e.level === "fatal")?.message;
 
@@ -134,6 +177,16 @@ export function LiveScan({
         <div className="h-1 flex-1 min-w-32 border border-line bg-subtle">
           <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
         </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleExportJson}
+          className="flex items-center gap-1.5"
+          title="Export scan event log as JSON file for local audit or offline analysis"
+        >
+          <span className="font-mono text-xs">↓</span>
+          <span>{exported ? "Exported JSON!" : "Export JSON"}</span>
+        </Button>
         {!done ? (
           <Button variant="secondary" size="sm" onClick={() => void cancel()}>
             Cancel scan
@@ -263,38 +316,76 @@ export function LiveScan({
           })}
         </ol>
 
-        <div
-          ref={logRef}
-          className="max-h-96 overflow-y-auto border border-line bg-canvas p-3 font-mono text-xs leading-relaxed"
-          aria-live="polite"
-        >
-          {events.length === 0 ? (
-            <p className="text-faint">Waiting for the worker…</p>
-          ) : (
-            events.map((e) => {
-              const isError = e.level === "error" || e.level === "fatal";
-              return (
-                <div
-                  key={e.seq}
-                  className={cx(
-                    "whitespace-pre-wrap py-0.5",
-                    isError && "bg-subtle pl-1 font-bold text-ink border-l border-ink",
-                  )}
-                >
-                  <span className="text-faint">{new Date(e.at).toLocaleTimeString()}</span>{" "}
-                  <span className={cx("text-muted", isError && "text-ink")}>{(e.phase ?? "-").padEnd(9)}</span>{" "}
-                  {isError && (
-                    <span className="mr-1 border border-ink bg-ink px-1 text-[10px] font-bold uppercase text-canvas">
-                      ERR
-                    </span>
-                  )}
-                  {e.message}
-                </div>
-              );
-            })
-          )}
+        <div className="flex flex-col border border-line bg-canvas">
+          <div className="flex items-center justify-between border-b border-line bg-subtle px-3 py-1.5 font-mono text-xs text-muted select-none">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-ink uppercase">Scan Event Log</span>
+              <span>·</span>
+              <span>
+                {events.length} {events.length === 1 ? "event" : "events"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportJson}
+              className="flex items-center gap-1.5 border border-line bg-canvas px-2.5 py-0.5 font-mono text-[11px] text-ink hover:bg-subtle hover:border-ink transition-colors cursor-pointer"
+              title="Download full JSON event audit log"
+            >
+              <span>↓</span>
+              <span>{exported ? "Exported JSON!" : "Export JSON"}</span>
+            </button>
+          </div>
+
+          <div
+            ref={logRef}
+            className="max-h-96 overflow-y-auto p-3 font-mono text-xs leading-relaxed"
+            aria-live="polite"
+          >
+            {events.length === 0 ? (
+              <p className="text-faint">Waiting for the worker…</p>
+            ) : (
+              events.map((e) => {
+                const isError = e.level === "error" || e.level === "fatal";
+                return (
+                  <div
+                    key={e.seq}
+                    className={cx(
+                      "whitespace-pre-wrap py-0.5",
+                      isError && "bg-subtle pl-1 font-bold text-ink border-l border-ink",
+                    )}
+                  >
+                    <span className="text-faint">{new Date(e.at).toLocaleTimeString()}</span>{" "}
+                    <span className={cx("text-muted", isError && "text-ink")}>{(e.phase ?? "-").padEnd(9)}</span>{" "}
+                    {isError && (
+                      <span className="mr-1 border border-ink bg-ink px-1 text-[10px] font-bold uppercase text-canvas">
+                        ERR
+                      </span>
+                    )}
+                    {e.message}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Scan Performance & Phase Duration Sparkline Component */}
+      <ScanPerformance
+        events={events}
+        profile={profile}
+        currentPhase={phase}
+        scanStatus={status}
+      />
+
+      {/* 10-Run Profile Scan Duration History & Degradation Trend */}
+      <ScanProfileDurationHistoryChart
+        currentScanId={scanId}
+        profile={profile}
+        currentStatus={status}
+        currentCreatedAt={createdAt}
+        recentScans={recentScans}
+      />
 
       {done && initialSummary && (initialSummary.new > 0 || initialSummary.resolved > 0) ? (
         <div className="border border-line bg-canvas p-3 font-mono text-sm text-ink">

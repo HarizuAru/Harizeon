@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LiveScan } from "@/components/live-scan";
+import type { Scan } from "@/components/scans-list-table";
 import { apiFetch, ApiError } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Scan" };
@@ -17,6 +18,7 @@ type Detail = {
     profile: string;
     error_code?: string;
     error_message?: string;
+    created_at?: string;
   };
   targets: { asset_id: string; type: string; value: string }[];
   events: { seq: number; phase: string | null; level: string; message: string; at: string }[];
@@ -27,12 +29,23 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   let detail: Detail | null = null;
   let error: string | null = null;
+  let recentScans: Scan[] = [];
+
   try {
     detail = await apiFetch<Detail>(`/scans/${id}`);
   } catch (e: unknown) {
     if (e instanceof ApiError && e.status === 401) redirect("/login");
     if (e instanceof ApiError && e.status === 404) notFound();
     error = e instanceof ApiError ? e.message : "Cannot reach the API. Is it running?";
+  }
+
+  if (detail) {
+    try {
+      const scansRes = await apiFetch<{ data: Scan[] }>("/scans?limit=50");
+      recentScans = scansRes.data ?? [];
+    } catch {
+      // Graceful fallback if scans listing fails
+    }
   }
 
   if (error || !detail) {
@@ -78,6 +91,8 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
         targets={targets}
         errorCode={scan.error_code}
         errorMessage={scan.error_message}
+        createdAt={scan.created_at}
+        recentScans={recentScans}
       />
     </div>
   );

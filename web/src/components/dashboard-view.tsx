@@ -9,6 +9,13 @@ import {
   SystemHealthDashboard,
   type SystemHealthData,
 } from "@/components/system-health-dashboard";
+import { DashboardCalendarHeatmap } from "@/components/dashboard-calendar-heatmap";
+import {
+  calculateSecurityPosture,
+  getOptimizedRemediationPlan,
+  calculateComplianceMatrix,
+  clusterFindings,
+} from "@/lib/security-algorithms";
 
 export interface DashboardFinding {
   id: string;
@@ -123,34 +130,17 @@ export function DashboardView({
     info: 0,
   };
 
-  const categoryPenalties: Record<string, number> = {};
   const now = currentTime;
 
   for (const f of openFindings) {
     severityCounts[f.severity] = (severityCounts[f.severity] || 0) + 1;
-    const cat = f.category || "uncategorized";
-    const ageDays = (now - new Date(f.first_seen_at).getTime()) / 86400000;
-
-    let penalty = 0;
-    if (f.severity === "critical") {
-      penalty = ageDays > 7 ? 22.5 : 15;
-    } else if (f.severity === "high") {
-      penalty = ageDays > 7 ? 12 : 8;
-    } else if (f.severity === "medium") {
-      penalty = 3;
-    } else if (f.severity === "low") {
-      penalty = 1;
-    }
-
-    categoryPenalties[cat] = (categoryPenalties[cat] || 0) + penalty;
   }
 
-  let totalDeductions = 0;
-  for (const cat of Object.keys(categoryPenalties)) {
-    totalDeductions += Math.min(35, categoryPenalties[cat]);
-  }
-
-  const securityScore = Math.max(0, Math.min(100, Math.round(100 - totalDeductions)));
+  // Advanced Algorithm Calculations
+  const postureMetrics = calculateSecurityPosture(findings, assets.length);
+  const optimizedRemediations = getOptimizedRemediationPlan(findings);
+  const complianceMatrix = calculateComplianceMatrix(findings);
+  const rootCauseClusters = clusterFindings(findings);
 
   const latestScan = scans.length > 0 ? scans[0] : null;
   const lastScanLabel = latestScan
@@ -198,7 +188,7 @@ export function DashboardView({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Top AWS Console Home Title Bar */}
+      {/* Top Console Home Title Bar */}
       <PageHeader
         title="Console Home"
         description="Continuous Attack Surface Management & Threat Telemetry"
@@ -217,12 +207,12 @@ export function DashboardView({
         }
       />
 
-      {/* WIDGET 1: AWS Console Welcome & Quick Solutions Banner */}
+      {/* WIDGET 1: Console Welcome & Quick Solutions Banner */}
       <div className="border border-line bg-canvas p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-4">
           <div>
             <span className="border border-ink bg-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-canvas">
-              AWS-STYLE MANAGEMENT CONSOLE
+              SECURITY OPERATIONS CONSOLE
             </span>
             <h2 className="mt-2 text-xl font-bold text-ink font-sans">
               Welcome to Harizeon Attack Surface Management
@@ -275,7 +265,7 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* WIDGET 2: AWS Console "Recently Visited Services" Grid */}
+      {/* WIDGET 2: Console "Recently Visited Services" Grid */}
       <div className="border border-line bg-canvas p-4">
         <div className="flex items-center justify-between border-b border-line pb-2.5 mb-3">
           <div className="flex items-center gap-2">
@@ -320,27 +310,33 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* AWS CONSOLE WIDGET ROW: 4 Core Health Tiles */}
+      {/* CONSOLE WIDGET ROW: 4 Core Health Tiles */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Security Hub Score Widget */}
         <div className="relative border border-line bg-canvas p-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
-              Security Hub Posture
+              Security Posture
             </span>
-            <button
-              onClick={() => setShowMethodology(true)}
-              className="cursor-pointer font-mono text-[10px] text-faint underline hover:text-ink"
-            >
-              [?] Formula
-            </button>
+            <div className="flex items-center gap-1.5">
+              <span className="border border-ink bg-ink px-1.5 py-0.2 text-[10px] font-mono font-bold text-canvas">
+                GRADE {postureMetrics.grade}
+              </span>
+              <button
+                onClick={() => setShowMethodology(true)}
+                className="cursor-pointer font-mono text-[10px] text-faint underline hover:text-ink"
+              >
+                [?]
+              </button>
+            </div>
           </div>
           <p className="mt-2 font-mono text-[2.5rem] leading-none font-bold text-ink">
-            {securityScore} <span className="text-base font-normal text-faint">/ 100</span>
+            {postureMetrics.score} <span className="text-base font-normal text-faint">/ 100</span>
           </p>
           <div className="mt-3 flex items-center justify-between font-mono text-xs text-muted">
-            <span>Posture: <strong className="text-ink">{securityScore >= 80 ? "STRONG" : securityScore >= 60 ? "MODERATE" : "AT RISK"}</strong></span>
-            <span className="font-semibold text-ink">(-3 vs 7d)</span>
+            <span>EPSS: <strong className="text-ink">{(postureMetrics.epssAverage * 100).toFixed(0)}%</strong></span>
+            <span>MTTR: <strong className="text-ink">{postureMetrics.mttrDays}d</strong></span>
+            <span className="font-semibold text-ink">Risk: {postureMetrics.riskIndex}/10</span>
           </div>
         </div>
 
@@ -363,7 +359,7 @@ export function DashboardView({
           </div>
         </div>
 
-        {/* GuardDuty / Findings Tile */}
+        {/* Vulnerability Findings Tile */}
         <div className="border border-line bg-canvas p-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
@@ -402,7 +398,7 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* AWS CONSOLE TWO-COLUMN BENTO: Posture Trendline + Findings Matrix */}
+      {/* TWO-COLUMN BENTO: Posture Trendline + Findings Matrix */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left 60%: Monochrome Security Hub Posture Trend */}
         <div className="border border-line bg-canvas p-5 lg:col-span-7">
@@ -474,7 +470,7 @@ export function DashboardView({
           </div>
         </div>
 
-        {/* Right 40%: AWS GuardDuty-style Severity Distribution */}
+        {/* Right 40%: Severity Distribution Matrix */}
         <div className="flex flex-col justify-between border border-line bg-canvas p-5 lg:col-span-5">
           <div className="border-b border-line pb-3">
             <h3 className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-ink">
@@ -526,7 +522,7 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* AWS CONSOLE WIDGET: "Needs Attention" (Prioritized Findings) */}
+      {/* CONSOLE WIDGET: "Needs Attention" (Prioritized Findings) */}
       <div className="border border-line bg-canvas">
         <div className="flex items-center justify-between border-b border-line p-4">
           <div>
@@ -596,12 +592,147 @@ export function DashboardView({
         )}
       </div>
 
+      {/* ALGORITHMIC REMEDIATION OPTIMIZER & COMPLIANCE MATRIX */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left 60%: Knapsack Remediation Priority Optimizer */}
+        <div className="border border-line bg-canvas p-5 lg:col-span-7">
+          <div className="flex items-center justify-between border-b border-line pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="border border-ink bg-ink px-1.5 py-0.2 font-mono text-[9px] font-bold uppercase text-canvas">
+                  ALGORITHM
+                </span>
+                <h3 className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-ink">
+                  Knapsack Remediation Optimizer
+                </h3>
+              </div>
+              <p className="text-[11px] text-muted font-sans mt-1">
+                Mathematical optimization maximizing posture score recovery per engineering hour invested.
+              </p>
+            </div>
+            <span className="font-mono text-xs text-faint">
+              {optimizedRemediations.length} queued
+            </span>
+          </div>
+
+          {optimizedRemediations.length === 0 ? (
+            <p className="py-6 text-center font-mono text-xs text-muted">
+              Zero pending remediations. Perimeter security posture is optimal.
+            </p>
+          ) : (
+            <div className="mt-4 divide-y divide-line">
+              {optimizedRemediations.slice(0, 3).map((rec) => (
+                <div key={rec.findingId} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-center justify-between font-mono text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="border border-line bg-subtle px-1.5 py-0.5 text-[10px] font-bold text-ink">
+                        RANK #{rec.priorityRank}
+                      </span>
+                      <SeverityChip severity={rec.severity as "critical" | "high" | "medium" | "low" | "info"} />
+                      <span className="font-semibold text-ink truncate max-w-[260px] sm:max-w-md">
+                        {rec.title}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-ink">+{rec.scoreRecovery} PTS</span>
+                      <span className="text-[10px] text-muted">~{rec.effortHours}h</span>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 font-sans text-xs text-muted leading-relaxed">
+                    {rec.recommendedAction}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-faint">
+                    <span>Target: <strong className="text-ink">{rec.assetValue}</strong></span>
+                    <Link
+                      href={`/findings/${rec.findingId}`}
+                      className="text-ink hover:underline font-bold"
+                    >
+                      Execute Fix →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right 40%: Multi-Framework Compliance Matrix */}
+        <div className="border border-line bg-canvas p-5 lg:col-span-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <div>
+                <h3 className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-ink">
+                  Compliance Assurance Matrix
+                </h3>
+                <p className="text-[11px] text-muted font-sans mt-0.5">
+                  Automated assurance control evaluation mapped to international standards.
+                </p>
+              </div>
+              <Link href="/reports" className="font-mono text-[10px] text-muted hover:text-ink underline">
+                Reports →
+              </Link>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 font-mono text-xs">
+              {complianceMatrix.map((cm) => (
+                <div key={cm.framework} className="border border-line bg-subtle/30 p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-ink">{cm.framework}</span>
+                    <span
+                      className={`text-[9px] font-bold uppercase px-1.5 py-0.2 border ${
+                        cm.status === "compliant"
+                          ? "border-line bg-canvas text-ink"
+                          : cm.status === "needs_attention"
+                          ? "border-line bg-subtle text-ink"
+                          : "border-ink bg-ink text-canvas"
+                      }`}
+                    >
+                      {cm.status.replace("_", " ")}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-muted">
+                    <span className="text-[10px] truncate max-w-[200px]">{cm.standardName}</span>
+                    <span className="font-bold text-ink">{cm.scorePercent}%</span>
+                  </div>
+
+                  <div className="mt-1 h-1.5 w-full border border-line bg-subtle">
+                    <div
+                      className="h-full bg-ink"
+                      style={{ width: `${cm.scorePercent}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-1.5 text-[9px] text-faint flex justify-between">
+                    <span>{cm.passedControls} of {cm.totalControls} controls verified</span>
+                    <span>Gap: {cm.totalControls - cm.passedControls}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Root-Cause Attack Clusters Summary */}
+          {rootCauseClusters.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-line font-mono text-[10px]">
+              <div className="flex items-center justify-between text-muted">
+                <span>Vulnerability Clusters:</span>
+                <strong className="text-ink">{rootCauseClusters.length} root causes identified</strong>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* SCAN PERFORMANCE: Calendar Heatmap across all profiles */}
+      <DashboardCalendarHeatmap scans={scans} />
+
       {/* WIDGET: Real-Time System Health & Scan Worker Telemetry Dashboard */}
       <div id="system-health" className="scroll-mt-6">
         <SystemHealthDashboard initialData={systemHealth} />
       </div>
 
-      {/* AWS CONSOLE WIDGET: Service Quotas & Billing Capacity */}
+      {/* CONSOLE WIDGET: Service Quotas & Billing Capacity */}
       <div className="border border-line bg-canvas p-5 font-mono text-xs">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div>
@@ -655,12 +786,12 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* WIDGET: AWS CloudTrail / Audit Trail Activity Log */}
+      {/* WIDGET: Audit Trail Activity Log */}
       <div className="border border-line bg-canvas">
         <div className="flex items-center justify-between border-b border-line p-4">
           <div>
             <h3 className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-ink">
-              AWS CloudTrail · Harizeon Audit Operations Log
+              Harizeon Operations &amp; Audit Log
             </h3>
             <p className="text-[11px] text-muted font-sans">
               Cryptographically verified chronological event feed of perimeter operations and scan triggers.

@@ -104,7 +104,7 @@ const ALL_SERVICES: ServiceItem[] = [
   // Governance & IAM
   {
     code: "ADT",
-    name: "CloudTrail & Audit Log",
+    name: "Audit Trail & Activity Log",
     description: "Append-only cryptographic event log of all administrative actions",
     href: "/settings/audit-log",
     category: "Management & IAM",
@@ -204,7 +204,7 @@ export function ServicesMegaMenu({
         onClick={onClose}
       />
 
-      {/* Services Dropdown Panel (AWS Console Mega Menu style) */}
+      {/* Services Dropdown Panel (Mega Menu) */}
       <div className="fixed top-14 left-0 right-0 z-50 mx-auto max-w-6xl border-x border-b border-line bg-canvas shadow-2xl">
         {/* Header with Search & Title */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line bg-subtle px-6 py-3">

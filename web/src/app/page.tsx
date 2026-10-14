@@ -114,16 +114,22 @@ export default async function LandingPage() {
 
             <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
               <Link
-                href="/signup"
+                href="/api/demo-login"
                 className="w-full sm:w-auto border border-ink bg-ink px-8 py-3.5 font-mono text-xs uppercase font-bold tracking-[0.05em] text-canvas hover:bg-canvas hover:text-ink transition-colors"
               >
-                Start free
+                Open Dashboard (1-Click Demo) →
+              </Link>
+              <Link
+                href="/login"
+                className="w-full sm:w-auto border border-line bg-canvas px-8 py-3.5 font-mono text-xs uppercase tracking-[0.05em] text-ink hover:border-ink hover:bg-subtle transition-colors"
+              >
+                Log in
               </Link>
               <Link
                 href="/docs"
-                className="w-full sm:w-auto border border-line bg-canvas px-8 py-3.5 font-mono text-xs uppercase tracking-[0.05em] text-ink hover:border-ink hover:bg-subtle transition-colors"
+                className="w-full sm:w-auto border border-line bg-canvas px-6 py-3.5 font-mono text-xs uppercase tracking-[0.05em] text-muted hover:text-ink transition-colors"
               >
-                Read the docs
+                Docs
               </Link>
             </div>
 

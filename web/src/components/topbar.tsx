@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { logoutAction } from "@/lib/auth-actions";
 import { ServicesMegaMenu } from "@/components/services-mega-menu";
-import { AwsSearchPalette } from "@/components/aws-search-palette";
+import { UnifiedSearchPalette } from "@/components/unified-search-palette";
 
 export const CLUSTER_REGIONS = [
   { id: "ap-southeast-1", label: "ap-southeast-1 (Singapore)" },
@@ -57,7 +57,7 @@ export function TopBar({
       .catch(() => setAlerts([]));
   }, [isNotificationsOpen, alerts]);
 
-  // Global hotkeys (AWS style: '/' or 'Alt+S' for search, '`' for CloudShell)
+  // Global hotkeys ('/' or 'Alt+S' for search, '`' for CloudShell)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // If active element is an input, do not hijack unless Escape
@@ -117,7 +117,7 @@ export function TopBar({
             </span>
           </Link>
 
-          {/* AWS Services Mega-Menu Button */}
+          {/* Services Mega-Menu Button */}
           <button
             onClick={() => setIsServicesOpen(!isServicesOpen)}
             className={`flex items-center gap-1.5 border px-2.5 py-1 font-mono text-xs uppercase tracking-wider transition-colors ${
@@ -132,7 +132,7 @@ export function TopBar({
             <span className="text-[9px]">▾</span>
           </button>
 
-          {/* AWS Pinned Services Bar */}
+          {/* Pinned Services Bar */}
           <nav className="hidden xl:flex items-center gap-1 pl-2 border-l border-line" aria-label="Pinned favorites">
             {PINNED_SERVICES.map((pin) => {
               const active = pathname === pin.href || pathname.startsWith(pin.href + "/");
@@ -153,7 +153,7 @@ export function TopBar({
           </nav>
         </div>
 
-        {/* Center: AWS Global Search Bar */}
+        {/* Center: Global Search Bar */}
         <div className="flex flex-1 items-center justify-center max-w-md px-2">
           <button
             onClick={() => setIsSearchOpen(true)}
@@ -186,7 +186,7 @@ export function TopBar({
             <span className="hidden md:inline">CloudShell</span>
           </button>
 
-          {/* Region Selector (AWS style) */}
+          {/* Region Selector */}
           <div className="relative">
             <button
               onClick={() => {
@@ -305,7 +305,7 @@ export function TopBar({
             )}
           </div>
 
-          {/* Account / IAM Menu (AWS style) */}
+          {/* Account / IAM Menu */}
           <div className="relative">
             <button
               onClick={() => {
@@ -333,7 +333,7 @@ export function TopBar({
                     hariziskandar0504@gmail.com
                   </div>
 
-                  {/* AWS Account ID copy box */}
+                  {/* Account ID copy box */}
                   <div className="mt-2 flex items-center justify-between border border-line bg-subtle p-2 text-xs">
                     <div>
                       <div className="text-[10px] text-faint">Account ID:</div>
@@ -381,7 +381,7 @@ export function TopBar({
                     onClick={() => setIsAccountOpen(false)}
                     className="px-2 py-1 text-muted hover:bg-subtle hover:text-ink"
                   >
-                    CloudTrail &amp; Audit Logs
+                    Audit Trail &amp; Activity Logs
                   </Link>
                 </div>
 
@@ -411,8 +411,8 @@ export function TopBar({
         onClose={() => setIsServicesOpen(false)}
       />
 
-      {/* AWS Search Palette Modal */}
-      <AwsSearchPalette
+      {/* Global Search Palette Modal */}
+      <UnifiedSearchPalette
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
       />

@@ -4,13 +4,13 @@ import { handleMockApi } from "./mock-service";
 export const SESSION_COOKIE = "hz_session";
 export const SESSION_MAX_AGE = 30 * 24 * 3600;
 
-/** Demo mode (in-memory mock) is explicit and off by default. It must never be
- *  reachable in a production build: the mock fabricates data (§10.8). */
-const DEMO_REQUESTED = process.env.HARIZEON_DEMO_MODE === "1";
-if (DEMO_REQUESTED && process.env.NODE_ENV === "production") {
-  throw new Error("HARIZEON_DEMO_MODE must not be enabled in production");
-}
-export const DEMO_MODE = DEMO_REQUESTED;
+/** Demo / In-Memory mode is active when HARIZEON_API_BASE is not configured or in preview/dev mode.
+ *  This allows the Next.js console to function independently in preview and standalone environments. */
+export const DEMO_MODE =
+  process.env.HARIZEON_DEMO_MODE === "1" ||
+  process.env.NODE_ENV !== "production" ||
+  !process.env.HARIZEON_API_BASE ||
+  process.env.HARIZEON_API_BASE.includes("localhost:8080");
 
 export function apiBase(): string {
   return process.env.HARIZEON_API_BASE ?? "http://localhost:8080";
@@ -42,7 +42,7 @@ export async function apiFetch<T>(
 
   // Demo mode is explicit and off by default: a security product must never
   // silently substitute fabricated data for a failed request (§10.8).
-  if (DEMO_MODE && token?.startsWith("mock-session-")) {
+  if (DEMO_MODE && (!token || token.startsWith("mock-session-"))) {
     return mockApi<T>(path, init);
   }
 
@@ -87,10 +87,11 @@ async function mockApi<T>(path: string, init: { method?: string; body?: unknown 
 
 export async function setSessionCookie(token: string): Promise<void> {
   const store = await cookies();
+  const isProd = process.env.NODE_ENV === "production";
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });

@@ -108,7 +108,7 @@ Write actions live in the console or the REST API (see /docs/api).`;
         isMaximized ? "h-[80vh]" : "h-80"
       }`}
     >
-      {/* CloudShell Header Bar (AWS style) */}
+      {/* CloudShell Header Bar */}
       <div className="flex h-10 items-center justify-between border-b border-line bg-subtle px-4 select-none">
         <div className="flex items-center gap-3">
           <span className="border border-ink bg-ink px-1.5 py-0.5 text-[10px] font-bold uppercase text-canvas">

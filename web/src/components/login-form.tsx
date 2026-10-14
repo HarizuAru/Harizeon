@@ -1,12 +1,25 @@
 "use client";
 
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { loginAction } from "@/lib/auth-actions";
 import { Button } from "@/components/ui/button";
 import { inputClass, labelClass } from "@/lib/ui";
 
 export function LoginForm() {
+  const router = useRouter();
   const [state, action, pending] = useActionState(loginAction, null);
+
+  const handleInstantDemo = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (typeof document !== "undefined") {
+      const token = `mock-session-demo-${Date.now()}`;
+      document.cookie = `hz_session=${token}; path=/; max-age=2592000; SameSite=None; Secure`;
+      document.cookie = `hz_session=${token}; path=/; max-age=2592000; SameSite=Lax`;
+    }
+    router.push("/dashboard");
+  };
+
   return (
     <form action={action} className="mt-6 flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -57,12 +70,13 @@ export function LoginForm() {
         </span>
       </div>
 
-      <a
-        href="/api/demo-login"
-        className="border border-line bg-subtle py-2 text-center font-mono text-xs uppercase tracking-wider text-ink hover:border-ink hover:bg-canvas transition-colors"
+      <button
+        type="button"
+        onClick={handleInstantDemo}
+        className="border border-line bg-subtle py-2.5 text-center font-mono text-xs uppercase tracking-wider text-ink hover:border-ink hover:bg-canvas transition-colors cursor-pointer"
       >
-        ⚡ Instant AWS Console Demo (1-Click)
-      </a>
+        ⚡ Instant Console Access (1-Click Demo)
+      </button>
     </form>
   );
 }

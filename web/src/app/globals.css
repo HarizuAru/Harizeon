@@ -150,3 +150,111 @@
     content: "";
   }
 }
+
+/* Color-coded status labels for scans (completed, failed, cancelled, etc.) */
+:root {
+  --status-completed-text: #15803d;
+  --status-completed-bg: rgba(22, 163, 74, 0.08);
+  --status-completed-border: rgba(22, 163, 74, 0.3);
+  --status-completed-dot: #16a34a;
+
+  --status-failed-text: #b91c1c;
+  --status-failed-bg: rgba(220, 38, 38, 0.08);
+  --status-failed-border: rgba(220, 38, 38, 0.3);
+  --status-failed-dot: #dc2626;
+
+  --status-cancelled-text: #52525b;
+  --status-cancelled-bg: rgba(113, 113, 122, 0.08);
+  --status-cancelled-border: rgba(113, 113, 122, 0.3);
+  --status-cancelled-dot: #71717a;
+
+  --status-timeout-text: #b45309;
+  --status-timeout-bg: rgba(217, 119, 6, 0.08);
+  --status-timeout-border: rgba(217, 119, 6, 0.3);
+  --status-timeout-dot: #d97706;
+
+  --status-running-text: #1d4ed8;
+  --status-running-bg: rgba(37, 99, 235, 0.08);
+  --status-running-border: rgba(37, 99, 235, 0.3);
+  --status-running-dot: #2563eb;
+
+  --status-queued-text: #52525b;
+  --status-queued-bg: rgba(115, 115, 115, 0.08);
+  --status-queued-border: rgba(115, 115, 115, 0.3);
+  --status-queued-dot: #737373;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --status-completed-text: #4ade80;
+    --status-completed-bg: rgba(74, 222, 128, 0.12);
+    --status-completed-border: rgba(74, 222, 128, 0.35);
+    --status-completed-dot: #4ade80;
+
+    --status-failed-text: #f87171;
+    --status-failed-bg: rgba(248, 113, 113, 0.12);
+    --status-failed-border: rgba(248, 113, 113, 0.35);
+    --status-failed-dot: #f87171;
+
+    --status-cancelled-text: #a1a1aa;
+    --status-cancelled-bg: rgba(161, 161, 170, 0.12);
+    --status-cancelled-border: rgba(161, 161, 170, 0.35);
+    --status-cancelled-dot: #a1a1aa;
+
+    --status-timeout-text: #fbbf24;
+    --status-timeout-bg: rgba(251, 191, 36, 0.12);
+    --status-timeout-border: rgba(251, 191, 36, 0.35);
+    --status-timeout-dot: #fbbf24;
+
+    --status-running-text: #60a5fa;
+    --status-running-bg: rgba(96, 165, 250, 0.12);
+    --status-running-border: rgba(96, 165, 250, 0.35);
+    --status-running-dot: #60a5fa;
+
+    --status-queued-text: #a3a3a3;
+    --status-queued-bg: rgba(163, 163, 163, 0.12);
+    --status-queued-border: rgba(163, 163, 163, 0.35);
+    --status-queued-dot: #a3a3a3;
+  }
+}
+
+.status-badge-completed {
+  color: var(--status-completed-text);
+  background-color: var(--status-completed-bg);
+  border-color: var(--status-completed-border);
+}
+.status-badge-failed {
+  color: var(--status-failed-text);
+  background-color: var(--status-failed-bg);
+  border-color: var(--status-failed-border);
+}
+.status-badge-cancelled {
+  color: var(--status-cancelled-text);
+  background-color: var(--status-cancelled-bg);
+  border-color: var(--status-cancelled-border);
+}
+.status-badge-timeout {
+  color: var(--status-timeout-text);
+  background-color: var(--status-timeout-bg);
+  border-color: var(--status-timeout-border);
+}
+@keyframes pulse-badge {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.status-badge-running {
+  color: var(--status-running-text);
+  background-color: var(--status-running-bg);
+  border-color: var(--status-running-border);
+  animation: pulse-badge 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.status-badge-queued {
+  color: var(--status-queued-text);
+  background-color: var(--status-queued-bg);
+  border-color: var(--status-queued-border);
+}
+

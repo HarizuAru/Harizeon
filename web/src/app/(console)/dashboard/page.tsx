@@ -26,7 +26,7 @@ export default async function DashboardPage() {
     const [findingsRes, assetsRes, scansRes, systemHealthRes] = await Promise.all([
       apiFetch<{ data: DashboardFinding[] }>("/findings?limit=50"),
       apiFetch<{ data: DashboardAsset[] }>("/assets?limit=50"),
-      apiFetch<{ data: DashboardScan[] }>("/scans?limit=10"),
+      apiFetch<{ data: DashboardScan[] }>("/scans?limit=50"),
       apiFetch<SystemHealthData>("/system/health").catch(() => null),
     ]);
     findings = findingsRes.data ?? [];

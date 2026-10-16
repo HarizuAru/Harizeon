@@ -1,3 +1,7 @@
+networks:
+  default:
+    name: harizeon_default
+
 services:
   db:
     image: postgres:16-alpine
@@ -6,10 +10,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-harizeon}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harizeon}
       POSTGRES_DB: ${POSTGRES_DB:-harizeon}
-    ports:
-      # Localhost only: the database and broker must never be reachable from
-      # the network. In-cluster traffic uses the internal ports (§07.5).
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    # No host port publishing: the database is reachable only inside the compose
+    # network (@db:5432). Host-side scripts run inside the api container instead;
+    # the native Postgres on the host owns 5432.
     volumes:
       - dbdata:/var/lib/postgresql/data
     healthcheck:
@@ -79,7 +82,3 @@ services:
 volumes:
   dbdata:
   redisdata:
-
-networks:
-  default:
-    name: harizeon_default

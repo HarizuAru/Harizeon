@@ -27,22 +27,33 @@ $env:PORT = "8099"
 npm run dev
 ```
 
-Terminal 3 — console:
+Terminal 3 — console (this is the link you open for the client):
 
 ```powershell
 cd web
 $env:HARIZEON_API_BASE = "http://localhost:8099"
 npm run dev
+# then open http://localhost:3000/signup  →  onboarding → dashboard
 ```
 
-Pre-seed the demo tenant and a completed scan (works headless, real worker):
+**Console links to use in the meeting** (all on the console origin, http://localhost:3000):
 
-```powershell
-docker exec hz-demo-api node scripts/e2e-demo.mjs
-# prints: "demo login: <email> / correct-horse-battery-99"
-```
+- Signup: http://localhost:3000/signup
+- Login: http://localhost:3000/login
+- Dashboard: http://localhost:3000/dashboard
+- Onboarding: http://localhost:3000/onboarding
+- Assets: http://localhost:3000/assets
+- Register a domain: http://localhost:3000/assets/new
+- Start + watch a scan: http://localhost:3000/scans/new → http://localhost:3000/scans/<scan-id>
+- Findings: http://localhost:3000/findings
+- Reports: http://localhost:3000/reports
+- Schedules: http://localhost:3000/schedules
+- Settings: http://localhost:3000/settings
+- API: http://localhost:8099/v1/* (docs: http://localhost:3000/docs/api)
 
-If you prefer the API containerized instead of `npm run dev`:
+Pre-seed the demo tenant and a completed scan (up to ~2 minutes, real worker).
+The API container below doubles as the containerized-API alternative to
+Terminal 2 — pick one API or the other, never both (both bind 8099):
 
 ```powershell
 docker commit harizeon-api-test hz-api-img
@@ -51,6 +62,8 @@ docker run -d --name hz-demo-api --network harizeon_default -p 8099:8080 `
   -e REDIS_URL=redis://redis:6379 `
   -e HARIZEON_MASTER_KEY=<32+ chars> `
   -e PORT=8080 hz-api-img sh -c "cd /app && node --import tsx src/server.ts"
+docker exec hz-demo-api node scripts/e2e-demo.mjs
+# prints: "demo login: <email> / correct-horse-battery-99"
 ```
 
 ## 2. The 5-minute client walkthrough (in order)

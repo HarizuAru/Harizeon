@@ -1,23 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
-import { useRouter } from "next/navigation";
 import { loginAction } from "@/lib/auth-actions";
 import { Button } from "@/components/ui/button";
 import { inputClass, labelClass } from "@/lib/ui";
 
 export function LoginForm() {
-  const router = useRouter();
   const [state, action, pending] = useActionState(loginAction, null);
 
-  const handleInstantDemo = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (typeof document !== "undefined") {
-      const token = `mock-session-demo-${Date.now()}`;
-      document.cookie = `hz_session=${token}; path=/; max-age=2592000; SameSite=None; Secure`;
-      document.cookie = `hz_session=${token}; path=/; max-age=2592000; SameSite=Lax`;
-    }
-    router.push("/dashboard");
+  const handleInstantDemo = () => {
+    // Full-page navigation so the /api/demo-login route handler can sign up /
+    // log in for real and set the session cookie server-side.
+    window.location.href = "/api/demo-login";
   };
 
   return (

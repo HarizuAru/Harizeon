@@ -66,18 +66,62 @@ services:
           - sandbox.test      # dotted so it passes domain validation
     restart: "no"
 
-  # One-shot schema migrator. `docker compose up` builds it (migrations are
-  # copied into the image, so no host bind mount is needed), applies pending
-  # migrations, then exits. Safe to re-run (already-applied files are skipped).
+  # One-shot provisioner: apply migrations, then create the non-owner app role.
+  # `docker compose up` builds it (files are copied into the image, so no host
+  # bind mount is needed), and it's safe to re-run (idempotent).
   migrate:
     build:
-      context: ./db
+      context: .
+      dockerfile: db/Dockerfile
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-harizeon}:${POSTGRES_PASSWORD:-harizeon}@db:5432/${POSTGRES_DB:-harizeon}
+      HARIZEON_APP_PASSWORD: ${HARIZEON_APP_PASSWORD:?set HARIZEON_APP_PASSWORD in .env}
     restart: "no"
+
+  # Control plane (Fastify). Connects as the RLS-restricted app role; owns the
+  # database, the scheduler, and the ingest loops.
+  api:
+    build:
+      context: ./api
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      worker:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      DATABASE_URL: postgresql://harizeon_app:${HARIZEON_APP_PASSWORD:?}@db:5432/${POSTGRES_DB:-harizeon}
+      REDIS_URL: redis://redis:6379
+      HARIZEON_MASTER_KEY: ${HARIZEON_MASTER_KEY:?set HARIZEON_MASTER_KEY in .env}
+      COOKIE_SECURE: "true"
+      PUBLIC_API_BASE: ${PUBLIC_API_BASE:-http://localhost:8080}
+      HARIZEON_RUN_LOOPS: "true"
+    restart: unless-stopped
+
+  # Console (Next.js). Proxies /api/v1 to the api service and renders the UI.
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        HARIZEON_API_BASE: http://api:8080
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      HARIZEON_API_BASE: http://api:8080
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
 
 volumes:
   dbdata:

@@ -1,6 +1,7 @@
-# One-shot schema migrator image. The migrations are COPIED into the image
-# (not bind-mounted) so `docker compose up` works even where host bind mounts
-# are unavailable (e.g. an unshared Windows drive).
+# One-shot provisioner: apply migrations, then create the non-owner app role.
+# Built from the repo root so it can copy both db/ (migrations) and
+# infra/db/create-app-role.sh (role bootstrap) into the image.
 FROM postgres:16-alpine
-COPY . /db
-ENTRYPOINT ["sh", "/db/migrate.sh"]
+COPY db/ /db/
+COPY infra/db/create-app-role.sh /db/create-app-role.sh
+ENTRYPOINT ["sh", "-c", "/db/migrate.sh && /db/create-app-role.sh"]

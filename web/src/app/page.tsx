@@ -114,10 +114,10 @@ export default async function LandingPage() {
 
             <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
               <Link
-                href="/api/demo-login"
+                href="/signup"
                 className="w-full sm:w-auto border border-ink bg-ink px-8 py-3.5 font-mono text-xs uppercase font-bold tracking-[0.05em] text-canvas hover:bg-canvas hover:text-ink transition-colors"
               >
-                Open Dashboard (1-Click Demo) →
+                Start free
               </Link>
               <Link
                 href="/login"

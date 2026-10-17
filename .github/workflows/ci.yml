@@ -16,7 +16,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            web/package-lock.json
+            package-lock.json
             api/package-lock.json
       - name: Lint web console
         run: |
@@ -180,7 +180,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: NODE_ENV=production npm run build
 

@@ -123,6 +123,25 @@ services:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
 
+  # TLS terminator. Auto-issues a Let's Encrypt cert for $DOMAIN once the DNS
+  # record points at this host, then forwards everything to the console.
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - web
+    environment:
+      DOMAIN: ${DOMAIN:-harizeon.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
 volumes:
   dbdata:
   redisdata:
+  caddy_data:
+  caddy_config:

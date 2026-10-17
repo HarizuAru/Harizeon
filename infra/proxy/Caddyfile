@@ -1,18 +1,8 @@
-# TLS termination for a production deployment (§07.5).
-#
-# Run Caddy on the host (or as a container) in front of the console and API:
-#   caddy run --config infra/proxy/Caddyfile
-#
-# Replace the two domains and the ACME email, then keep everything else —
-# Postgres, Redis, the worker — off the public internet entirely.
-
-console.example.com {
-	# The Next.js console (server-side rendering + the /api/v1 proxy).
-	reverse_proxy 127.0.0.1:3000
-}
-
-api.example.com {
-	# The control plane. Behind TLS, sessions ride the Secure cookie;
-	# set COOKIE_SECURE=true in the API environment (§14).
-	reverse_proxy 127.0.0.1:8080
+# TLS termination for a single-domain deployment (§07.5).
+# Caddy auto-provisions and renews the Let's Encrypt certificate for the domain
+# (the DNS A/AAAA record must already point at this host). Everything routes to
+# the console, which proxies /api/v1 to the control plane internally.
+{$DOMAIN} {
+	reverse_proxy web:3000
+	encode gzip
 }

@@ -1,0 +1,19 @@
+# Cloudflare Tunnel config for serving Harizeon on your custom domain.
+#
+# Setup (one time):
+#   1. cloudflared tunnel login                       # opens a browser
+#   2. cloudflared tunnel create harizeon             # prints a tunnel id + creds file
+#   3. cloudflared tunnel route dns harizeon harizeon.com
+#   4. fill in the tunnel id + credentials path below
+#   5. cloudflared tunnel --config infra/tunnel/config.yml run
+#
+# Before the DNS route works, harizeon.com's nameservers must be on Cloudflare
+# (change them at your registrar, e.g. Exabytes). TLS is automatic.
+
+tunnel: REPLACE_WITH_TUNNEL_ID
+credentials-file: C:\Users\YOU\.cloudflared\REPLACE_WITH_TUNNEL_ID.json
+
+ingress:
+  - hostname: harizeon.com
+    service: http://localhost:3000
+  - service: http_status:404

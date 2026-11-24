@@ -550,7 +550,7 @@ export function ScanPerformance({
                     {p.phase}
                   </span>
                   <span className="text-xs font-bold text-ink mt-1 block">
-                    {p.status === "pending" ? "—" : formatSeconds(p.durationSec)}
+                    {p.status === "pending" ? "-" : formatSeconds(p.durationSec)}
                   </span>
                 </div>
 

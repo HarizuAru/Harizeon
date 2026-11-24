@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ReportDocument, type ReportContent } from "@/components/report-document";
-import { PrintButton } from "@/components/print-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiFetch, ApiError } from "@/lib/api";
 
@@ -31,9 +30,6 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex justify-end no-print">
-        <PrintButton />
-      </div>
       <ReportDocument content={content} />
     </div>
   );

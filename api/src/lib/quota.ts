@@ -26,7 +26,7 @@ async function limitsForOrg(db: Queryable, orgId: string): Promise<PlanLimits> {
     free.rows[0]?.limits ?? {
       max_assets: 1,
       scans_per_month: 1,
-      profiles: ["quick"],
+      profiles: ["quick", "ai"],
       retention_days: 14,
       seats: 1,
       pdf_reports: false,

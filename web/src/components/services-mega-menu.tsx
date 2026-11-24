@@ -148,6 +148,13 @@ const ALL_SERVICES: ServiceItem[] = [
     category: "Documentation & Tools",
   },
   {
+    code: "SVC",
+    name: "Services Catalog & Specs",
+    description: "Detailed threat models, engines, ARNs, and compliance mappings",
+    href: "/docs/services",
+    category: "Documentation & Tools",
+  },
+  {
     code: "API",
     name: "REST API Reference",
     description: "OpenAPI specifications for automated scan pipelines and asset sync",

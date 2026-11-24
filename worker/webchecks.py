@@ -15,6 +15,8 @@ import re
 from typing import Callable
 from urllib.parse import urljoin, urlsplit
 
+from ai_armor import find_leaked_ai_keys_expanded, AI_CHECKS
+
 
 Content = dict  # {"status": int, "body": str, "headers": dict}
 
@@ -118,7 +120,7 @@ def scan_client_scripts(base_url: str, fetch_fn: Callable[[str], Content | None]
         content = fetch_fn(script_url)
         if not content:
             continue
-        for redacted, provider in find_leaked_ai_keys(content.get("body") or ""):
+        for redacted, provider in find_leaked_ai_keys_expanded(content.get("body") or ""):
             if redacted in seen_keys:
                 continue
             seen_keys.add(redacted)
@@ -274,21 +276,23 @@ CHECKS = [
         "remediation": "Redirect all HTTP requests to HTTPS permanently, or send HSTS.",
         "category": "web",
     },
-]
+] + [c for c in AI_CHECKS if c["check_id"] != "ai.exposed_ollama"]
 
 
-def run_web_checks(base_url: str, fetch_fn: Callable[[str], Content | None]) -> list:
+def run_web_checks(base_url: str, fetch_fn: Callable[[str], Content | None], ai_only: bool = False) -> list:
     """Run every check against one base URL; returns finding dicts (§07 shape).
 
     fetch_fn(url) -> Content | None.
     The no_https_redirect check only runs when the base is an http:// origin —
     it is a property of the plaintext variant, not of the https one.
+    When ai_only is True, restricts checks strictly to the ai_exposure category.
     """
     base = (base_url or "").rstrip("/")
     if not base:
         return []
     findings: list = []
-    for check in CHECKS:
+    checks_to_run = [c for c in CHECKS if c.get("category") == "ai_exposure"] if ai_only else CHECKS
+    for check in checks_to_run:
         if check.get("needs_http") and not base.startswith("http://"):
             continue
         url = base + check["path"]

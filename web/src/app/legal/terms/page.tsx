@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Harizeon",
+  title: "Terms of Service · Harizeon",
   description: "Terms of Service governing the use of Harizeon security scanning infrastructure and API platforms.",
 };
 

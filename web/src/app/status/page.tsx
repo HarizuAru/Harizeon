@@ -3,7 +3,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "System Status & Availability — Harizeon",
+  title: "System Status & Availability · Harizeon",
   description: "Real-time uptime metrics, worker pool latency, and incident history for Harizeon security platforms.",
 };
 

@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "REST API Reference — Harizeon Docs",
+  title: "REST API Reference · Harizeon Docs",
   description: "Complete REST API reference for assets, scans, findings, reports, and webhooks HMAC verification.",
 };
 

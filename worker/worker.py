@@ -24,10 +24,16 @@ import redis
 import adapters
 import discovery
 import inspect_ as checks
+import kev
+import nuclei
+import pdtools
 import probe
 import scope
 import signatures
+import testssl
 import webchecks
+import whatweb
+import zap
 from heartbeat import Heartbeat
 from phases import PHASES, phase_message, planned_phases, progress_for_phase
 
@@ -81,6 +87,8 @@ def publish_findings(r, scan_id, org_id, asset_id, phase, findings):
     """Ship findings for one target; the control plane fingerprints + dedupes."""
     if not findings:
         return 0
+    # CISA KEV / OSV intel rides with every batch; enrich never raises.
+    findings = kev.enrich(findings)
     publish(r, {
         "scan_id": scan_id,
         "org_id": org_id,
@@ -92,8 +100,28 @@ def publish_findings(r, scan_id, org_id, asset_id, phase, findings):
     return len(findings[:50])
 
 
-def run_probe_phase(r, scan_id, org_id, profile, targets):
-    """Active, scoped TCP probe of each target. Returns probe results per target."""
+def _web_entries(entries):
+    """Open entries that speak HTTP(S): builtin web ports, AI ports + httpx merges."""
+    ai_services = {"ollama", "vllm-or-chroma", "qdrant", "milvus", "weaviate-or-localai", "lm-studio", "gradio-flowise", "textgen"}
+    return [e for e in entries or [] if str(e.get("service") or "").startswith("http") or str(e.get("service") or "") in ai_services]
+
+
+def _entry_url(host, entry):
+    port = entry.get("port")
+    service = str(entry.get("service") or "")
+    scheme = "https" if service.startswith("https") or port in (443, 8443, 9443) else "http"
+    if port in (80, 443):
+        return "%s://%s" % (scheme, host)
+    return "%s://%s:%s" % (scheme, host, port)
+
+
+def run_probe_phase(r, scan_id, org_id, profile, targets, resolve_fn=None):
+    """Active, scoped TCP probe of each target. Returns probe results per target.
+
+    resolve_fn defaults to the builtin DNS lookup; process() passes the dnsx
+    cache when that engine ran, so resolution happens once per host.
+    """
+    resolve_fn = resolve_fn or (lambda host: adapters.dns_lookup(host, "A"))
     results = {}
     for target in targets:
         value = target.get("value", "")
@@ -101,7 +129,7 @@ def run_probe_phase(r, scan_id, org_id, profile, targets):
             probes = probe.probe_target(
                 value,
                 profile,
-                lambda host: adapters.dns_lookup(host, "A"),
+                resolve_fn,
                 adapters.tcp_probe,
             )
         except Exception as exc:  # noqa: BLE001 - one bad target must not fail the phase
@@ -116,6 +144,30 @@ def run_probe_phase(r, scan_id, org_id, profile, targets):
         if not assets:
             log(r, scan_id, org_id, "probe", "probe: %d ports closed on %s" % (
                 len(probe.ports_for(profile)), value))
+        # OSS power: httpx (ProjectDiscovery) probes live web endpoints our port
+        # list missed; merged into the same results so inspect/test cover them.
+        if pdtools.have("httpx"):
+            try:
+                live = pdtools.run_httpx([value])
+            except Exception as exc:  # noqa: BLE001 - one bad tool must not fail the phase
+                log(r, scan_id, org_id, "probe", "httpx failed for %s: %s" % (value, exc), "warn")
+                live = []
+            known_ports = {e.get("port") for e in assets}
+            ip_guess = assets[0].get("ip") if assets else value
+            for endpoint in live:
+                if endpoint["status"]:
+                    tech = (", ".join(endpoint["tech"][:5])) if endpoint["tech"] else ""
+                    log(r, scan_id, org_id, "probe",
+                        "httpx: %s -> %s%s" % (endpoint["url"], endpoint["status"],
+                                               (" (%s)" % tech) if tech else ""))
+                if endpoint["port"] and endpoint["port"] not in known_ports:
+                    assets.append({
+                        "ip": ip_guess,
+                        "port": endpoint["port"],
+                        "service": "http",
+                        "banner": ("%s %s" % (endpoint["status"], endpoint["title"])).strip(),
+                    })
+                    known_ports.add(endpoint["port"])
         results[target.get("asset_id", "")] = assets
     # Findings: services that must not face the internet, plus known-vulnerable
     # software versions identified from the captured banners.
@@ -131,30 +183,46 @@ def run_probe_phase(r, scan_id, org_id, profile, targets):
     return results
 
 
-def run_inspect_phase(r, scan_id, org_id, targets, probe_results):
-    """TLS configuration/expiry + security headers, as findings."""
+def run_inspect_phase(r, scan_id, org_id, profile, targets, probe_results):
+    """TLS configuration/expiry + security headers, as findings.
+
+    OSS power: WhatWeb fingerprints every open web URL (standard+deep) and
+    testssl.sh grades protocols/ciphers/vulnerabilities on 443 (deep only).
+    """
     for target in targets:
         asset_id = target.get("asset_id", "")
         value = target.get("value", "")
         host = probe.normalise_host(value)
-        open_ports = {(p or {}).get("port") for p in probe_results.get(asset_id) or []}
+        entries = probe_results.get(asset_id) or []
+        open_ports = {(p or {}).get("port") for p in entries}
 
         findings = []
         if 443 in open_ports:
             try:
                 findings.extend(checks.inspect_tls(adapters.tls_info(host)))
                 log(r, scan_id, org_id, "inspect", "inspect: TLS probe for %s" % host)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001 - one bad target must not fail the phase
                 log(r, scan_id, org_id, "inspect", "TLS probe failed for %s: %s" % (host, exc), "warn")
 
-        for port in (443, 80, 8080):
-            if port not in open_ports:
-                continue
-            scheme = "https" if port == 443 else "http"
-            url = "%s://%s" % (scheme, host) if port in (80, 443) else "%s://%s:%s" % (scheme, host, port)
+            if profile == "deep" and testssl.have():
+                try:
+                    tls_findings = testssl.scan(host)
+                    findings.extend(tls_findings)
+                    log(r, scan_id, org_id, "inspect",
+                        "testssl: %d finding(s) for %s" % (len(tls_findings), host))
+                except Exception as exc:  # noqa: BLE001
+                    log(r, scan_id, org_id, "inspect", "testssl failed for %s: %s" % (host, exc), "warn")
+
+        for entry in _web_entries(entries):
+            url = _entry_url(host, entry)
+            if profile != "ai" and whatweb.have():
+                try:
+                    findings.extend(whatweb.scan(url))
+                except Exception as exc:  # noqa: BLE001
+                    log(r, scan_id, org_id, "inspect", "whatweb failed for %s: %s" % (url, exc), "warn")
             try:
                 headers, status = adapters.fetch_headers(url)
-                findings.extend(checks.inspect_headers(headers, url, port == 443))
+                findings.extend(checks.inspect_headers(headers, url, entry.get("port") == 443))
                 log(r, scan_id, org_id, "inspect", "inspect: %s -> %d" % (url, status))
             except Exception as exc:  # noqa: BLE001
                 log(r, scan_id, org_id, "inspect", "header check failed for %s: %s" % (url, exc), "warn")
@@ -163,29 +231,50 @@ def run_inspect_phase(r, scan_id, org_id, targets, probe_results):
         publish_findings(r, scan_id, org_id, asset_id, "inspect", findings)
 
 
-def run_webcheck_phase(r, scan_id, org_id, targets, probe_results):
-    """Template-driven web checks against each target's open web ports (W08)."""
+def run_webcheck_phase(r, scan_id, org_id, profile, targets, probe_results):
+    """Template-driven web checks (W08) plus the bundled engines:
+    Nuclei CVE templates on every open web URL, ZAP baseline once per target
+    (deep only, when a ZAP daemon is configured)."""
+    total = 0
     for target in targets:
         asset_id = target.get("asset_id", "")
         value = target.get("value", "")
         host = probe.normalise_host(value)
-        open_ports = {(p or {}).get("port") for p in probe_results.get(asset_id) or []}
+        web_entries = _web_entries(probe_results.get(asset_id) or [])
+        first_url = ""
 
-        total = 0
-        for scheme_port in (443, 80):
-            if scheme_port not in open_ports:
-                continue
-            scheme = "https" if scheme_port == 443 else "http"
-            url = "%s://%s" % (scheme, host)
-            findings = webchecks.run_web_checks(url, adapters.http_get_full)
+        for entry in web_entries:
+            url = _entry_url(host, entry)
+            if not first_url:
+                first_url = url
+            findings = webchecks.run_web_checks(url, adapters.http_get_full, ai_only=(profile == "ai"))
             # Client-side JS can ship a live AI provider key (agentic-era exposure).
             findings += webchecks.scan_client_scripts(url, adapters.http_get_full)
+            if profile != "ai" and nuclei.have():
+                try:
+                    findings += nuclei.scan_url(
+                        url, timeout=240 if profile == "deep" else 150
+                    )
+                    log(r, scan_id, org_id, "test", "test: nuclei templates fired on %s" % url)
+                except Exception as exc:  # noqa: BLE001 - engine failure is a warn, not a failed scan
+                    log(r, scan_id, org_id, "test", "nuclei failed for %s: %s" % (url, exc), "warn")
             log(r, scan_id, org_id, "test", "test: %d web check(s) fired for %s" % (len(findings), url))
             publish_findings(r, scan_id, org_id, asset_id, "test", findings)
             total += len(findings)
-        if not open_ports:
+
+        # OSS power (deep): ZAP spider + passive scan against the entry URL.
+        if profile == "deep" and first_url and zap.enabled():
+            try:
+                zap_findings = zap.scan(first_url)
+                log(r, scan_id, org_id, "test",
+                    "test: ZAP baseline %d alert(s) for %s" % (len(zap_findings), first_url))
+                publish_findings(r, scan_id, org_id, asset_id, "test", zap_findings)
+                total += len(zap_findings)
+            except Exception as exc:  # noqa: BLE001
+                log(r, scan_id, org_id, "test", "ZAP failed for %s: %s" % (first_url, exc), "warn")
+
+        if not web_entries:
             log(r, scan_id, org_id, "test", "test: no open web ports for %s; skipped" % host)
-        total_publish = total
     return {"count": total}
 
 
@@ -198,8 +287,13 @@ def terminal(r, org_id, scan_id, status, error=None):
 
 
 def run_discovery(r, scan_id, org_id, targets):
-    """Discover subdomains for each domain/subdomain target. Returns a count."""
+    """Discover subdomains for each domain/subdomain target.
+
+    Returns {"count": int, "names": [{fqdn, source, asset_id?}...]}; the names
+    feed the resolve phase and the `discovered` event the control plane gates.
+    """
     total = 0
+    all_names = []
     for target in targets:
         if target.get("type") not in DISCOVERABLE:
             continue
@@ -211,6 +305,24 @@ def run_discovery(r, scan_id, org_id, targets):
             continue
 
         names = result["subdomains"]
+        # OSS power: subfinder's passive sources on top of CT + wordlist.
+        if pdtools.have("subfinder"):
+            try:
+                extra = pdtools.run_subfinder(value)
+                known = {n.get("fqdn") for n in names}
+                added = 0
+                for fqdn in extra:
+                    if fqdn not in known:
+                        names.append({"fqdn": fqdn, "source": "subfinder"})
+                        known.add(fqdn)
+                        added += 1
+                if added:
+                    log(r, scan_id, org_id, "discover",
+                        "subfinder: +%d subdomain(s) from passive sources" % added)
+            except Exception as exc:  # noqa: BLE001
+                log(r, scan_id, org_id, "discover", "subfinder failed for %s: %s" % (value, exc), "warn")
+        names = names[: discovery.MAX_SUBDOMAINS]
+
         total += len(names)
         records = result["records"]
         log(r, scan_id, org_id, "discover", "discover: %d subdomain(s) for %s" % (len(names), value))
@@ -224,12 +336,13 @@ def run_discovery(r, scan_id, org_id, targets):
         for entry in names[:5]:
             log(r, scan_id, org_id, "discover", "found %s (%s)" % (entry["fqdn"], entry["source"]))
 
+        all_names.extend(names)
         publish(r, {
             "scan_id": scan_id, "org_id": org_id, "kind": "discovered",
             "parent_asset_id": target.get("asset_id", ""),
             "discovered": json.dumps(names),
         })
-    return total
+    return {"count": total, "names": all_names}
 
 
 def process(r, fields, step_ms, hb_ttl, hb_every):
@@ -243,7 +356,8 @@ def process(r, fields, step_ms, hb_ttl, hb_every):
     publish(r, {"scan_id": scan_id, "org_id": org_id, "kind": "status", "status": "claimed", "attempt": attempt})
 
     with Heartbeat(lambda: heartbeat(r, scan_id, hb_ttl), hb_every):
-        discovered_total = 0
+        discovered = {"count": 0, "names": []}
+        resolve_cache = {}
         probe_results = {}
         for phase in planned_phases(profile):
             if is_cancelled(r, scan_id):
@@ -251,16 +365,33 @@ def process(r, fields, step_ms, hb_ttl, hb_every):
                 return
 
             if phase == "discover":
-                discovered_total = run_discovery(r, scan_id, org_id, targets)
+                discovered = run_discovery(r, scan_id, org_id, targets)
             elif phase == "resolve":
-                log(r, scan_id, org_id, "resolve", "resolve: %d hostname(s) resolved" % discovered_total)
+                hosts = [t.get("value", "") for t in targets]
+                hosts += [n.get("fqdn", "") for n in discovered["names"]]
+                hosts = [h for h in dict.fromkeys(hosts) if h][:pdtools.MAX_RESOLVE]
+                if pdtools.have("dnsx") and hosts:
+                    try:
+                        resolve_cache = pdtools.run_dnsx(hosts)
+                        log(r, scan_id, org_id, "resolve",
+                            "resolve: %d/%d hostname(s) resolved (dnsx)" % (
+                                len(resolve_cache), len(hosts)))
+                    except Exception as exc:  # noqa: BLE001
+                        log(r, scan_id, org_id, "resolve", "dnsx failed: %s" % exc, "warn")
+                        resolve_cache = {}
+                else:
+                    log(r, scan_id, org_id, "resolve",
+                        "resolve: %d hostname(s) in scope (builtin resolution at probe)" % len(hosts))
             elif phase == "probe":
-                probe_results = run_probe_phase(r, scan_id, org_id, profile, targets)
+                probe_results = run_probe_phase(
+                    r, scan_id, org_id, profile, targets,
+                    lambda host: resolve_cache.get(host) or adapters.dns_lookup(host, "A"),
+                )
                 log(r, scan_id, org_id, "probe", "probe: %d target(s) scanned" % len(probe_results))
             elif phase == "inspect":
-                run_inspect_phase(r, scan_id, org_id, targets, probe_results)
+                run_inspect_phase(r, scan_id, org_id, profile, targets, probe_results)
             elif phase == "test":
-                run_webcheck_phase(r, scan_id, org_id, targets, probe_results)
+                run_webcheck_phase(r, scan_id, org_id, profile, targets, probe_results)
             else:
                 log(r, scan_id, org_id, phase, phase_message(phase, targets))
 

@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Harizeon Scan (SCN) — Autonomous External Vulnerability Scanner",
+  title: "Harizeon Scan (SCN) · Autonomous External Vulnerability Scanner",
   description:
     "Non-destructive external vulnerability scanning: port probing, TLS and certificate checks, exposed files and admin panels, AI-exposure checks, and known-CVE matching from service banners.",
 };
@@ -38,7 +38,7 @@ export default function ServiceScanPage() {
             </p>
           </div>
 
-          {/* What It Checks (§9.2) — every claim here matches a shipped check */}
+          {/* What It Checks (§9.2) · every claim here matches a shipped check */}
           <div className="border border-line bg-canvas p-8">
             <h2 className="font-mono text-base font-bold uppercase tracking-wider text-ink mb-6">
               What Harizeon Scan Probes &amp; Validates
@@ -69,7 +69,7 @@ export default function ServiceScanPage() {
               <div className="border border-line p-4">
                 <span className="font-bold text-ink block mb-1">04. AI Exposure (agentic-era surface)</span>
                 <p className="text-muted text-[11px] leading-relaxed">
-                  Detects unauthenticated Ollama-style model endpoints and live AI provider keys (OpenAI, Anthropic, Hugging Face, Google, Groq) leaked inside your own client-side JavaScript — redacted in evidence, never echoed.
+                  Detects unauthenticated Ollama-style model endpoints and live AI provider keys (OpenAI, Anthropic, Hugging Face, Google, Groq) leaked inside your own client-side JavaScript · redacted in evidence, never echoed.
                 </p>
               </div>
 
@@ -184,7 +184,7 @@ $ curl -X GET https://api.harizeon.com/v1/scans/scn_01H... \\
                 <tbody className="divide-y divide-line">
                   <tr>
                     <td className="px-4 py-3 font-bold text-ink">Quick</td>
-                    <td className="px-4 py-3 text-muted">Passive only — no port probing</td>
+                    <td className="px-4 py-3 text-muted">Passive only · no port probing</td>
                     <td className="px-4 py-3 text-muted">Ownership verify, discovery, resolve, report</td>
                     <td className="px-4 py-3 text-ink">All plans (free tier)</td>
                   </tr>

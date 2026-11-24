@@ -96,7 +96,7 @@ export const PROFILE_BENCHMARKS: Record<"quick" | "standard" | "deep", ProfileBe
 };
 
 function formatSec(sec: number): string {
-  if (sec === Infinity || sec === -Infinity || isNaN(sec)) return "—";
+  if (sec === Infinity || sec === -Infinity || isNaN(sec)) return "-";
   if (sec < 60) return `${Math.round(sec)}s`;
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
@@ -252,48 +252,9 @@ export function ScansDurationHistogram({ scans }: { scans: HistogramScan[] }) {
       else bucketCounts[key].standard += 1;
     }
 
-    // If historical data is sparse (< 3 completed scans), synthesize calibrated benchmark distribution
-    let isCalibrated = false;
-    if (validCount < 3) {
-      isCalibrated = true;
-      if (selectedProfile === "all") {
-        bucketCounts["< 1m"] = { count: 14, totalSec: 14 * 38, quick: 12, standard: 2, deep: 0 };
-        bucketCounts["1–5m"] = { count: 28, totalSec: 28 * 210, quick: 3, standard: 22, deep: 3 };
-        bucketCounts["5–15m"] = { count: 18, totalSec: 18 * 620, quick: 0, standard: 5, deep: 13 };
-        bucketCounts["15m+"] = { count: 5, totalSec: 5 * 1020, quick: 0, standard: 1, deep: 4 };
-        validCount = 65;
-        compliantCount = 62;
-        minSec = 18;
-        maxSec = 1180;
-        sumSec = 14 * 38 + 28 * 210 + 18 * 620 + 5 * 1020;
-      } else if (selectedProfile === "quick") {
-        bucketCounts["< 1m"] = { count: 24, totalSec: 24 * 32, quick: 24, standard: 0, deep: 0 };
-        bucketCounts["1–5m"] = { count: 2, totalSec: 2 * 75, quick: 2, standard: 0, deep: 0 };
-        validCount = 26;
-        compliantCount = 25;
-        minSec = 18;
-        maxSec = 82;
-        sumSec = 24 * 32 + 2 * 75;
-      } else if (selectedProfile === "standard") {
-        bucketCounts["< 1m"] = { count: 3, totalSec: 3 * 52, quick: 0, standard: 3, deep: 0 };
-        bucketCounts["1–5m"] = { count: 29, totalSec: 29 * 215, quick: 0, standard: 29, deep: 0 };
-        bucketCounts["5–15m"] = { count: 4, totalSec: 4 * 380, quick: 0, standard: 4, deep: 0 };
-        validCount = 36;
-        compliantCount = 34;
-        minSec = 48;
-        maxSec = 410;
-        sumSec = 3 * 52 + 29 * 215 + 4 * 380;
-      } else if (selectedProfile === "deep") {
-        bucketCounts["1–5m"] = { count: 2, totalSec: 2 * 280, quick: 0, standard: 0, deep: 2 };
-        bucketCounts["5–15m"] = { count: 16, totalSec: 16 * 680, quick: 0, standard: 0, deep: 16 };
-        bucketCounts["15m+"] = { count: 4, totalSec: 4 * 1040, quick: 0, standard: 0, deep: 4 };
-        validCount = 22;
-        compliantCount = 21;
-        minSec = 280;
-        maxSec = 1180;
-        sumSec = 2 * 280 + 16 * 680 + 4 * 1040;
-      }
-    }
+    // antislop R-17: never synthesize benchmark numbers. Sparse history shows
+    // as sparse; an honest empty state beats a fabricated distribution.
+    const isCalibrated = false;
 
     const totalValid = validCount || 1;
 
@@ -375,10 +336,10 @@ export function ScansDurationHistogram({ scans }: { scans: HistogramScan[] }) {
       isCalibrated,
       stats: {
         totalCompleted: validCount,
-        avgDuration: validCount > 0 ? formatSec(Math.round(sumSec / validCount)) : "—",
-        minDuration: validCount > 0 ? formatSec(minSec) : "—",
-        maxDuration: validCount > 0 ? formatSec(maxSec) : "—",
-        modeBucketName: modeBucket.count > 0 ? modeBucket.bucket : "—",
+        avgDuration: validCount > 0 ? formatSec(Math.round(sumSec / validCount)) : "-",
+        minDuration: validCount > 0 ? formatSec(minSec) : "-",
+        maxDuration: validCount > 0 ? formatSec(maxSec) : "-",
+        modeBucketName: modeBucket.count > 0 ? modeBucket.bucket : "-",
         modeBucketPct: modeBucket.count > 0 ? modeBucket.percentage : 0,
         slaCompliancePct,
       },

@@ -16,6 +16,12 @@ class PlannedPhases(unittest.TestCase):
     def test_deep_runs_all_phases(self):
         self.assertEqual(planned_phases("deep"), PHASES)
 
+    def test_ai_profile_phases(self):
+        self.assertEqual(
+            planned_phases("ai"),
+            ["verify", "resolve", "probe", "inspect", "test", "normalize", "report"],
+        )
+
     def test_unknown_profile_rejected(self):
         with self.assertRaises(ValueError):
             planned_phases("turbo")

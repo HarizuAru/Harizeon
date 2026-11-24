@@ -44,7 +44,7 @@ function CopyButton({ text }: { text: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // clipboard unavailable — the block below is text-selectable
+      // clipboard unavailable · the block below is text-selectable
     }
   }
   return (
@@ -135,7 +135,7 @@ export function VerifyFlow({ assetId, assetValue, assetType, initial }: Props) {
           {verification.verified_at ? ` Verified at ${verification.verified_at}.` : ""}
         </p>
         <p className="font-mono text-xs text-faint">
-          Keep the record in place — ownership is re-checked periodically, and scanning pauses if it disappears.
+          Keep the record in place · ownership is re-checked periodically, and scanning pauses if it disappears.
         </p>
         <div>
           <Link href={`/assets/${assetId}`} className="text-sm font-medium text-ink underline">
@@ -152,7 +152,7 @@ export function VerifyFlow({ assetId, assetValue, assetType, initial }: Props) {
         <StatusBadge>Manual review required</StatusBadge>
         <p className="text-sm text-muted">
           IP assets are not verified automatically. Authorizing an IP needs reverse DNS plus a
-          signed authorization form, reviewed by a human — so an automated verification request
+          signed authorization form, reviewed by a human · so an automated verification request
           for this asset is rejected.
         </p>
         <p className="font-mono text-xs text-faint">

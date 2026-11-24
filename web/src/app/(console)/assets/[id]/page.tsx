@@ -87,7 +87,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
       <div className="border border-line bg-canvas px-4">
         <Fact k="Type" v={asset.type} mono />
         <Fact k="Criticality" v={asset.criticality} />
-        <Fact k="Tags" v={asset.tags.length > 0 ? asset.tags.join(", ") : "—"} mono />
+        <Fact k="Tags" v={asset.tags.length > 0 ? asset.tags.join(", ") : "-"} mono />
         <Fact
           k="Verification"
           v={

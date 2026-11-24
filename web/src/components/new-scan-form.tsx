@@ -11,6 +11,7 @@ const PROFILES: [string, string][] = [
   ["quick", "quick · ~2 min · passive only"],
   ["standard", "standard · ~10 min · passive + ports + TLS + web"],
   ["deep", "deep · ~45 min · standard + broader range"],
+  ["ai", "ai · ~30s · Harizeon AI-Armor (LLM, Vector DB & Agent endpoints)"],
 ];
 
 export function NewScanForm({ assets }: { assets: Asset[] }) {

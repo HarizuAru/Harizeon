@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -62,41 +62,132 @@ export function LiveScan({
   const [events, setEvents] = useState<LogEvent[]>(initialEvents);
   const [note, setNote] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [streamActive, setStreamActive] = useState(true);
+  const [reconnectCount, setReconnectCount] = useState(0);
   const [exported, setExported] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const sinceRef = useRef(initialEvents.length > 0 ? initialEvents[initialEvents.length - 1].seq : 0);
   const done = TERMINAL.has(status);
   const isFailed = status === "failed" || status === "timeout";
 
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/v1/scans/${scanId}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.scan) {
+          setStatus(data.scan.status);
+          setPhase(data.scan.phase);
+          setProgress(data.scan.progress_pct);
+          if (Array.isArray(data.events)) {
+            setEvents((prev) => {
+              const existingSeqs = new Set(prev.map((e) => e.seq));
+              const newItems = data.events.filter((e: LogEvent) => !existingSeqs.has(e.seq));
+              if (newItems.length > 0) {
+                const merged = [...prev, ...newItems].sort((a, b) => a.seq - b.seq);
+                sinceRef.current = merged[merged.length - 1].seq;
+                return merged;
+              }
+              return prev;
+            });
+          }
+        }
+      }
+      setNote(null);
+      if (!done) {
+        setReconnectCount((c) => c + 1);
+      }
+      router.refresh();
+    } catch (err: unknown) {
+      setNote(err instanceof Error ? `Refresh warning: ${err.message}` : "Failed to sync scan state");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, scanId, done, router]);
+
   useEffect(() => {
     if (done) return;
-    const es = new EventSource(`/api/scans/${scanId}/events?since=${sinceRef.current}`);
-    es.addEventListener("log", (e) => {
-      const ev = JSON.parse((e as MessageEvent).data) as LogEvent;
-      sinceRef.current = Math.max(sinceRef.current, ev.seq);
-      setEvents((prev) => [...prev, ev]);
-    });
-    es.addEventListener("status", (e) => {
-      const s = JSON.parse((e as MessageEvent).data) as {
-        status: string;
-        phase: string | null;
-        progress_pct: number;
+    let timer: NodeJS.Timeout | null = null;
+    let es: EventSource | null = null;
+
+    try {
+      es = new EventSource(`/api/scans/${scanId}/events?since=${sinceRef.current}`);
+
+      es.onopen = () => {
+        setStreamActive(true);
       };
-      setStatus(s.status);
-      setPhase(s.phase);
-      setProgress(s.progress_pct);
-    });
-    es.addEventListener("done", (e) => {
-      const s = JSON.parse((e as MessageEvent).data) as { status: string };
-      setStatus(s.status);
-      es.close();
-    });
-    es.addEventListener("error", () => {
-      setNote("Live stream disconnected. Reload the page to resume.");
-      es.close();
-    });
-    return () => es.close();
-  }, [scanId, done]);
+
+      es.addEventListener("log", (e) => {
+        try {
+          const ev = JSON.parse((e as MessageEvent).data) as LogEvent;
+          sinceRef.current = Math.max(sinceRef.current, ev.seq);
+          setEvents((prev) => {
+            if (prev.some((p) => p.seq === ev.seq)) return prev;
+            return [...prev, ev];
+          });
+          setStreamActive(true);
+        } catch {
+          // ignore malformed SSE line
+        }
+      });
+      es.addEventListener("status", (e) => {
+        try {
+          const s = JSON.parse((e as MessageEvent).data) as {
+            status: string;
+            phase: string | null;
+            progress_pct: number;
+          };
+          setStatus(s.status);
+          setPhase(s.phase);
+          setProgress(s.progress_pct);
+          setStreamActive(true);
+        } catch {
+          // ignore malformed status
+        }
+      });
+      es.addEventListener("done", (e) => {
+        try {
+          const s = JSON.parse((e as MessageEvent).data) as { status: string };
+          setStatus(s.status);
+          es?.close();
+        } catch {
+          es?.close();
+        }
+      });
+      es.addEventListener("error", () => {
+        setStreamActive(false);
+        es?.close();
+        // Auto-reconnect seamlessly after 3s without requiring a browser page reload
+        timer = setTimeout(() => {
+          if (!TERMINAL.has(status)) {
+            setReconnectCount((c) => c + 1);
+          }
+        }, 3000);
+      });
+    } catch {
+      // EventSource initialization failure is handled by error listener/fallbacks
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      es?.close();
+    };
+  }, [scanId, done, reconnectCount, status]);
+
+  // Fallback auto-poll if stream drops during active scan
+  useEffect(() => {
+    if (done || streamActive) return;
+    const interval = setInterval(() => {
+      void handleRefresh();
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [done, streamActive, handleRefresh]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -172,23 +263,39 @@ export function LiveScan({
       <div className="flex flex-wrap items-center gap-4 border border-line bg-canvas p-3">
         <StatusBadge>{status}</StatusBadge>
         <span className="font-mono text-xs text-muted">
-          phase: {phase ?? "—"} · {progress}%
+          phase: {phase ?? "-"} · {progress}%
         </span>
-        <div className="h-1 flex-1 min-w-32 border border-line bg-subtle">
-          <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
+        <div className="h-1 flex-1 min-w-32 border border-line bg-subtle overflow-hidden">
+          <div
+            className="h-full bg-accent transition-all duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
         </div>
         <Button
           variant="secondary"
           size="sm"
+          onClick={() => void handleRefresh()}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 button-tactile"
+          title="Refresh scan state and pull latest event logs without reloading the page"
+        >
+          <span className={cx("font-mono text-xs", refreshing && "inline-block animate-spin")}>
+            ↻
+          </span>
+          <span>{refreshing ? "Syncing…" : "Refresh"}</span>
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={handleExportJson}
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1.5 button-tactile"
           title="Export scan event log as JSON file for local audit or offline analysis"
         >
           <span className="font-mono text-xs">↓</span>
           <span>{exported ? "Exported JSON!" : "Export JSON"}</span>
         </Button>
         {!done ? (
-          <Button variant="secondary" size="sm" onClick={() => void cancel()}>
+          <Button variant="secondary" size="sm" onClick={() => void cancel()} className="button-tactile">
             Cancel scan
           </Button>
         ) : null}
@@ -198,7 +305,7 @@ export function LiveScan({
             size="sm"
             onClick={() => void handleRetry()}
             disabled={retrying}
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-1.5 button-tactile"
           >
             {retrying ? (
               <>
@@ -239,7 +346,7 @@ export function LiveScan({
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-faint">
                 <span>
                   <strong className="text-ink">Target Assets:</strong>{" "}
-                  {targets.map((t) => t.value).join(", ") || "—"} ({targets.length})
+                  {targets.map((t) => t.value).join(", ") || "-"} ({targets.length})
                 </span>
                 <span>·</span>
                 <span>
@@ -288,6 +395,23 @@ export function LiveScan({
         </p>
       ) : null}
 
+      {!streamActive && !done ? (
+        <div className="flex items-center justify-between border border-line bg-subtle px-3 py-2 font-mono text-xs text-muted">
+          <div className="flex items-center gap-2">
+            <span className="inline-block animate-spin font-mono text-[10px]">◒</span>
+            <span>Stream connection idle. Auto-syncing in background…</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className="border border-line bg-canvas px-2.5 py-0.5 text-[11px] font-bold text-ink hover:bg-subtle uppercase transition-colors button-tactile cursor-pointer disabled:opacity-50"
+          >
+            {refreshing ? "Syncing…" : "Sync Now"}
+          </button>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
         <ol className="border border-line bg-canvas">
           {PHASES.map((p, i) => {
@@ -308,8 +432,17 @@ export function LiveScan({
               >
                 <span className="w-6">{String(i + 1).padStart(2, "0")}</span>
                 <span className="uppercase tracking-[0.08em]">{p}</span>
-                <span className="ml-auto">
-                  {state === "done" ? "[x]" : state === "running" ? "[>]" : "[ ]"}
+                <span className="ml-auto font-mono">
+                  {state === "done" ? (
+                    "[x]"
+                  ) : state === "running" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span>[►]</span>
+                      <span className="animate-terminal-blink">█</span>
+                    </span>
+                  ) : (
+                    "[ ]"
+                  )}
                 </span>
               </li>
             );
@@ -324,16 +457,34 @@ export function LiveScan({
               <span>
                 {events.length} {events.length === 1 ? "event" : "events"}
               </span>
+              {streamActive && !done ? (
+                <span className="flex items-center gap-1.5 border border-line bg-canvas px-1.5 py-0.5 text-[10px] font-bold text-ink">
+                  <span className="h-1.5 w-1.5 rounded-full bg-ink animate-pulse-dot" />
+                  <span>STREAMING</span>
+                </span>
+              ) : null}
             </div>
-            <button
-              type="button"
-              onClick={handleExportJson}
-              className="flex items-center gap-1.5 border border-line bg-canvas px-2.5 py-0.5 font-mono text-[11px] text-ink hover:bg-subtle hover:border-ink transition-colors cursor-pointer"
-              title="Download full JSON event audit log"
-            >
-              <span>↓</span>
-              <span>{exported ? "Exported JSON!" : "Export JSON"}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleRefresh()}
+                disabled={refreshing}
+                className="flex items-center gap-1.5 border border-line bg-canvas px-2.5 py-0.5 font-mono text-[11px] text-ink hover:bg-subtle hover:border-ink transition-colors cursor-pointer button-tactile disabled:opacity-50"
+                title="Sync latest scan state and events without reloading browser"
+              >
+                <span className={cx("font-mono", refreshing && "inline-block animate-spin")}>↻</span>
+                <span>{refreshing ? "Syncing…" : "Sync"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportJson}
+                className="flex items-center gap-1.5 border border-line bg-canvas px-2.5 py-0.5 font-mono text-[11px] text-ink hover:bg-subtle hover:border-ink transition-colors cursor-pointer button-tactile"
+                title="Download full JSON event audit log"
+              >
+                <span>↓</span>
+                <span>{exported ? "Exported JSON!" : "Export JSON"}</span>
+              </button>
+            </div>
           </div>
 
           <div

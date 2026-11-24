@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ThemeInitializer } from "@/components/theme-initializer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,32 +15,29 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Harizeon — Console",
+    default: "Harizeon · Console",
     template: "%s · Harizeon",
   },
   description:
     "Security infrastructure, provisioned like cloud. Scan, monitor, and prove the security of everything you own.",
+  other: {
+    google: "notranslate",
+  },
 };
-
-const themeInit = `
-(function () {
-  try {
-    var stored = localStorage.getItem("hz-theme");
-    var theme = stored || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    document.documentElement.setAttribute("data-theme", theme);
-  } catch (e) {}
-})();
-`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      translate="no"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`notranslate ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-canvas text-ink">
-        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      <head>
+        <meta name="google" content="notranslate" />
+      </head>
+      <body className="notranslate min-h-full bg-canvas text-ink" suppressHydrationWarning>
+        <ThemeInitializer />
         {children}
       </body>
     </html>

@@ -74,46 +74,65 @@ const RECENT_SERVICES = [
     stat: "1 Completed",
   },
   {
-    code: "SYS",
-    name: "System Health",
-    description: "Real-time worker load, queue sizes & failure diagnostics",
-    href: "#system-health",
-    stat: "Telemetry",
+    code: "PRO",
+    name: "Harizeon Probe",
+    description: "TCP port recon and service banner grabbing",
+    href: "/services/pro",
+    stat: "Active Engine",
   },
   {
-    code: "FND",
-    name: "Findings & CVEs",
-    description: "Prioritized vulnerabilities and remediation steps",
-    href: "/findings",
-    stat: "3 Open",
+    code: "INS",
+    name: "Harizeon Inspect",
+    description: "TLS protocols, cert expiry & security headers",
+    href: "/services/ins",
+    stat: "Active Engine",
   },
   {
-    code: "SCH",
-    name: "Scan Schedules",
-    description: "Automated recurring cron-based scanning",
-    href: "/schedules",
-    stat: "2 Active",
-  },
-  {
-    code: "REP",
-    name: "Compliance Reports",
-    description: "ISO 27001, SOC 2 & Executive PDF generation",
+    code: "ADT",
+    name: "Harizeon Audit",
+    description: "Executive posture score and compliance control mapping",
     href: "/reports",
     stat: "2 Ready",
   },
+  {
+    code: "VLT",
+    name: "Harizeon Vault",
+    description: "Public commit and credential leak monitoring",
+    href: "/services/vlt",
+    stat: "Roadmap",
+  },
 ];
+
+/** Shape of GET /v1/usage: live plan limits and metered consumption. */
+export interface DashboardUsage {
+  plan: { code: string; price_myr_month: number };
+  usage: {
+    scans_this_month: number;
+    max_scans_per_month: number;
+    assets_monitored: number;
+    max_assets: number;
+    seats_used: number;
+    max_seats: number;
+    is_asset_limit_near: boolean;
+    is_scan_limit_near: boolean;
+    period_start: string;
+    period_end: string;
+  };
+}
 
 export function DashboardView({
   findings,
   assets,
   scans,
   systemHealth,
+  usage = null,
   currentTime = 1789800000000,
 }: {
   findings: DashboardFinding[];
   assets: DashboardAsset[];
   scans: DashboardScan[];
   systemHealth?: SystemHealthData | null;
+  usage?: DashboardUsage | null;
   currentTime?: number;
 }) {
   const [showMethodology, setShowMethodology] = useState(false);
@@ -225,21 +244,21 @@ export function DashboardView({
           <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
             <Link
               href="/assets/new"
-              className="border border-ink bg-ink px-3 py-1.5 font-bold uppercase text-canvas hover:bg-canvas hover:text-ink transition-colors"
+              className="border border-ink bg-ink px-3 py-1.5 font-bold uppercase text-canvas hover:bg-canvas hover:text-ink button-tactile transition-all"
             >
               + Register Asset
             </Link>
             <Link
               href="/scans/new"
-              className="border border-line bg-subtle px-3 py-1.5 uppercase text-ink hover:border-ink transition-colors"
+              className="border border-line bg-subtle px-3 py-1.5 uppercase text-ink hover:border-ink button-tactile transition-all"
             >
-              ⚡ Run Scan
+              [▶] Run Scan
             </Link>
             <Link
               href="/reports"
-              className="border border-line bg-canvas px-3 py-1.5 uppercase text-muted hover:border-ink hover:text-ink transition-colors"
+              className="border border-line bg-canvas px-3 py-1.5 uppercase text-muted hover:border-ink hover:text-ink button-tactile transition-all"
             >
-              📄 Executive PDF
+              [PDF] Executive Report
             </Link>
           </div>
         </div>
@@ -284,7 +303,7 @@ export function DashboardView({
             <Link
               key={svc.code}
               href={svc.href}
-              className="group border border-line bg-subtle/30 p-3 hover:border-ink hover:bg-canvas transition-all flex flex-col justify-between"
+              className="group border border-line bg-subtle/30 p-3 card-interactive flex flex-col justify-between cursor-pointer"
             >
               <div>
                 <div className="flex items-center justify-between">
@@ -313,7 +332,7 @@ export function DashboardView({
       {/* CONSOLE WIDGET ROW: 4 Core Health Tiles */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Security Hub Score Widget */}
-        <div className="relative border border-line bg-canvas p-4">
+        <div className="relative border border-line bg-canvas p-4 card-interactive cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
               Security Posture
@@ -341,7 +360,7 @@ export function DashboardView({
         </div>
 
         {/* Attack Surface EC2-style resource summary */}
-        <div className="border border-line bg-canvas p-4">
+        <div className="border border-line bg-canvas p-4 card-interactive cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
               Attack Surface
@@ -360,7 +379,7 @@ export function DashboardView({
         </div>
 
         {/* Vulnerability Findings Tile */}
-        <div className="border border-line bg-canvas p-4">
+        <div className="border border-line bg-canvas p-4 card-interactive cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
               Active Findings
@@ -379,7 +398,7 @@ export function DashboardView({
         </div>
 
         {/* Scanning Engine Batch Status */}
-        <div className="border border-line bg-canvas p-4">
+        <div className="border border-line bg-canvas p-4 card-interactive cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
               Engine Fleet
@@ -680,7 +699,7 @@ export function DashboardView({
                     <span className="font-bold text-ink">{cm.framework}</span>
                     <span
                       className={`text-[9px] font-bold uppercase px-1.5 py-0.2 border ${
-                        cm.status === "compliant"
+                        cm.status === "on_track"
                           ? "border-line bg-canvas text-ink"
                           : cm.status === "needs_attention"
                           ? "border-line bg-subtle text-ink"
@@ -732,7 +751,7 @@ export function DashboardView({
         <SystemHealthDashboard initialData={systemHealth} />
       </div>
 
-      {/* CONSOLE WIDGET: Service Quotas & Billing Capacity */}
+      {/* CONSOLE WIDGET: Service Quotas & Billing Capacity (live from /v1/usage) */}
       <div className="border border-line bg-canvas p-5 font-mono text-xs">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div>
@@ -740,7 +759,7 @@ export function DashboardView({
               Cost &amp; Service Quotas
             </h3>
             <p className="text-[11px] text-muted font-sans mt-0.5">
-              Current tier capacity and metered monthly consumption across scanner fleet and verified assets.
+              Current tier capacity and metered monthly consumption.
             </p>
           </div>
           <Link href="/settings/billing" className="text-[11px] text-muted hover:text-ink underline">
@@ -748,42 +767,74 @@ export function DashboardView({
           </Link>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div>
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span>Scans Quota</span>
-              <span>14 / 500 scans (2.8%)</span>
+        {usage && usage.usage && usage.plan ? (
+          <>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {(
+                [
+                  {
+                    label: "Scans This Month",
+                    used: usage.usage.scans_this_month ?? 0,
+                    max: usage.usage.max_scans_per_month ?? 0,
+                    unit: "scans",
+                  },
+                  {
+                    label: "Monitored Assets",
+                    used: usage.usage.assets_monitored ?? 0,
+                    max: usage.usage.max_assets ?? 0,
+                    unit: "assets",
+                  },
+                  {
+                    label: "Team Seats (RBAC)",
+                    used: usage.usage.seats_used ?? 0,
+                    max: usage.usage.max_seats ?? 0,
+                    unit: "seats",
+                  },
+                ] as const
+              ).map((q) => {
+                const pct = q.max > 0 ? Math.min(100, (q.used / q.max) * 100) : 0;
+                return (
+                  <div key={q.label}>
+                    <div className="flex items-center justify-between text-[11px] mb-1">
+                      <span>{q.label}</span>
+                      <span>
+                        {q.used} / {q.max} {q.unit}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full border border-line bg-subtle">
+                      <div className="h-full bg-ink" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="h-2 w-full border border-line bg-subtle">
-              <div className="h-full bg-ink" style={{ width: "2.8%" }} />
-            </div>
-          </div>
 
-          <div>
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span>Monitored Assets</span>
-              <span>{assets.length} / 25 assets</span>
+            <div className="mt-4 border-t border-line pt-2 text-[10px] text-faint flex justify-between">
+              <span>
+                Plan: {usage.plan.code}
+                {usage.plan.price_myr_month > 0
+                  ? ` · MYR ${usage.plan.price_myr_month}/mo`
+                  : " · free"}{" "}
+                · Period ends{" "}
+                {usage.usage.period_end ? new Date(usage.usage.period_end).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }) : "N/A"}
+              </span>
+              <span className="text-ink font-semibold">
+                {usage.usage.is_asset_limit_near || usage.usage.is_scan_limit_near
+                  ? "Approaching quota limits"
+                  : "Within plan quotas"}
+              </span>
             </div>
-            <div className="h-2 w-full border border-line bg-subtle">
-              <div className="h-full bg-ink" style={{ width: `${Math.min(100, (assets.length / 25) * 100)}%` }} />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span>Team Seats (RBAC)</span>
-              <span>1 / 3 seats</span>
-            </div>
-            <div className="h-2 w-full border border-line bg-subtle">
-              <div className="h-full bg-ink" style={{ width: "33%" }} />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-line pt-2 text-[10px] text-faint flex justify-between">
-          <span>Active Plan: Growth Tier ($249/mo) · Next billing cycle: Oct 1, 2026</span>
-          <span className="text-ink font-semibold">Zero overages detected</span>
-        </div>
+          </>
+        ) : (
+          <p className="mt-4 text-[11px] text-muted">
+            Usage data unavailable — the API did not respond. No figures are shown rather than
+            invented ones.
+          </p>
+        )}
       </div>
 
       {/* WIDGET: Audit Trail Activity Log */}

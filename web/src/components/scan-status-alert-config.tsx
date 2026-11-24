@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { labelClass, compactInputClass, compactSelectClass } from "@/lib/ui";
 import { cx } from "@/lib/cx";
 import type { ChannelItem } from "@/components/notifications-manager";
+import { testChannels } from "@/lib/channel-test";
 
 export interface ScanStatusAlertSettings {
   enabled: boolean;
@@ -70,7 +71,9 @@ export function ScanStatusAlertConfig({
     e.preventDefault();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      setSavedNotice(`Scan status alert configuration saved at ${new Date().toLocaleTimeString()}.`);
+      setSavedNotice(
+        `Preferences saved in this browser at ${new Date().toLocaleTimeString()} (delivery rules come from the Alert Destinations channels).`,
+      );
       setTimeout(() => setSavedNotice(null), 4000);
     } catch {
       setSavedNotice("Configuration updated in session memory.");
@@ -82,29 +85,44 @@ export function ScanStatusAlertConfig({
     setIsTesting(true);
     setTestNotice(null);
 
-    // Simulate API delivery to configured channels
-    setTimeout(() => {
-      const activeDests: string[] = [];
-      if (settings.emailEnabled) {
-        activeDests.push(`Email (${settings.emailRecipients.split(",")[0].trim() || "primary admin"})`);
-      }
-      if (settings.slackEnabled) {
-        activeDests.push(`Slack (${settings.slackChannel || "#alerts"})`);
-      }
-
-      if (activeDests.length === 0) {
-        setTestNotice({
-          ok: false,
-          message: "Please enable at least one notification channel (Email or Slack) to test alerts.",
-        });
-      } else {
-        setTestNotice({
-          ok: true,
-          message: `Sample long-running scan alert (> ${settings.durationThresholdMinutes}m SLA breach / worker stall) dispatched to: ${activeDests.join(" & ")}.`,
-        });
-      }
+    // Real delivery check: run the API's per-channel test against every
+    // enabled destination this widget targets. Failures surface verbatim.
+    const targets = (existingChannels ?? []).filter(
+      (c) =>
+        c.enabled &&
+        ((settings.emailEnabled && c.type === "email") ||
+          (settings.slackEnabled && c.type === "slack")),
+    );
+    if (targets.length === 0) {
+      setTestNotice({
+        ok: false,
+        message:
+          "No enabled email/Slack channel to test. Add one under Alert Destinations first.",
+      });
       setIsTesting(false);
-    }, 700);
+      return;
+    }
+
+    const results = await testChannels(targets.map((c) => c.id));
+    const failed = results.filter((r) => !r.ok);
+    const label = (c: ChannelItem) =>
+      c.type === "email"
+        ? `Email (${Array.isArray(c.config.recipients) ? (c.config.recipients as string[])[0] : "recipients"})`
+        : `Slack (${String(c.config.channel || "#alerts")})`;
+    if (failed.length === 0) {
+      setTestNotice({
+        ok: true,
+        message: `Test alert delivered to: ${targets.map(label).join(" & ")}. This verifies channel delivery, not the thresholds below.`,
+      });
+    } else {
+      setTestNotice({
+        ok: false,
+        message: failed
+          .map((r) => `${targets.find((c) => c.id === r.id)?.type ?? r.id}: ${r.message}`)
+          .join(" · "),
+      });
+    }
+    setIsTesting(false);
   };
 
   const durationHours = (settings.durationThresholdMinutes / 60).toFixed(1);

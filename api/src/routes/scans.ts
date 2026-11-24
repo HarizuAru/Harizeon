@@ -10,7 +10,7 @@ import { scanQueue } from "../services/scanQueue";
 
 const CreateScanBody = z.object({
   asset_ids: z.array(z.string().uuid()).min(1).max(50),
-  profile: z.enum(["quick", "standard", "deep"]),
+  profile: z.enum(["quick", "standard", "deep", "ai"]),
 });
 const ListQuery = z.object({
   status: z.string().optional(),

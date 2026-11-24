@@ -26,15 +26,15 @@ function escapeCsv(val: unknown): string {
 
 function calculateDuration(scan: CsvScanRecord): { formatted: string; seconds: number | "" } {
   const isFinished = ["completed", "failed", "timeout", "cancelled"].includes(scan.status);
-  if (!isFinished) return { formatted: "—", seconds: "" };
+  if (!isFinished) return { formatted: "-", seconds: "" };
 
   const completionTimestamp =
     scan.finished_at ?? scan.completed_at ?? scan.ended_at ?? scan.updated_at;
-  if (!completionTimestamp || !scan.created_at) return { formatted: "—", seconds: "" };
+  if (!completionTimestamp || !scan.created_at) return { formatted: "-", seconds: "" };
 
   const start = new Date(scan.created_at).getTime();
   const end = new Date(completionTimestamp).getTime();
-  if (isNaN(start) || isNaN(end) || end < start) return { formatted: "—", seconds: "" };
+  if (isNaN(start) || isNaN(end) || end < start) return { formatted: "-", seconds: "" };
 
   const totalSec = Math.floor((end - start) / 1000);
   if (totalSec < 60) {
@@ -101,7 +101,7 @@ export function DownloadScansCsvButton({
           escapeCsv(scan.id),
           escapeCsv(scan.status),
           escapeCsv(scan.profile),
-          escapeCsv(scan.phase ?? "—"),
+          escapeCsv(scan.phase ?? "-"),
           escapeCsv(scan.progress_pct),
           escapeCsv(durationStr),
           escapeCsv(durationSec),

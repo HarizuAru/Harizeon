@@ -121,7 +121,7 @@ export function AuditLogManager({ initialLogs }: { initialLogs: AuditLogItem[] }
                   </td>
                   <td className="px-4 py-3 font-bold text-ink">{log.action}</td>
                   <td className="px-4 py-3 text-muted">
-                    {log.target_type ? `${log.target_type}:${log.target_id?.slice(0, 8) ?? ""}` : "—"}
+                    {log.target_type ? `${log.target_type}:${log.target_id?.slice(0, 8) ?? ""}` : "-"}
                   </td>
                   <td className="px-4 py-3 text-muted">{log.ip ?? "internal"}</td>
                   <td className="px-4 py-3 text-right">

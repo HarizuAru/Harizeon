@@ -52,7 +52,7 @@ test("findings ingest + endpoint", { skip: !DATABASE_URL }, async () => {
     const batch = [
       { check_id: "tls.legacy_protocol", location: `${domain}:443`, severity: "high",
         title: "Legacy TLS enabled", description: "negotiates TLSv1", remediation: "Disable TLSv1", category: "tls",
-        cve_ids: ["CVE-2023-9999", "not-a-cve"] },
+        cve_ids: ["CVE-2023-9999", "not-a-cve"], known_exploited: true },
       { check_id: "headers.csp_missing", location: `https://${domain}`, severity: "medium",
         title: "No CSP", category: "headers" },
       { check_id: "probe.exposed_service", location: "1.2.3.4:6379", severity: "critical",
@@ -71,12 +71,13 @@ test("findings ingest + endpoint", { skip: !DATABASE_URL }, async () => {
 
     const list = await authed("GET", "/v1/findings");
     assert.equal(list.statusCode, 200, list.body);
-    const rows = list.json().data as { id: string; title: string; severity: string; fingerprint: string; status: string; cve_ids?: string[] }[];
+    const rows = list.json().data as { id: string; title: string; severity: string; fingerprint: string; status: string; cve_ids?: string[]; known_exploited?: boolean }[];
     assert.equal(rows.length, 3, "invalid-severity finding dropped");
     assert.ok(rows.every((r) => r.status === "open"));
     // CVE ids are stored only in CVE format; junk entries are dropped.
     const legacy = rows.find((r) => r.title === "Legacy TLS enabled")!;
     assert.deepEqual(legacy.cve_ids, ["CVE-2023-9999"], "malformed CVE ids are dropped");
+    assert.equal(legacy.known_exploited, true, "KEV flag persisted from the worker batch");
     assert.deepEqual(
       rows.find((r) => r.title === "No CSP")!.cve_ids,
       [],
@@ -96,6 +97,10 @@ test("findings ingest + endpoint", { skip: !DATABASE_URL }, async () => {
     for (let i = 0; i < 3; i += 1) await runIngestOnce(scanQueue);
     const after = await authed("GET", "/v1/findings");
     assert.equal(after.json().data.length, 3, "fingerprint dedupe keeps one finding per check");
+    // The rescan batch carries no flag: KEV listing is sticky, never revoked.
+    const legacyAfter = (after.json().data as { title: string; known_exploited: boolean }[])
+      .find((r) => r.title === "Legacy TLS enabled")!;
+    assert.equal(legacyAfter.known_exploited, true, "KEV flag must survive a rescan without it");
 
     // RLS: a second org sees none of them.
     const s2 = await app.inject({

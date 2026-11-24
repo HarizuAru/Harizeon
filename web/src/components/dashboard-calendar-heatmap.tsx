@@ -380,7 +380,7 @@ export function DashboardCalendarHeatmap({
           </span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-bold text-ink">
-              {stats.peakDay ? formatDurationHuman(stats.peakDay.totalDurationSec) : "—"}
+              {stats.peakDay ? formatDurationHuman(stats.peakDay.totalDurationSec) : "-"}
             </span>
             {stats.peakDay && (
               <span className="text-[10px] text-muted">

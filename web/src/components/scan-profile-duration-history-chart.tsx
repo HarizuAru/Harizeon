@@ -221,38 +221,7 @@ export function ScanProfileDurationHistoryChart({
     const totalDesired = 10;
     const rawPoints: Omit<ProfileRunPoint, "trendSec" | "formattedTrend">[] = [];
 
-    // Synthesize calibrated baseline prior runs if database has fewer than 10 historical runs
-    const neededSynthetic = Math.max(0, totalDesired - realRuns.length);
-    const now = Date.now();
-    const runIntervalMs = 86400000 * 2.5; // ~2.5 days between scans
-
-    // Deterministic synthetic baseline curves per profile
-    for (let i = 0; i < neededSynthetic; i++) {
-      const runIndex = i + 1;
-      const ageStep = neededSynthetic - i;
-      const simTime = new Date(now - ageStep * runIntervalMs);
-      const wave = Math.sin(i * 1.3) * 0.10;
-
-      // Realistic mild slope progression
-      const drift = (i - (neededSynthetic / 2)) * 0.03;
-      const simDur = Math.round(slaInfo.baseSec * (1 + wave + drift));
-
-      rawPoints.push({
-        index: runIndex,
-        label: `Run #${runIndex}`,
-        scanId: `sim-hist-${i}`,
-        shortId: `scn-b${i}a8…`,
-        durationSec: simDur,
-        formattedDuration: formatDurationLabel(simDur),
-        dateStr: simTime.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        fullDateStr: simTime.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        isCurrent: false,
-        status: "completed",
-        isEstimated: true,
-      });
-    }
-
-    // Append real runs
+    // antislop R-17: no synthetic baseline runs. Only real history is shown.    // Append real runs
     const remainingSlots = totalDesired - rawPoints.length;
     const sliceFrom = Math.max(0, realRuns.length - remainingSlots);
     const realSlice = realRuns.slice(sliceFrom);

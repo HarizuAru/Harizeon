@@ -11,6 +11,7 @@ PROFILE_PHASES = {
     "quick": ["verify", "discover", "resolve", "normalize", "report"],
     "standard": list(PHASES),
     "deep": list(PHASES),
+    "ai": ["verify", "resolve", "probe", "inspect", "test", "normalize", "report"],
 }
 
 # Mirrors api/src/lib/scan-state.ts PHASE_PROGRESS. Keep the two in sync.

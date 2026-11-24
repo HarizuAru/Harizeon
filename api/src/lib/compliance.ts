@@ -52,6 +52,49 @@ export const CONTROL_MAP: Record<string, ComplianceControlRef[]> = {
   ],
 };
 
+export const CHECK_CONTROL_MAP: Record<string, ComplianceControlRef[]> = {
+  "web.leaked_ai_credentials": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM02", title: "Sensitive Information Disclosure" },
+    { framework: "ISO/IEC 42001:2023", control: "A.6.2", title: "Data protection for AI systems" },
+    { framework: "SOC 2", control: "CC6.1", title: "Logical access credentials" },
+  ],
+  "ai.vector_db_chroma": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM02", title: "Sensitive Information Disclosure" },
+    { framework: "ISO/IEC 42001:2023", control: "A.6.2", title: "Data protection for AI systems" },
+    { framework: "SOC 2", control: "CC6.6", title: "Boundary protection" },
+  ],
+  "ai.vector_db_qdrant": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM02", title: "Sensitive Information Disclosure" },
+    { framework: "ISO/IEC 42001:2023", control: "A.6.2", title: "Data protection for AI systems" },
+    { framework: "SOC 2", control: "CC6.6", title: "Boundary protection" },
+  ],
+  "ai.vector_db_weaviate": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM02", title: "Sensitive Information Disclosure" },
+    { framework: "ISO/IEC 42001:2023", control: "A.6.2", title: "Data protection for AI systems" },
+    { framework: "SOC 2", control: "CC6.6", title: "Boundary protection" },
+  ],
+  "ai.vector_db_milvus": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM02", title: "Sensitive Information Disclosure" },
+    { framework: "ISO/IEC 42001:2023", control: "A.6.2", title: "Data protection for AI systems" },
+    { framework: "SOC 2", control: "CC6.6", title: "Boundary protection" },
+  ],
+  "ai.exposed_ollama": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM01", title: "Prompt Injection and Model Abuse" },
+    { framework: "ISO/IEC 42001:2023", control: "A.8.4", title: "AI system resource access control" },
+    { framework: "ISO/IEC 27001:2022", control: "A.8.20", title: "Networks security" },
+  ],
+  "ai.exposed_vllm": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM01", title: "Prompt Injection and Model Abuse" },
+    { framework: "ISO/IEC 42001:2023", control: "A.8.4", title: "AI system resource access control" },
+    { framework: "ISO/IEC 27001:2022", control: "A.8.20", title: "Networks security" },
+  ],
+  "ai.unauth_agent_endpoint": [
+    { framework: "OWASP Top 10 for LLMs", control: "LLM06", title: "Excessive Agency" },
+    { framework: "ISO/IEC 42001:2023", control: "A.8.5", title: "AI agent authorization controls" },
+    { framework: "SOC 2", control: "CC6.6", title: "Boundary protection" },
+  ],
+};
+
 export interface ComplianceFindingRef {
   id: string;
   title: string;
@@ -59,6 +102,7 @@ export interface ComplianceFindingRef {
   status: string;
   asset: string;
   category?: string | null;
+  check_id?: string | null;
 }
 
 export interface ComplianceControlResult {
@@ -83,7 +127,10 @@ export function mapFindingsToControls(findings: ComplianceFindingRef[]): Complia
   const openIdsByFramework = new Map<string, Set<string>>();
 
   for (const f of findings) {
-    const refs = CONTROL_MAP[f.category ?? ""] ?? CONTROL_MAP._default;
+    const refs =
+      (f.check_id && CHECK_CONTROL_MAP[f.check_id]) ??
+      CONTROL_MAP[f.category ?? ""] ??
+      CONTROL_MAP._default;
     for (const ref of refs) {
       let controls = byFramework.get(ref.framework);
       if (!controls) {

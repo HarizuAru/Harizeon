@@ -73,7 +73,7 @@ export function ReportsManager({ initialReports }: { initialReports: ReportItem[
     if (!start || !end) return "Complete Baseline History";
     const s = new Date(start).toLocaleDateString(undefined, { month: "short", day: "numeric" });
     const e = new Date(end).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    return `${s} — ${e}`;
+    return `${s} · ${e}`;
   };
 
   return (

@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Quickstart Guide — Harizeon Docs",
+  title: "Quickstart Guide · Harizeon Docs",
   description: "Verify your domain, trigger your first automated vulnerability scan, and extract normalized findings in four minutes.",
 };
 

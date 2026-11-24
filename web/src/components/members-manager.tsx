@@ -223,9 +223,9 @@ export function MembersManager({ initialMembers }: { initialMembers: MemberItem[
                 onChange={(e) => setRole(e.target.value as "admin" | "member" | "readonly")}
                 className="w-full border border-line bg-canvas p-2 font-mono text-xs text-ink focus:border-ink focus:outline-none"
               >
-                <option value="member">Member — Initiate scans & review findings</option>
-                <option value="admin">Admin — Manage assets, API keys & schedules</option>
-                <option value="readonly">Readonly — Auditor / Executive view only</option>
+                <option value="member">Member · Initiate scans & review findings</option>
+                <option value="admin">Admin · Manage assets, API keys & schedules</option>
+                <option value="readonly">Readonly · Auditor / Executive view only</option>
               </select>
             </div>
 

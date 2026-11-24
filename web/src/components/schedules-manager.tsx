@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -10,7 +11,7 @@ import { labelClass, inputClass, selectClass } from "@/lib/ui";
 export interface ScheduleItem {
   id: string;
   cron: string;
-  profile: "quick" | "standard" | "deep";
+  profile: "quick" | "standard" | "deep" | "ai";
   timezone: string;
   next_run_at: string | null;
   enabled: boolean;
@@ -31,7 +32,7 @@ export function SchedulesManager({ initialSchedules }: { initialSchedules: Sched
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [presetIndex, setPresetIndex] = useState(0);
   const [customCron, setCustomCron] = useState("0 2 * * *");
-  const [profile, setProfile] = useState<"quick" | "standard" | "deep">("standard");
+  const [profile, setProfile] = useState<"quick" | "standard" | "deep" | "ai">("standard");
   const [timezone, setTimezone] = useState("Asia/Kuala_Lumpur");
   const [enabled, setEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -158,10 +159,16 @@ export function SchedulesManager({ initialSchedules }: { initialSchedules: Sched
           </p>
           <p className="mt-2 font-mono text-xs text-faint">Scheduled across verified scope</p>
         </div>
-        <div className="border border-line bg-canvas p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted">Notification channel</p>
-          <p className="mt-2 font-mono text-xl font-bold text-ink">Integrated</p>
-          <p className="mt-2 font-mono text-xs text-faint">Diff summaries routed to alert channels</p>
+        <div className="border border-line bg-canvas p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted">Notification channel</p>
+            <p className="mt-2 font-mono text-xl font-bold text-ink">Slack / Discord</p>
+          </div>
+          <p className="mt-2 font-mono text-xs text-muted">
+            <Link href="/settings/notifications" className="underline hover:text-ink">
+              Configure alert channels →
+            </Link>
+          </p>
         </div>
       </div>
 
@@ -311,12 +318,13 @@ export function SchedulesManager({ initialSchedules }: { initialSchedules: Sched
                 <label className={labelClass}>Scan Profile</label>
                 <select
                   value={profile}
-                  onChange={(e) => setProfile(e.target.value as "quick" | "standard" | "deep")}
+                  onChange={(e) => setProfile(e.target.value as "quick" | "standard" | "deep" | "ai")}
                   className={selectClass}
                 >
                   <option value="quick">Quick (~2 min · passive inspection only)</option>
                   <option value="standard">Standard (~10 min · passive + ports + TLS + web checks)</option>
                   <option value="deep">Deep (~45 min · standard + broader port range)</option>
+                  <option value="ai">AI-Armor (~30 sec · LLM ports, vector DBs &amp; key leaks)</option>
                 </select>
               </div>
 

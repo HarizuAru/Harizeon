@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Security Posture & Responsible Disclosure — Harizeon",
+  title: "Security Posture & Responsible Disclosure · Harizeon",
   description:
     "Harizeon's public security posture, continuous self-scan audit score (98/100), vulnerability disclosure policy, and PGP key.",
 };

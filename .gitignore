@@ -26,6 +26,11 @@ venv/
 dist/
 *.tsbuildinfo
 
+# local binaries & tools
+tools/
+*.exe
+page.html
+
 # os / editor
 .DS_Store
 Thumbs.db

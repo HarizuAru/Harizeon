@@ -50,6 +50,30 @@ services:
       # Sandbox allowlist (comma-separated hosts/addresses). Empty by default;
       # the worker refuses to start with this set when NODE_ENV=production.
       HARIZEON_SANDBOX_HOSTS: ${HARIZEON_SANDBOX_HOSTS:-}
+      # OWASP ZAP for deep-profile baseline scans (spider + passive only).
+      # Unreachable ZAP = warn line + skipped, never a failed scan.
+      ZAP_URL: ${ZAP_URL:-http://zap:8080}
+    restart: unless-stopped
+
+  # OWASP ZAP daemon for the deep profile. Deliberately NOT published to the
+  # host: only containers on the compose network can reach it, and the worker
+  # never runs active rules against it (passive baseline only).
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    command:
+      - zap.sh
+      - -daemon
+      - -host
+      - 0.0.0.0
+      - -port
+      - "8080"
+      - -silent
+      - -config
+      - api.disablekey=true
+      - -config
+      - api.addrs.addr.name=.*
+      - -config
+      - api.addrs.addr.regex=true
     restart: unless-stopped
 
   # Intentionally-vulnerable target so scans can be demonstrated end-to-end

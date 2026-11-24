@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SeverityChip, type Severity } from "@/components/ui/severity-chip";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { FindingStatusActions } from "@/components/finding-status-actions";
+import { RemediationSnippets } from "@/components/remediation-snippets";
 import { apiFetch, ApiError } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Finding" };
@@ -20,6 +21,8 @@ type Detail = {
     status: string;
     category: string | null;
     cwe_id: string | null;
+    known_exploited: boolean;
+    cve_ids: string[];
     asset_id: string | null;
     asset_value: string | null;
     first_seen_at: string;
@@ -109,7 +112,15 @@ export default async function FindingPage({ params }: { params: Promise<{ id: st
       <div className="flex flex-wrap items-center gap-4">
         <SeverityChip severity={finding.severity as Severity} />
         <StatusBadge>{finding.status}</StatusBadge>
+        {finding.known_exploited ? (
+          <span className="border border-ink px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-ink">
+            KEV · exploited in the wild
+          </span>
+        ) : null}
         {finding.cwe_id ? <span className="font-mono text-xs text-muted">{finding.cwe_id}</span> : null}
+        {finding.cve_ids?.length ? (
+          <span className="font-mono text-xs text-muted">{finding.cve_ids.join(", ")}</span>
+        ) : null}
         <span className="font-mono text-xs text-faint">
           first seen {new Date(finding.first_seen_at).toLocaleString()} · last seen{" "}
           {new Date(finding.last_seen_at).toLocaleString()}
@@ -117,7 +128,7 @@ export default async function FindingPage({ params }: { params: Promise<{ id: st
       </div>
 
       <Section title="What it is">
-        <p className="text-sm leading-relaxed text-ink">{what || "—"}</p>
+        <p className="text-sm leading-relaxed text-ink">{what || "-"}</p>
       </Section>
 
       <Section title="Why it matters">
@@ -129,14 +140,18 @@ export default async function FindingPage({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="How to fix">
-        <p className="max-w-2xl text-sm leading-relaxed text-ink">
-          {finding.remediation ?? "No remediation recorded yet."}
-        </p>
+        <RemediationSnippets
+          title={finding.title}
+          category={finding.category}
+          description={finding.description}
+          remediationText={finding.remediation}
+          assetValue={finding.asset_value}
+        />
       </Section>
 
       <Section title="Verify the fix">
         <p className="text-sm leading-relaxed text-ink">
-          Rescan the asset after applying the fix — this finding will stop firing.{" "}
+          Rescan the asset after applying the fix · this finding will stop firing.{" "}
           <Link href="/scans/new" className="text-ink underline">
             Start a new scan
           </Link>{" "}

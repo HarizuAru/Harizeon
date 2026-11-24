@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Acceptable Use Policy (AUP) — Harizeon",
+  title: "Acceptable Use Policy (AUP) · Harizeon",
   description: "Strict operational boundaries and acceptable use standards for Harizeon scanning infrastructure.",
 };
 

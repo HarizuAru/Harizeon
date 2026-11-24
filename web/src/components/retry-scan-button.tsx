@@ -25,7 +25,7 @@ export function RetryScanButton({
   // Only failed or timed-out scans can be retried
   const isEligible = status === "failed" || status === "timeout";
   if (!isEligible) {
-    return <span className="text-faint">—</span>;
+    return <span className="text-faint">·</span>;
   }
 
   async function handleRetry(e: React.MouseEvent) {

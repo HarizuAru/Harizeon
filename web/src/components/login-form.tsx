@@ -11,6 +11,7 @@ export function LoginForm() {
   const handleInstantDemo = () => {
     // Full-page navigation so the /api/demo-login route handler can sign up /
     // log in for real and set the session cookie server-side.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/api/demo-login";
   };
 

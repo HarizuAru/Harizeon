@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Documentation & Developer Guides — Harizeon",
+  title: "Documentation & Developer Guides · Harizeon",
   description: "Comprehensive guides for verifying asset ownership, triggering scans via API, and managing findings.",
 };
 
@@ -27,7 +27,7 @@ export default function DocsPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <Link
               href="/docs/quickstart"
               className="border border-line bg-canvas p-6 hover:border-ink transition-colors flex flex-col justify-between"
@@ -44,12 +44,27 @@ export default function DocsPage() {
             </Link>
 
             <Link
+              href="/docs/services"
+              className="border border-line bg-canvas p-6 hover:border-ink transition-colors flex flex-col justify-between"
+            >
+              <div>
+                <span className="font-mono text-xs font-bold uppercase text-ink block mb-2">
+                  02 · Services Catalog
+                </span>
+                <p className="text-xs text-muted font-sans leading-relaxed">
+                  Full specifications, engine parameters, ARNs, and compliance mappings for all services.
+                </p>
+              </div>
+              <span className="mt-6 font-mono text-xs text-ink underline">Services Specs →</span>
+            </Link>
+
+            <Link
               href="/docs/api"
               className="border border-line bg-canvas p-6 hover:border-ink transition-colors flex flex-col justify-between"
             >
               <div>
                 <span className="font-mono text-xs font-bold uppercase text-ink block mb-2">
-                  02 · REST API Reference
+                  03 · REST API Reference
                 </span>
                 <p className="text-xs text-muted font-sans leading-relaxed">
                   Authenticate requests, trigger on-demand jobs, and extract machine-readable JSON findings.
@@ -64,7 +79,7 @@ export default function DocsPage() {
             >
               <div>
                 <span className="font-mono text-xs font-bold uppercase text-ink block mb-2">
-                  03 · Security Posture
+                  04 · Security Posture
                 </span>
                 <p className="text-xs text-muted font-sans leading-relaxed">
                   Responsible disclosure, PGP keys, and our public self-scan security score.

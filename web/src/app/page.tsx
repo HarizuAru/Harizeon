@@ -5,46 +5,57 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Harizeon — Security Infrastructure, Provisioned Like Cloud",
+  title: "Harizeon · Security Infrastructure, Provisioned Like Cloud",
   description:
     "Scan, monitor, and prove the security of everything you own. Self-serve. Metered. No sales call.",
 };
 
-const SERVICES = [
+const SOLUTION_PILLARS = [
   {
-    code: "SCN",
-    name: "Harizeon Scan",
-    description: "Active and passive external vulnerability scanner. Port recon, TLS verification, CVE matching.",
-    status: "available",
-    href: "/services/scan",
+    code: "SURFACE",
+    badge: "PILLAR 01",
+    name: "Harizeon Surface (EASM)",
+    tagline: "Attack Surface Reconnaissance",
+    description:
+      "Automated perimeter intelligence. Continuously discovers verified subdomains from Certificate Transparency logs, maps public port exposures, and audits TLS protocols and security headers.",
+    engines: [
+      { code: "ASM", name: "Surface Discovery", href: "/services/asm", status: "available" },
+      { code: "PRO", name: "Port & Banner Recon", href: "/services/pro", status: "available" },
+      { code: "INS", name: "TLS & Protocol Audit", href: "/services/ins", status: "available" },
+    ],
+    primaryAction: "Explore Surface Recon →",
+    primaryHref: "/services/asm",
   },
   {
-    code: "ASM",
-    name: "Harizeon Surface",
-    description: "Continuous external attack-surface discovery. Subdomains from CT logs and DNS, held for your review and alerted on when new.",
-    status: "available",
-    href: "/services/asm",
+    code: "THREAT",
+    badge: "PILLAR 02",
+    name: "Harizeon Threat (Scanner)",
+    tagline: "Autonomous Vulnerability Sweeps",
+    description:
+      "Non-destructive multi-phase security scanner. Probes your verified attack surface for known CVEs, exposed configuration files, unauthenticated model endpoints, and leaked API secrets.",
+    engines: [
+      { code: "SCN", name: "Vulnerability Scanner", href: "/services/scan", status: "available" },
+      { code: "AIA", name: "AI-Armor (LLM & Vector Defense)", href: "/services/aia", status: "available" },
+      { code: "VLT", name: "Vault Secret Monitor", href: "/services/vlt", status: "roadmap" },
+      { code: "WCH", name: "Drift & Integrity Watch", href: "/services/wch", status: "roadmap" },
+    ],
+    primaryAction: "Explore Scanner →",
+    primaryHref: "/services/scan",
   },
   {
-    code: "PRO",
-    name: "Harizeon Probe",
-    description: "Deep port reconnaissance, banner grabbing, and non-destructive service fingerprinting.",
-    status: "available",
-    href: "/services/pro",
-  },
-  {
-    code: "INS",
-    name: "Harizeon Inspect",
-    description: "TLS legacy-protocol detection, certificate expiry tracking, and HTTP security headers.",
-    status: "available",
-    href: "/services/ins",
-  },
-  {
-    code: "ADT",
-    name: "Harizeon Audit",
-    description: "Executive reports with a security score, remediation plan, and ISO 27001 / SOC 2 / BNM RMiT / PDPA control mapping.",
-    status: "available",
-    href: "/services/adt",
+    code: "GOVERNANCE",
+    badge: "PILLAR 03",
+    name: "Harizeon Governance (Audit)",
+    tagline: "Compliance & Executive Scoring",
+    description:
+      "Executive posture scoring (0–100) and client-ready audit reports. Findings are mapped to ISO/IEC 27001:2022, SOC 2, BNM RMiT, and Malaysian PDPA controls with one-click PDF export.",
+    engines: [
+      { code: "ADT", name: "Audit & Posture Reports", href: "/services/adt", status: "available" },
+      { code: "RSP", name: "Triage Playbooks", href: "/services/rsp", status: "roadmap" },
+      { code: "SHD", name: "Edge Cloaking Rules", href: "/services/shd", status: "roadmap" },
+    ],
+    primaryAction: "Explore Compliance →",
+    primaryHref: "/services/adt",
   },
 ];
 
@@ -115,19 +126,19 @@ export default async function LandingPage() {
             <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
               <Link
                 href="/signup"
-                className="w-full sm:w-auto border border-ink bg-ink px-8 py-3.5 font-mono text-xs uppercase font-bold tracking-[0.05em] text-canvas hover:bg-canvas hover:text-ink transition-colors"
+                className="w-full sm:w-auto border border-ink bg-ink px-8 py-3.5 font-mono text-xs uppercase font-bold tracking-[0.05em] text-canvas hover:bg-canvas hover:text-ink button-tactile transition-all"
               >
                 Start free
               </Link>
               <Link
                 href="/login"
-                className="w-full sm:w-auto border border-line bg-canvas px-8 py-3.5 font-mono text-xs uppercase tracking-[0.05em] text-ink hover:border-ink hover:bg-subtle transition-colors"
+                className="w-full sm:w-auto border border-line bg-canvas px-8 py-3.5 font-mono text-xs uppercase tracking-[0.05em] text-ink hover:border-ink hover:bg-subtle button-tactile transition-all"
               >
                 Log in
               </Link>
               <Link
                 href="/docs"
-                className="w-full sm:w-auto border border-line bg-canvas px-6 py-3.5 font-mono text-xs uppercase tracking-[0.05em] text-muted hover:text-ink transition-colors"
+                className="w-full sm:w-auto border border-line bg-canvas px-6 py-3.5 font-mono text-xs uppercase tracking-[0.05em] text-muted hover:text-ink button-tactile transition-all"
               >
                 Docs
               </Link>
@@ -163,65 +174,94 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        {/* 3x3 Service Grid (§9.2) */}
+        {/* 3 Core Solutions & Service Matrix (§9.2) */}
         <section className="border-b border-line py-20 px-4 sm:px-6">
           <div className="mx-auto max-w-7xl">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-line pb-6 mb-12">
               <div>
                 <span className="font-mono text-xs uppercase tracking-wider text-muted block mb-1">
-                  Modular Architecture
+                  Unified Solution Architecture
                 </span>
                 <h2 className="text-3xl font-bold tracking-tight text-ink font-sans">
-                  The Harizeon Service Matrix
+                  The Three Security Pillars
                 </h2>
               </div>
-              <p className="font-mono text-xs text-muted mt-2 sm:mt-0">
-                Independent micro-services. Unified telemetry.
-              </p>
+              <Link
+                href="/services"
+                className="font-mono text-xs text-muted hover:text-ink underline mt-2 sm:mt-0 flex items-center gap-1.5"
+              >
+                <span>Explore all 9 granular engine specifications</span>
+                <span>→</span>
+              </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {SERVICES.map((s) => {
-                const isAvailable = s.status === "available";
-                const isBeta = s.status === "beta";
-                return (
-                  <Link
-                    key={s.code}
-                    href={s.href}
-                    className="group border border-line bg-canvas p-6 flex flex-col justify-between hover:border-ink transition-colors"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="border border-ink px-2 py-0.5 font-mono text-xs font-bold text-ink">
-                          {s.code}
-                        </span>
-                        <span
-                          className={`font-mono text-[10px] uppercase px-1.5 py-0.5 border ${
-                            isAvailable
-                              ? "border-ink bg-ink text-canvas font-bold"
-                              : isBeta
-                              ? "border-line bg-subtle text-ink"
-                              : "border-line text-faint"
-                          }`}
-                        >
-                          {s.status}
-                        </span>
-                      </div>
-                      <h3 className="mt-4 font-mono text-base font-bold text-ink group-hover:underline">
-                        {s.name}
-                      </h3>
-                      <p className="mt-2 text-xs text-muted font-sans leading-relaxed">
-                        {s.description}
-                      </p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {SOLUTION_PILLARS.map((p) => (
+                <div
+                  key={p.code}
+                  className="border border-line bg-canvas p-7 flex flex-col justify-between card-interactive"
+                >
+                  <div>
+                    <div className="flex items-center justify-between border-b border-line pb-3 mb-4">
+                      <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-muted">
+                        {p.badge}
+                      </span>
+                      <span className="border border-ink bg-ink text-canvas font-mono text-[10px] uppercase px-1.5 py-0.5 font-bold">
+                        Unified Suite
+                      </span>
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-line flex items-center justify-between font-mono text-[11px] text-muted">
-                      <span>Explore specifications</span>
-                      <span>→</span>
+                    <h3 className="font-mono text-lg font-bold text-ink">
+                      {p.name}
+                    </h3>
+                    <span className="font-mono text-[11px] text-muted block mt-0.5 mb-3">
+                      {p.tagline}
+                    </span>
+                    <p className="text-xs text-muted font-sans leading-relaxed">
+                      {p.description}
+                    </p>
+
+                    {/* Constituent Engines Strip */}
+                    <div className="mt-6 pt-4 border-t border-line">
+                      <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-muted block mb-2.5">
+                        Integrated Engines:
+                      </span>
+                      <div className="flex flex-col gap-2">
+                        {p.engines.map((eng) => (
+                          <Link
+                            key={eng.code}
+                            href={eng.href}
+                            className="flex items-center justify-between border border-line bg-subtle/30 px-3 py-1.5 font-mono text-xs hover:border-ink hover:bg-canvas transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-ink">{eng.code}</span>
+                              <span className="text-muted text-[11px]">· {eng.name}</span>
+                            </div>
+                            <span
+                              className={`text-[9px] uppercase font-bold px-1 py-0.2 border ${
+                                eng.status === "available"
+                                  ? "border-ink bg-ink text-canvas"
+                                  : "border-line text-muted"
+                              }`}
+                            >
+                              {eng.status}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
                     </div>
-                  </Link>
-                );
-              })}
+                  </div>
+
+                  <div className="mt-8 pt-4 border-t border-line">
+                    <Link
+                      href={p.primaryHref}
+                      className="flex items-center justify-between border border-ink bg-canvas px-4 py-2 font-mono text-xs uppercase font-bold text-ink hover:bg-ink hover:text-canvas transition-colors button-tactile"
+                    >
+                      <span>{p.primaryAction}</span>
+                    </Link>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -240,7 +280,7 @@ export default async function LandingPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Step 1 */}
-              <div className="border border-line bg-canvas p-6 flex flex-col">
+              <div className="border border-line bg-canvas p-6 flex flex-col card-interactive">
                 <span className="font-mono text-3xl font-bold text-ink mb-4">01</span>
                 <h3 className="font-mono text-base font-bold text-ink mb-2">
                   Verify Ownership
@@ -251,10 +291,10 @@ export default async function LandingPage() {
               </div>
 
               {/* Step 2 */}
-              <div className="border border-line bg-canvas p-6 flex flex-col">
+              <div className="border border-line bg-canvas p-6 flex flex-col card-interactive">
                 <span className="font-mono text-3xl font-bold text-ink mb-4">02</span>
                 <h3 className="font-mono text-base font-bold text-ink mb-2">
-                  Scan & Fingerprint
+                  Scan &amp; Fingerprint
                 </h3>
                 <p className="text-xs text-muted leading-relaxed font-sans">
                   Execute Quick, Standard, or Deep scans. Worker pool analyzes open ports, TLS configurations, security headers, CVE exposure, and subdomains without service degradation.
@@ -262,7 +302,7 @@ export default async function LandingPage() {
               </div>
 
               {/* Step 3 */}
-              <div className="border border-line bg-canvas p-6 flex flex-col">
+              <div className="border border-line bg-canvas p-6 flex flex-col card-interactive">
                 <span className="font-mono text-3xl font-bold text-ink mb-4">03</span>
                 <h3 className="font-mono text-base font-bold text-ink mb-2">
                   Fix and Prove
@@ -299,7 +339,7 @@ export default async function LandingPage() {
               {PRICING_PLANS.map((plan) => (
                 <div
                   key={plan.code}
-                  className={`border p-6 flex flex-col justify-between ${
+                  className={`border p-6 flex flex-col justify-between card-interactive ${
                     plan.recommended ? "border-ink bg-subtle" : "border-line bg-canvas"
                   }`}
                 >

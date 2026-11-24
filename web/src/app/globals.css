@@ -120,6 +120,73 @@
   }
 }
 
+/*
+  HARIZEON Motion System (§10.6):
+  - Snappy, precision 120ms/180ms ease-out timing.
+  - Transform and opacity only (hardware accelerated).
+  - Tactile brutalist hover lifts with crisp offset shadows.
+  - Blinking monospace terminal cursors for scanner telemetry.
+*/
+.card-interactive {
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out, border-color 140ms ease-out;
+}
+.card-interactive:hover {
+  transform: translate(-1.5px, -1.5px);
+  box-shadow: 2px 2px 0px 0px var(--hz-ink);
+  border-color: var(--hz-ink);
+}
+.card-interactive:active {
+  transform: translate(0.5px, 0.5px);
+  box-shadow: 0px 0px 0px 0px transparent;
+}
+
+.button-tactile {
+  transition: transform 100ms ease-out, box-shadow 100ms ease-out;
+}
+.button-tactile:active {
+  transform: translate(1px, 1px);
+}
+
+@keyframes terminal-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+.animate-terminal-blink {
+  animation: terminal-blink 0.85s infinite;
+}
+
+@keyframes enter-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: enter-fade 140ms ease-out forwards;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
 /* Motion: 120/200ms only, and honour reduced-motion (§10.6). */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -132,22 +199,95 @@
   }
 }
 
-/* Print: the report is a client-facing artifact (§9.2). Strip console chrome,
-   force black on white, and keep the sharp monochrome look on paper. */
+/* Print: the report is an executive, client-facing compliance artifact (§9.2).
+   Strip console chrome, force crisp black on white, format for A4 portrait,
+   and prevent awkward page splits on finding cards and table rows. */
 @media print {
-  .no-print {
-    display: none !important;
-  }
   html,
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    font-size: 10.5pt !important;
+    line-height: 1.4 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
+
+  /* Hide all interactive console chrome */
+  header,
+  nav,
+  aside,
+  button,
+  [role="navigation"],
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  main,
+  #main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
   @page {
-    margin: 18mm;
+    size: A4 portrait;
+    margin: 16mm 14mm 16mm 14mm;
   }
+
+  /* Page break rules for clean, executive PDF structure */
+  .page-break-after {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  .page-break-before {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  .avoid-break,
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  /* Crisp solid borders on paper */
+  .border,
+  .border-b,
+  .border-t,
+  .border-l,
+  .border-r,
+  .divide-y > * {
+    border-color: #000000 !important;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: #000000 !important;
+  }
+
   a[href]::after {
-    content: "";
+    content: "" !important;
   }
 }
 

@@ -28,17 +28,36 @@ EXTENDED_PORTS = COMMON_PORTS + [
     (9200, "elasticsearch"), (11211, "memcached"), (27017, "mongodb"),
 ]
 
+# AI-Armor: ports for local LLM inference engines, vector stores and AI agents
+AI_PORTS = [
+    (11434, "ollama"),
+    (8000, "vllm-or-chroma"),
+    (6333, "qdrant"),
+    (19530, "milvus"),
+    (8080, "weaviate-or-localai"),
+    (1234, "lm-studio"),
+    (7860, "gradio-flowise"),
+    (5000, "textgen"),
+]
+
 # Open ports on these services are findings, not inventory.
 SENSITIVE_SERVICES = {
     "ftp": "high", "telnet": "critical", "mysql": "high", "postgres": "high",
     "redis": "critical", "mssql": "high", "mongodb": "high", "smb": "high",
     "elasticsearch": "high", "memcached": "high", "docker": "critical",
     "vnc": "critical", "rdp": "medium", "k8s-api": "high", "nfs": "high",
+    "ollama": "critical", "vllm-or-chroma": "critical", "qdrant": "high",
+    "milvus": "high", "weaviate-or-localai": "high", "lm-studio": "critical",
+    "gradio-flowise": "critical", "textgen": "high",
 }
 
 
 def ports_for(profile):
-    return list(EXTENDED_PORTS if profile == "deep" else COMMON_PORTS)
+    if profile == "ai":
+        return list(AI_PORTS)
+    if profile == "deep":
+        return list(EXTENDED_PORTS + AI_PORTS)
+    return list(COMMON_PORTS)
 
 
 def port_service(port):
@@ -46,6 +65,9 @@ def port_service(port):
         if number == port:
             return service
     for number, service in EXTENDED_PORTS:
+        if number == port:
+            return service
+    for number, service in AI_PORTS:
         if number == port:
             return service
     return str(port)

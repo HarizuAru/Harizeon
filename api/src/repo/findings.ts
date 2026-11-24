@@ -20,6 +20,7 @@ export type FindingRow = {
   remediation: string | null;
   status: string;
   status_reason: string | null;
+  known_exploited: boolean;
   first_seen_at: Date | string;
   last_seen_at: Date | string;
   resolved_at: Date | string | null;
@@ -30,8 +31,8 @@ export type FindingRow = {
 
 const COLS = `f.id, f.org_id, f.asset_id, f.scan_id, f.fingerprint, f.title, f.description,
   f.severity, f.cvss_score, f.cve_ids, f.cwe_id, f.category, f.evidence_ref, f.remediation,
-  f.status, f.status_reason, f.first_seen_at, f.last_seen_at, f.resolved_at, f.assigned_to,
-  f.created_at, f.updated_at`;
+  f.status, f.status_reason, f.known_exploited, f.first_seen_at, f.last_seen_at, f.resolved_at,
+  f.assigned_to, f.created_at, f.updated_at`;
 
 export async function listFindings(
   db: Queryable,

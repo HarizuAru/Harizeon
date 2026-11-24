@@ -26,7 +26,7 @@ export const scheduleRoutes: FastifyPluginAsync = async (app) => {
   app.post<{
     Body: {
       cron: string;
-      profile?: "quick" | "standard" | "deep";
+      profile?: "quick" | "standard" | "deep" | "ai";
       timezone?: string;
       enabled?: boolean;
     };

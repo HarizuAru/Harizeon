@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 // Capability copy must match the code. Anything not implemented is marked
-// roadmap and says so plainly — a security product does not advertise
+// roadmap and says so plainly · a security product does not advertise
 // capabilities it has not built (§10.8).
 const SERVICE_REGISTRY: Record<
   string,
@@ -19,6 +19,23 @@ const SERVICE_REGISTRY: Record<
     technicalDetails: string;
   }
 > = {
+  aia: {
+    code: "AIA",
+    name: "Harizeon AI-Armor",
+    category: "Threat & LLM Perimeter Defense",
+    description:
+      "Specialized attack surface scanning for LLM inference endpoints, vector databases, agentic MCP servers, and leaked AI provider keys.",
+    status: "available",
+    highlights: [
+      "Unauthenticated local & cloud inference server detection (Ollama, vLLM, LocalAI, LM Studio, TGI).",
+      "Vector database and RAG store discovery (ChromaDB, Qdrant, Milvus, Weaviate).",
+      "Client-side AI provider API key leak detection (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, Together AI).",
+      "Agent tool execution and Model Context Protocol (MCP) server endpoint exposure.",
+      "Direct compliance mapping to OWASP Top 10 for LLMs (LLM01, LLM02, LLM06) and ISO/IEC 42001.",
+    ],
+    technicalDetails:
+      "Non-destructive, benign probes execute in <30 seconds per target by querying metadata and version health endpoints. Never dumps vectors or extracts model weights. Leaked keys are cryptographically verified with Shannon entropy and redacted prior to persistence.",
+  },
   asm: {
     code: "ASM",
     name: "Harizeon Surface",
@@ -44,7 +61,7 @@ const SERVICE_REGISTRY: Record<
     status: "available",
     highlights: [
       "TCP connect probing across a common and an extended port set.",
-      "Banner capture without exploit delivery — no payloads are ever sent.",
+      "Banner capture without exploit delivery · no payloads are ever sent.",
       "Flags services that must not face the internet (unauth Redis, Elasticsearch, Telnet, RDP, VNC).",
       "Resolves the target, drops every non-public address, and connects to the validated IP.",
     ],
@@ -90,11 +107,56 @@ const SERVICE_REGISTRY: Record<
       "Planned: monitoring of public repositories and paste sites for credentials belonging to your domain.",
     status: "roadmap",
     highlights: [
-      "Not yet available — this service is on the roadmap.",
+      "Not yet available · this service is on the roadmap.",
       "Planned scope: public commit and paste monitoring for your domain's secrets.",
       "Planned: alerting through the existing notification channels.",
     ],
     technicalDetails: "Not implemented. There is no code for this capability in the repository.",
+  },
+  wch: {
+    code: "WCH",
+    name: "Harizeon Watch",
+    category: "Perimeter & DNS Drift Monitoring",
+    description:
+      "Planned: continuous uptime, DNS change detection, and web defacement monitoring.",
+    status: "roadmap",
+    highlights: [
+      "Not yet available · this service is on the roadmap (v0.2+).",
+      "Continuous DNS record diffing and passive BGP route tracking.",
+      "Integrity monitoring for unexpected changes in external web surfaces.",
+      "Real-time alerting via Webhook and Email when perimeter drift occurs.",
+    ],
+    technicalDetails: "Not implemented. Planned for post-v0.1 roadmap (§05).",
+  },
+  shd: {
+    code: "SHD",
+    name: "Harizeon Shield",
+    category: "Edge Protection & Origin Cloaking",
+    description:
+      "Planned: edge proxy rules, origin IP hiding, and automated perimeter defenses.",
+    status: "roadmap",
+    highlights: [
+      "Not yet available · this service is on the roadmap (v0.2+).",
+      "Automated edge firewall recommendations based on discovered open ports.",
+      "Origin IP discovery prevention and reverse-proxy cloaking verification.",
+      "Pre-configured rate limiting rules for identified sensitive endpoints.",
+    ],
+    technicalDetails: "Not implemented. Planned for post-v0.1 roadmap (§05).",
+  },
+  rsp: {
+    code: "RSP",
+    name: "Harizeon Respond",
+    category: "Incident Triage & Playbooks",
+    description:
+      "Planned: guided containment workflows and incident remediation playbooks.",
+    status: "roadmap",
+    highlights: [
+      "Not yet available · this service is on the roadmap (v0.2+).",
+      "One-click triage playbooks for critical findings (e.g. exposed databases or keys).",
+      "Incident containment checklists mapped to BNM RMiT and ISO 27001 requirements.",
+      "Exportable forensic audit artifacts for technical teams and external reviewers.",
+    ],
+    technicalDetails: "Not implemented. Planned for post-v0.1 roadmap (§05).",
   },
 };
 
@@ -102,12 +164,20 @@ export async function generateMetadata(props: {
   params: Promise<{ code: string }>;
 }): Promise<Metadata> {
   const { code } = await props.params;
-  const service = SERVICE_REGISTRY[code.toLowerCase()];
+  const normalized = code.toLowerCase();
+  if (normalized === "scan" || normalized === "scn") {
+    return {
+      title: "Harizeon Scan (SCN) · Autonomous External Vulnerability Scanner",
+      description:
+        "Non-destructive external vulnerability scanning: port probing, TLS and certificate checks, exposed files and admin panels, AI-exposure checks, and known-CVE matching.",
+    };
+  }
+  const service = SERVICE_REGISTRY[normalized];
   if (!service) {
     return { title: "Service Specification" };
   }
   return {
-    title: `${service.name} (${service.code}) — Harizeon Specification`,
+    title: `${service.name} (${service.code}) · Harizeon Specification`,
     description: service.description,
   };
 }
@@ -116,12 +186,14 @@ export default async function ServiceDetailPage(props: {
   params: Promise<{ code: string }>;
 }) {
   const { code } = await props.params;
-  const service = SERVICE_REGISTRY[code.toLowerCase()];
+  const normalized = code.toLowerCase();
+  if (normalized === "scan" || normalized === "scn") {
+    redirect("/services/scan");
+  }
+
+  const service = SERVICE_REGISTRY[normalized];
 
   if (!service) {
-    if (code.toLowerCase() === "scan") {
-      // Handled by /services/scan
-    }
     notFound();
   }
 
@@ -209,7 +281,7 @@ export default async function ServiceDetailPage(props: {
               </Link>
             ) : (
               <span className="border border-line px-6 py-2 font-mono text-xs uppercase text-muted">
-                Roadmap — not yet available
+                Roadmap · not yet available
               </span>
             )}
           </div>

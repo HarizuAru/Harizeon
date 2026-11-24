@@ -1076,6 +1076,25 @@ export async function handleMockApi<T>(
     } as T;
   }
 
+  // GET /usage
+  if (pathname === "/usage" && method === "GET") {
+    return {
+      plan: { code: "starter", price_myr_month: 79 },
+      usage: {
+        scans_this_month: 14,
+        max_scans_per_month: 50,
+        assets_monitored: store.assets.length,
+        max_assets: 5,
+        seats_used: 1,
+        max_seats: 3,
+        is_asset_limit_near: false,
+        is_scan_limit_near: false,
+        period_start: new Date(Date.now() - 15 * 86400000).toISOString(),
+        period_end: new Date(Date.now() + 15 * 86400000).toISOString(),
+      },
+    } as T;
+  }
+
   // GET /scans
   if (pathname === "/scans" && method === "GET") {
     return { data: store.scans } as T;

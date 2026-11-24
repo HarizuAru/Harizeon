@@ -165,7 +165,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m unittest -v test_worker discovery_test heartbeat_test probe_test webchecks_test signatures_test
+      - run: python -m unittest -v test_worker discovery_test heartbeat_test probe_test webchecks_test signatures_test pdtools_test nuclei_test testssl_test whatweb_test zap_test kev_test
 
   web:
     name: web (production build)

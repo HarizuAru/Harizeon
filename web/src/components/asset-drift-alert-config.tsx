@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { labelClass, compactInputClass, compactSelectClass } from "@/lib/ui";
 import { cx } from "@/lib/cx";
 import type { ChannelItem } from "@/components/notifications-manager";
+import { testChannels } from "@/lib/channel-test";
 
 export interface AssetDriftAlertSettings {
   enabled: boolean;
@@ -67,7 +68,9 @@ export function AssetDriftAlertConfig({
     e.preventDefault();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      setSavedNotice(`Asset drift alert configuration saved at ${new Date().toLocaleTimeString()}.`);
+      setSavedNotice(
+        `Preferences saved in this browser at ${new Date().toLocaleTimeString()} (discovery alerts go to your enabled Alert Destinations channels).`,
+      );
       setTimeout(() => setSavedNotice(null), 4000);
     } catch {
       setSavedNotice("Configuration updated in session memory.");
@@ -79,28 +82,43 @@ export function AssetDriftAlertConfig({
     setIsTesting(true);
     setTestNotice(null);
 
-    setTimeout(() => {
-      const activeDests: string[] = [];
-      if (settings.emailEnabled) {
-        activeDests.push(`Email (${settings.emailRecipients.split(",")[0].trim() || "primary admin"})`);
-      }
-      if (settings.slackEnabled) {
-        activeDests.push(`Slack (${settings.slackChannel || "#alerts"})`);
-      }
-
-      if (activeDests.length === 0) {
-        setTestNotice({
-          ok: false,
-          message: "Please enable at least one notification channel (Email or Slack) to test drift alerts.",
-        });
-      } else {
-        setTestNotice({
-          ok: true,
-          message: `Sample Asset Drift alert (+5 new subdomains on verified domain 'example.com') dispatched to: ${activeDests.join(" & ")}.`,
-        });
-      }
+    // Real delivery check through the API's per-channel test endpoint.
+    const targets = (existingChannels ?? []).filter(
+      (c) =>
+        c.enabled &&
+        ((settings.emailEnabled && c.type === "email") ||
+          (settings.slackEnabled && c.type === "slack")),
+    );
+    if (targets.length === 0) {
+      setTestNotice({
+        ok: false,
+        message:
+          "No enabled email/Slack channel to test. Add one under Alert Destinations first.",
+      });
       setIsTesting(false);
-    }, 700);
+      return;
+    }
+
+    const results = await testChannels(targets.map((c) => c.id));
+    const failed = results.filter((r) => !r.ok);
+    const label = (c: ChannelItem) =>
+      c.type === "email"
+        ? `Email (${Array.isArray(c.config.recipients) ? (c.config.recipients as string[])[0] : "recipients"})`
+        : `Slack (${String(c.config.channel || "#alerts")})`;
+    if (failed.length === 0) {
+      setTestNotice({
+        ok: true,
+        message: `Test alert delivered to: ${targets.map(label).join(" & ")}. Real new-subdomain discoveries use these same channels.`,
+      });
+    } else {
+      setTestNotice({
+        ok: false,
+        message: failed
+          .map((r) => `${targets.find((c) => c.id === r.id)?.type ?? r.id}: ${r.message}`)
+          .join(" · "),
+      });
+    }
+    setIsTesting(false);
   };
 
   return (

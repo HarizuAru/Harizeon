@@ -7,7 +7,7 @@ export type ScheduleRow = {
   org_id: string;
   project_id: string | null;
   cron: string;
-  profile: "quick" | "standard" | "deep";
+  profile: "quick" | "standard" | "deep" | "ai";
   timezone: string;
   next_run_at: Date | string | null;
   enabled: boolean;
@@ -48,7 +48,7 @@ export async function createSchedule(
   orgId: string,
   input: {
     cron: string;
-    profile?: "quick" | "standard" | "deep";
+    profile?: "quick" | "standard" | "deep" | "ai";
     timezone?: string;
     enabled?: boolean;
     project_id?: string | null;
@@ -82,7 +82,7 @@ export async function updateSchedule(
   id: string,
   input: {
     cron?: string;
-    profile?: "quick" | "standard" | "deep";
+    profile?: "quick" | "standard" | "deep" | "ai";
     timezone?: string;
     enabled?: boolean;
   },

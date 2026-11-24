@@ -40,10 +40,6 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
   const [testResult, setTestResult] = useState<{ id: string; message: string; ok: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Digest preferences
-  const [weeklyDigest, setWeeklyDigest] = useState(true);
-  const [quotaWarning, setQuotaWarning] = useState(true);
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -216,44 +212,6 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
       {/* Asset Drift & Subdomain Change Alert Configuration */}
       <AssetDriftAlertConfig existingChannels={channels} />
 
-      {/* Global alert preferences */}
-      <div className="border border-line bg-canvas p-4">
-        <h3 className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-ink">
-          Automated Digest Preferences
-        </h3>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex items-start gap-3 border border-line p-3 text-xs">
-            <input
-              type="checkbox"
-              checked={weeklyDigest}
-              onChange={(e) => setWeeklyDigest(e.target.checked)}
-              className="mt-0.5"
-            />
-            <div>
-              <p className="font-mono font-bold text-ink">Weekly Security Digest</p>
-              <p className="text-muted">
-                Executive summary of security score changes, new vs resolved findings, delivered every Monday at 08:00 UTC.
-              </p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 border border-line p-3 text-xs">
-            <input
-              type="checkbox"
-              checked={quotaWarning}
-              onChange={(e) => setQuotaWarning(e.target.checked)}
-              className="mt-0.5"
-            />
-            <div>
-              <p className="font-mono font-bold text-ink">80% Usage Warning Alert</p>
-              <p className="text-muted">
-                Early notification when monitored asset or monthly scan quotas reach 80% to prevent unexpected disruption.
-              </p>
-            </div>
-          </label>
-        </div>
-      </div>
-
       {/* Test feedback banner */}
       {testResult && (
         <div
@@ -419,6 +377,60 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
               )}
 
               <div>
+                <label className={labelClass}>Quick Presets</label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChannelType("slack");
+                      setMinSeverity("high");
+                    }}
+                    className={`border px-2 py-1.5 font-mono text-xs font-semibold transition-colors ${
+                      channelType === "slack" ? "border-ink bg-ink text-canvas" : "border-line bg-subtle text-muted hover:border-ink"
+                    }`}
+                  >
+                    # SLACK
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChannelType("discord");
+                      setMinSeverity("high");
+                    }}
+                    className={`border px-2 py-1.5 font-mono text-xs font-semibold transition-colors ${
+                      channelType === "discord" ? "border-ink bg-ink text-canvas" : "border-line bg-subtle text-muted hover:border-ink"
+                    }`}
+                  >
+                    # DISCORD
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChannelType("email");
+                      setMinSeverity("high");
+                    }}
+                    className={`border px-2 py-1.5 font-mono text-xs font-semibold transition-colors ${
+                      channelType === "email" ? "border-ink bg-ink text-canvas" : "border-line bg-subtle text-muted hover:border-ink"
+                    }`}
+                  >
+                    @ EMAIL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChannelType("webhook");
+                      setMinSeverity("medium");
+                    }}
+                    className={`border px-2 py-1.5 font-mono text-xs font-semibold transition-colors ${
+                      channelType === "webhook" ? "border-ink bg-ink text-canvas" : "border-line bg-subtle text-muted hover:border-ink"
+                    }`}
+                  >
+                    &lt;/&gt; WEBHOOK
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <label className={labelClass}>Destination Type</label>
                 <select
                   value={channelType}
@@ -463,6 +475,9 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
                       className={inputClass}
                       required
                     />
+                    <p className="mt-1 font-mono text-[11px] text-muted">
+                      Setup: Slack App Directory → Incoming WebHooks → Add to Slack → Copy Webhook URL.
+                    </p>
                   </div>
                   <div>
                     <label className={labelClass}>Channel Name Override (optional)</label>
@@ -517,6 +532,9 @@ export function NotificationsManager({ initialChannels }: { initialChannels: Cha
                     className={inputClass}
                     required
                   />
+                  <p className="mt-1 font-mono text-[11px] text-muted">
+                    Setup: Discord Server Settings → Integrations → Webhooks → New Webhook → Copy Webhook URL.
+                  </p>
                 </div>
               )}
 

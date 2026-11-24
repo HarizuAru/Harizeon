@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy (PDPA) — Harizeon",
+  title: "Privacy Policy (PDPA) · Harizeon",
   description: "Harizeon Personal Data Protection Act 2010 (PDPA) notice, data retention schedules, and processing policies.",
 };
 

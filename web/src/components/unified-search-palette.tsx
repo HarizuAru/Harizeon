@@ -32,6 +32,8 @@ const NAV_ITEMS: SearchItem[] = [
   { id: "a-gen-report", title: "Generate Security Report", category: "Features & Actions", href: "/reports", badge: "ACTION", description: "Create an executive posture assessment document" },
 
   // Documentation
+  { id: "d-docs", title: "Documentation Hub", category: "Documentation", href: "/docs", description: "Architecture guides, verification flows, and developer references" },
+  { id: "d-services", title: "Services Catalog & Specifications", category: "Documentation", href: "/docs/services", description: "Deep architectural blueprints, engine specs, ARNs, and compliance mappings" },
   { id: "d-quickstart", title: "Quickstart Guide", category: "Documentation", href: "/docs/quickstart", description: "Verify ownership and execute first scan in 4 minutes" },
   { id: "d-api", title: "REST API Documentation", category: "Documentation", href: "/docs/api", description: "Fastify OpenAPI schema and curl authentication guide" },
   { id: "d-status", title: "Service Status & Health", category: "Documentation", href: "/status", description: "Scanner cluster uptime and operational telemetry" },
@@ -119,7 +121,10 @@ export function UnifiedSearchPalette({
       <div className="relative w-full max-w-2xl border border-line bg-canvas font-mono shadow-2xl">
         {/* Global Search Input Bar */}
         <div className="flex items-center border-b border-line bg-subtle px-4 py-3">
-          <span className="mr-3 text-muted">🔍</span>
+          <svg className="w-3.5 h-3.5 mr-3 text-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
           <input
             ref={inputRef}
             type="search"

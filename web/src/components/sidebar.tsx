@@ -9,14 +9,21 @@ interface SidebarProps {
   onToggleCollapse?: () => void;
 }
 
+interface NavItem {
+  code: string;
+  label: string;
+  href: string;
+  badge?: string;
+  quickAction?: {
+    href: string;
+    title: string;
+    icon: string;
+  };
+}
+
 interface NavGroup {
   group: string;
-  items: {
-    code: string;
-    label: string;
-    href: string;
-    badge?: string;
-  }[];
+  items: NavItem[];
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -24,39 +31,39 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Attack Surface",
     items: [
       { code: "HUB", label: "Dashboard", href: "/dashboard" },
-      { code: "ASM", label: "Perimeter Assets", href: "/assets" },
-      { code: "NEW", label: "Add Asset", href: "/assets/new" },
+      {
+        code: "ASM",
+        label: "Perimeter Assets",
+        href: "/assets",
+        quickAction: { href: "/assets/new", title: "Add new asset (+)", icon: "+" },
+      },
     ],
   },
   {
-    group: "Scanning Engines",
+    group: "Scanning & Risk",
     items: [
-      { code: "SCN", label: "Scans History", href: "/scans" },
-      { code: "RUN", label: "Launch Scan", href: "/scans/new" },
+      {
+        code: "SCN",
+        label: "Security Scans",
+        href: "/scans",
+        quickAction: { href: "/scans/new", title: "Launch new scan (▶)", icon: "▶" },
+      },
       { code: "SCH", label: "Scan Schedules", href: "/schedules" },
-    ],
-  },
-  {
-    group: "Threat & Risk",
-    items: [
       { code: "FND", label: "Security Findings", href: "/findings", badge: "3" },
     ],
   },
   {
-    group: "Reports & Audit",
+    group: "Reports & Governance",
     items: [
       { code: "REP", label: "Compliance Reports", href: "/reports" },
       { code: "ADT", label: "Audit Trail & Logs", href: "/settings/audit-log" },
     ],
   },
   {
-    group: "IAM & Settings",
+    group: "Administration",
     items: [
+      { code: "SET", label: "Workspace Settings", href: "/settings" },
       { code: "KEY", label: "API Credentials", href: "/settings/api-keys" },
-      { code: "USR", label: "Members & RBAC", href: "/settings/members" },
-      { code: "BIL", label: "Billing & Quotas", href: "/settings/billing" },
-      { code: "NOT", label: "Notifications & SIEM", href: "/settings/notifications" },
-      { code: "ORG", label: "Organization", href: "/settings/organization" },
     ],
   },
 ];
@@ -114,23 +121,25 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                   (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
 
                 return (
-                  <Link
+                  <div
                     key={item.href}
-                    href={item.href}
-                    title={isCollapsed ? `${item.label} (${item.code})` : undefined}
-                    aria-current={active ? "page" : undefined}
                     className={cx(
-                      "flex items-center justify-between px-2.5 py-1.5 text-xs transition-colors",
+                      "group flex items-center justify-between px-2.5 py-1.5 text-xs transition-colors",
                       active
                         ? "border-l-2 border-ink bg-subtle font-bold text-ink"
                         : "text-muted hover:bg-subtle/50 hover:text-ink",
                       isCollapsed && "justify-center px-0 py-2",
                     )}
                   >
-                    <div className="flex items-center gap-2">
+                    <Link
+                      href={item.href}
+                      title={isCollapsed ? `${item.label} (${item.code})` : undefined}
+                      aria-current={active ? "page" : undefined}
+                      className="flex items-center gap-2 flex-1 min-w-0"
+                    >
                       <span
                         className={cx(
-                          "border font-mono text-[9px] px-1 py-0.5",
+                          "border font-mono text-[9px] px-1 py-0.5 shrink-0",
                           active
                             ? "border-ink bg-ink text-canvas font-bold"
                             : "border-line bg-canvas text-faint",
@@ -139,14 +148,27 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                         {item.code}
                       </span>
                       {!isCollapsed && <span className="truncate">{item.label}</span>}
-                    </div>
+                    </Link>
 
-                    {!isCollapsed && item.badge && (
-                      <span className="border border-line bg-subtle px-1 text-[9px] font-mono font-bold text-ink">
-                        {item.badge}
-                      </span>
+                    {!isCollapsed && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {item.badge && (
+                          <span className="border border-line bg-subtle px-1 text-[9px] font-mono font-bold text-ink">
+                            {item.badge}
+                          </span>
+                        )}
+                        {item.quickAction && (
+                          <Link
+                            href={item.quickAction.href}
+                            title={item.quickAction.title}
+                            className="border border-line bg-canvas px-1 py-0.2 font-mono text-[10px] text-muted hover:border-ink hover:text-ink hover:bg-subtle transition-colors"
+                          >
+                            {item.quickAction.icon}
+                          </Link>
+                        )}
+                      </div>
                     )}
-                  </Link>
+                  </div>
                 );
               })}
             </div>

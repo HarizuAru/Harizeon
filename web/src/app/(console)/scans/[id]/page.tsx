@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LiveScan } from "@/components/live-scan";
+import { ScanReportButton } from "@/components/scan-report-button";
 import type { Scan } from "@/components/scans-list-table";
 import { apiFetch, ApiError } from "@/lib/api";
 
@@ -62,9 +63,13 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col gap-6">
       <PageHeader
         title={<span className="font-mono">{scan.id.slice(0, 8)}…</span>}
-        description={`profile: ${scan.profile} · targets: ${targets.map((t) => t.value).join(", ") || "—"}`}
+        description={`profile: ${scan.profile} · targets: ${targets.map((t) => t.value).join(", ") || "-"}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ScanReportButton
+              assetIds={targets.map((t) => t.asset_id).filter(Boolean)}
+              disabled={scan.status !== "completed" && scan.status !== "failed"}
+            />
             <Link
               href="/scans"
               className="border border-line bg-canvas px-3 py-1.5 font-mono text-xs text-ink hover:bg-subtle"

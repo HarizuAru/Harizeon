@@ -32,7 +32,7 @@ export function ThemeToggle() {
     try {
       localStorage.setItem("hz-theme", next);
     } catch {
-      /* storage unavailable — theme still applies for this session */
+      /* storage unavailable · theme still applies for this session */
     }
     listeners.forEach((l) => l());
   }

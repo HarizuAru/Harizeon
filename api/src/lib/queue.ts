@@ -9,7 +9,7 @@ export const INGEST_GROUP = "ingest";
 const HB_PREFIX = "harizeon:scan:hb:";
 const CANCEL_PREFIX = "harizeon:scan:cancel:";
 
-export type ScanProfile = "quick" | "standard" | "deep";
+export type ScanProfile = "quick" | "standard" | "deep" | "ai";
 
 export type ScanJob = {
   scan_id: string;

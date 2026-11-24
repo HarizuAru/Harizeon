@@ -50,7 +50,7 @@ export interface ComplianceFrameworkScore {
   scorePercent: number;
   passedControls: number;
   totalControls: number;
-  status: "compliant" | "needs_attention" | "non_compliant";
+  status: "on_track" | "needs_attention" | "at_risk";
   primaryGaps: string[];
 }
 
@@ -310,8 +310,10 @@ export function calculateComplianceMatrix(
 
     const scorePercent = Math.round((passedControls / fw.totalControls) * 100);
 
-    let status: ComplianceFrameworkScore["status"] = "compliant";
-    if (scorePercent < 70) status = "non_compliant";
+    // Readiness, not certification: this is a heuristic coverage score, never a
+    // claim that the org "is compliant".
+    let status: ComplianceFrameworkScore["status"] = "on_track";
+    if (scorePercent < 70) status = "at_risk";
     else if (scorePercent < 90) status = "needs_attention";
 
     const primaryGaps = Array.from(

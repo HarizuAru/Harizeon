@@ -59,3 +59,31 @@ test("compliance: every mapped category has a framework and a title", () => {
     }
   }
 });
+
+test("compliance: maps specific checkId to OWASP Top 10 for LLMs and ISO 42001", () => {
+  const results = mapFindingsToControls([
+    f({
+      id: "fnd-vector",
+      category: "ai_exposure",
+      check_id: "ai.vector_db_chroma",
+      title: "ChromaDB Exposed",
+    }),
+    f({
+      id: "fnd-agent",
+      category: "ai_exposure",
+      check_id: "ai.unauth_agent_endpoint",
+      title: "Flowise Exposed",
+    }),
+  ]);
+  const owasp = results.find((r) => r.framework === "OWASP Top 10 for LLMs");
+  assert.ok(owasp, "OWASP framework present");
+  const llm02 = owasp.controls.find((c) => c.control === "LLM02");
+  assert.ok(llm02, "LLM02 present for vector db");
+  assert.equal(llm02.status, "attention");
+  const llm06 = owasp.controls.find((c) => c.control === "LLM06");
+  assert.ok(llm06, "LLM06 present for agent endpoint");
+  assert.equal(llm06.status, "attention");
+
+  const iso42001 = results.find((r) => r.framework === "ISO/IEC 42001:2023");
+  assert.ok(iso42001, "ISO 42001 present");
+});

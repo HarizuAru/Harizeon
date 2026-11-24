@@ -43,7 +43,17 @@ class PortPlanTests(unittest.TestCase):
     def test_profiles(self):
         self.assertEqual(ports_for("quick"), COMMON_PORTS)
         self.assertEqual(ports_for("standard"), COMMON_PORTS)
-        self.assertEqual(ports_for("deep"), EXTENDED_PORTS)
+        self.assertTrue(all(p in ports_for("deep") for p in EXTENDED_PORTS))
+
+    def test_ai_ports_profile(self):
+        ai_ports = ports_for("ai")
+        services = {s for _p, s in ai_ports}
+        self.assertIn("ollama", services)
+        self.assertIn("qdrant", services)
+        self.assertIn("vllm-or-chroma", services)
+        deep_services = {s for _p, s in ports_for("deep")}
+        self.assertIn("ollama", deep_services)
+        self.assertIn("milvus", deep_services)
 
     def test_extended_has_dangerous_services(self):
         services = {s for _p, s in EXTENDED_PORTS}

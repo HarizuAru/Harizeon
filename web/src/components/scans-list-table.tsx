@@ -43,15 +43,15 @@ export function getScanDurationSeconds(scan: Scan): number | null {
 
 export function formatDuration(scan: Scan): string {
   const isFinished = ["completed", "failed", "timeout", "cancelled"].includes(scan.status);
-  if (!isFinished) return "—";
+  if (!isFinished) return "-";
 
   const completionTimestamp =
     scan.finished_at ?? scan.completed_at ?? scan.ended_at ?? scan.updated_at;
-  if (!completionTimestamp || !scan.created_at) return "—";
+  if (!completionTimestamp || !scan.created_at) return "-";
 
   const start = new Date(scan.created_at).getTime();
   const end = new Date(completionTimestamp).getTime();
-  if (isNaN(start) || isNaN(end) || end < start) return "—";
+  if (isNaN(start) || isNaN(end) || end < start) return "-";
 
   const totalSec = Math.floor((end - start) / 1000);
   if (totalSec < 60) {
@@ -81,7 +81,7 @@ export function DurationCellTooltip({ scan }: { scan: Scan }) {
         minute: "2-digit",
         second: "2-digit",
       })
-    : "—";
+    : "-";
 
   const finishIso =
     scan.finished_at ?? scan.completed_at ?? scan.ended_at ?? scan.updated_at;
@@ -495,7 +495,7 @@ export function ScansListTable({
         key: "phase",
         header: "Phase",
         mono: true,
-        render: (r) => r.phase ?? "—",
+        render: (r) => r.phase ?? "-",
       },
       {
         key: "progress_pct",

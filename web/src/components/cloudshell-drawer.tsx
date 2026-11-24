@@ -68,7 +68,7 @@ export function CloudShellDrawer({ isOpen, onClose, activeRegion }: CloudShellDr
     };
 
     if (primary === "help") {
-      output = `HARIZEON CLI (hz) — read-only:
+      output = `HARIZEON CLI (hz) · read-only:
   hz assets     List perimeter assets and verification status
   hz findings   List open findings by severity
   hz scans      List recent scans and progress
@@ -128,7 +128,7 @@ Write actions live in the console or the REST API (see /docs/api).`;
             className="border border-line bg-canvas px-2 py-0.5 text-muted hover:border-ink hover:text-ink"
             title={isMaximized ? "Restore size" : "Maximize"}
           >
-            {isMaximized ? "🗗 Restore" : "🗖 Maximize"}
+            {isMaximized ? "[⤡] Restore" : "[⤢] Maximize"}
           </button>
           <button
             onClick={() => setHistory([])}

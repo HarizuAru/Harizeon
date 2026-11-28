@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="270" height="28" viewBox="0 0 270 28" role="img" aria-label="ACT 854: NCII COMPLIANT">
+  <title>harizeon.com · ACT 854: NCII COMPLIANT · Verified by Harizeon</title>
+  <g shape-rendering="crispEdges">
+    <!-- Brand / Label Container -->
+    <rect width="109" height="28" fill="#171d29" stroke="#2b3544" stroke-width="1"/>
+    <!-- Status Container -->
+    <rect x="109" width="161" height="28" fill="#171d29" stroke="#2b3544" stroke-width="1"/>
+    <!-- Subtle divider line -->
+    <line x1="109" y1="0" x2="109" y2="28" stroke="#2b3544" stroke-width="1"/>
+  </g>
+  <!-- Harizeon Geometric Emblem -->
+  <g transform="translate(8, 7) scale(0.6)">
+    <polygon points="4,0 9,0 5,22 0,22" fill="#02acc5"/>
+    <polygon points="11,0 16,0 12,22 7,22" fill="#38bdf8"/>
+    <polygon points="6,9 18,9 16,13 4,13" fill="#02acc5"/>
+  </g>
+  <!-- Text elements -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">
+    <text x="28" y="17.5" fill="#ffffff" text-rendering="geometricPrecision">ACT 854</text>
+    <text x="189.5" y="17.5" text-anchor="middle" fill="#02acc5" text-rendering="geometricPrecision">NCII COMPLIANT</text>
+  </g>
+</svg>

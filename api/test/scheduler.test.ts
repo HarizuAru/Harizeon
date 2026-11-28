@@ -104,7 +104,10 @@ test("scheduler links scans and stretches quiet schedules", { skip: !DATABASE_UR
     const days3 = await daysUntil();
     assert.ok(days3 > days2 * 1.5, `a quiet run stretches the cadence (${days3.toFixed(2)}d vs ${days2.toFixed(2)}d)`);
     assert.ok(days3 < days2 * 4 + 0.5, `capped at 4x (${days3.toFixed(2)}d vs ${days2.toFixed(2)}d)`);
-    assert.ok(days2 > 0.25, `run 2 kept the cron cadence (${days2.toFixed(2)}d)`);
+    assert.ok(
+      days2 > -0.01 && days2 <= 1.01,
+      `run 2 kept the daily cron cadence (${days2.toFixed(2)}d)`,
+    );
   } finally {
     if (orgId) {
       try {

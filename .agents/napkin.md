@@ -1,0 +1,1 @@
+- Daily schedules are aligned to midnight UTC; cadence tests must not assume a fixed minimum time remains in the day.

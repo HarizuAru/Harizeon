@@ -27,12 +27,24 @@ export type FindingRow = {
   assigned_to: string | null;
   created_at: Date | string;
   updated_at: Date | string;
+  // v1.1 fields
+  check_id?: string | null;
+  location?: string | null;
+  source_tool?: string;
+  evidence?: string;
+  remediation_snippets?: Record<string, string>;
+  epss_score?: number | null;
+  epss_percentile?: number | null;
+  is_kev?: boolean;
+  last_verified_at?: Date | string | null;
 };
 
 const COLS = `f.id, f.org_id, f.asset_id, f.scan_id, f.fingerprint, f.title, f.description,
   f.severity, f.cvss_score, f.cve_ids, f.cwe_id, f.category, f.evidence_ref, f.remediation,
   f.status, f.status_reason, f.known_exploited, f.first_seen_at, f.last_seen_at, f.resolved_at,
-  f.assigned_to, f.created_at, f.updated_at`;
+  f.assigned_to, f.created_at, f.updated_at,
+  f.check_id, f.location, f.source_tool, f.evidence, f.remediation_snippets,
+  f.epss_score, f.epss_percentile, f.is_kev, f.last_verified_at`;
 
 export async function listFindings(
   db: Queryable,
@@ -166,4 +178,64 @@ export async function severityCounts(db: Queryable, orgId: string): Promise<Reco
   const out: Record<string, number> = { info: 0, low: 0, medium: 0, high: 0, critical: 0 };
   for (const row of res.rows) out[row.severity] = Number(row.count);
   return out;
+}
+
+export type FindingTargetInfo = {
+  finding: FindingRow;
+  asset: {
+    id: string;
+    type: string;
+    value: string;
+    verification_token: string | null;
+    verification_method: "dns_txt" | "http_file" | null;
+  };
+};
+
+export async function getFindingForVerification(
+  db: Queryable,
+  orgId: string,
+  findingId: string,
+): Promise<FindingTargetInfo | null> {
+  const res = await db.query<
+    FindingRow & {
+      asset_type: string;
+      asset_token: string | null;
+      verification_method: string | null;
+    }
+  >(
+    `SELECT ${COLS},
+       a.value AS asset_value,
+       a.type AS asset_type,
+       v.token AS asset_token,
+       v.method::text AS verification_method
+     FROM findings f
+     JOIN assets a ON a.id = f.asset_id
+     JOIN LATERAL (
+       SELECT av.token, av.method
+       FROM asset_verifications av
+       WHERE av.org_id = f.org_id
+         AND av.asset_id = a.id
+         AND av.status = 'verified'
+       ORDER BY av.verified_at DESC NULLS LAST, av.created_at DESC
+       LIMIT 1
+     ) v ON TRUE
+     WHERE f.org_id = $1 AND f.id = $2 AND a.is_active = TRUE`,
+    [orgId, findingId],
+  );
+  const row = res.rows[0];
+  if (!row || !row.asset_id || !row.asset_value || !row.asset_token) return null;
+  const method =
+    row.verification_method === "http_file" || row.verification_method === "dns_txt"
+      ? row.verification_method
+      : null;
+  return {
+    finding: row,
+    asset: {
+      id: row.asset_id,
+      type: row.asset_type,
+      value: row.asset_value,
+      verification_token: row.asset_token,
+      verification_method: method,
+    },
+  };
 }

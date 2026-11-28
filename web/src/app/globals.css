@@ -7,71 +7,76 @@
   be used by accident; only the monochrome tokens exist.
 */
 
-/* Runtime theme variables — flip for dark mode (exact inversion, §10.2). */
+/* Runtime theme variables — branded with Harizeon midnight navy & electric cyan/blue palette */
 :root {
   --hz-canvas: #ffffff;
-  --hz-subtle: #f2f2f2;
-  --hz-ink: #000000;
-  --hz-ink-2: #111111;
-  --hz-muted: #3a3a3a;
-  --hz-faint: #767676;
-  --hz-line: #c8c8c8;
-  --hz-accent: #000000;
+  --hz-subtle: #f5f6f8;
+  --hz-ink: #171d29;
+  --hz-ink-2: #242f44;
+  --hz-muted: #4b5563;
+  --hz-faint: #9ca3af;
+  --hz-line: #e2e8f0;
+  --hz-accent: #02acc5;
   --hz-accent-ink: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --hz-canvas: #000000;
-    --hz-subtle: #111111;
+    --hz-canvas: #171d29;
+    --hz-subtle: #111622;
     --hz-ink: #ffffff;
-    --hz-ink-2: #f2f2f2;
-    --hz-muted: #c8c8c8;
-    --hz-faint: #767676;
-    --hz-line: #3a3a3a;
-    --hz-accent: #ffffff;
-    --hz-accent-ink: #000000;
+    --hz-ink-2: #f1f5f9;
+    --hz-muted: #94a3b8;
+    --hz-faint: #64748b;
+    --hz-line: #242f44;
+    --hz-accent: #02acc5;
+    --hz-accent-ink: #ffffff;
   }
 }
 
 /* Manual override wins over the media query (later in source, equal specificity). */
 :root[data-theme="light"] {
   --hz-canvas: #ffffff;
-  --hz-subtle: #f2f2f2;
-  --hz-ink: #000000;
-  --hz-ink-2: #111111;
-  --hz-muted: #3a3a3a;
-  --hz-faint: #767676;
-  --hz-line: #c8c8c8;
-  --hz-accent: #000000;
+  --hz-subtle: #f5f6f8;
+  --hz-ink: #171d29;
+  --hz-ink-2: #242f44;
+  --hz-muted: #4b5563;
+  --hz-faint: #9ca3af;
+  --hz-line: #e2e8f0;
+  --hz-accent: #02acc5;
   --hz-accent-ink: #ffffff;
 }
 
 :root[data-theme="dark"] {
-  --hz-canvas: #000000;
-  --hz-subtle: #111111;
+  --hz-canvas: #171d29;
+  --hz-subtle: #111622;
   --hz-ink: #ffffff;
-  --hz-ink-2: #f2f2f2;
-  --hz-muted: #c8c8c8;
-  --hz-faint: #767676;
-  --hz-line: #3a3a3a;
-  --hz-accent: #ffffff;
-  --hz-accent-ink: #000000;
+  --hz-ink-2: #f1f5f9;
+  --hz-muted: #94a3b8;
+  --hz-faint: #64748b;
+  --hz-line: #242f44;
+  --hz-accent: #02acc5;
+  --hz-accent-ink: #ffffff;
 }
 
-/* Static monochrome palette + fonts (§10.2, §10.3). */
+/* Static brand & monochrome palette + fonts */
 @theme {
   --color-*: initial;
 
   --color-black: #000000;
   --color-white: #ffffff;
-  --color-grey-100: #f2f2f2;
-  --color-grey-300: #c8c8c8;
-  --color-grey-500: #767676;
-  --color-grey-700: #3a3a3a;
-  --color-grey-900: #111111;
+  --color-grey-100: #f5f6f8;
+  --color-grey-300: #e2e8f0;
+  --color-grey-500: #9ca3af;
+  --color-grey-700: #4b5563;
+  --color-grey-900: #171d29;
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+  --color-brand-cyan: #02acc5;
+  --color-brand-blue: #2a7ae9;
+  --color-brand-dark: #171d29;
+  --color-brand-subtle: #111622;
+
+  --font-sans: var(--font-dm-sans), var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono",
     Menlo, Consolas, "Liberation Mono", monospace;
@@ -91,6 +96,7 @@
 }
 
 @layer base {
+
   *,
   ::before,
   ::after {
@@ -130,11 +136,13 @@
 .card-interactive {
   transition: transform 140ms ease-out, box-shadow 140ms ease-out, border-color 140ms ease-out;
 }
+
 .card-interactive:hover {
   transform: translate(-1.5px, -1.5px);
   box-shadow: 2px 2px 0px 0px var(--hz-ink);
   border-color: var(--hz-ink);
 }
+
 .card-interactive:active {
   transform: translate(0.5px, 0.5px);
   box-shadow: 0px 0px 0px 0px transparent;
@@ -143,18 +151,24 @@
 .button-tactile {
   transition: transform 100ms ease-out, box-shadow 100ms ease-out;
 }
+
 .button-tactile:active {
   transform: translate(1px, 1px);
 }
 
 @keyframes terminal-blink {
-  0%, 49% {
+
+  0%,
+  49% {
     opacity: 1;
   }
-  50%, 100% {
+
+  50%,
+  100% {
     opacity: 0;
   }
 }
+
 .animate-terminal-blink {
   animation: terminal-blink 0.85s infinite;
 }
@@ -164,31 +178,38 @@
     opacity: 0;
     transform: translateY(2px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
+
 .animate-fade-in {
   animation: enter-fade 140ms ease-out forwards;
 }
 
 @keyframes pulse-dot {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.35;
     transform: scale(0.85);
   }
 }
+
 .animate-pulse-dot {
   animation: pulse-dot 1.8s ease-in-out infinite;
 }
 
 /* Motion: 120/200ms only, and honour reduced-motion (§10.6). */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   ::before,
   ::after {
@@ -203,6 +224,7 @@
    Strip console chrome, force crisp black on white, format for A4 portrait,
    and prevent awkward page splits on finding cards and table rows. */
 @media print {
+
   html,
   body {
     background: #ffffff !important;
@@ -277,7 +299,7 @@
   .border-t,
   .border-l,
   .border-r,
-  .divide-y > * {
+  .divide-y>* {
     border-color: #000000 !important;
   }
 
@@ -363,38 +385,111 @@
   background-color: var(--status-completed-bg);
   border-color: var(--status-completed-border);
 }
+
 .status-badge-failed {
   color: var(--status-failed-text);
   background-color: var(--status-failed-bg);
   border-color: var(--status-failed-border);
 }
+
 .status-badge-cancelled {
   color: var(--status-cancelled-text);
   background-color: var(--status-cancelled-bg);
   border-color: var(--status-cancelled-border);
 }
+
 .status-badge-timeout {
   color: var(--status-timeout-text);
   background-color: var(--status-timeout-bg);
   border-color: var(--status-timeout-border);
 }
+
 @keyframes pulse-badge {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.55;
   }
 }
+
 .status-badge-running {
   color: var(--status-running-text);
   background-color: var(--status-running-bg);
   border-color: var(--status-running-border);
   animation: pulse-badge 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
 .status-badge-queued {
   color: var(--status-queued-text);
   background-color: var(--status-queued-bg);
   border-color: var(--status-queued-border);
 }
 
+/* Scoped Penguin-style landing page tokens & fluid scale */
+.ps-landing {
+  font-family: var(--font-dm-sans), "DM Sans", Arial, sans-serif;
+  font-size: clamp(0.875rem, 0.8393rem + 0.1786vw, 1rem);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  color: #171d29;
+  background-color: #ffffff;
+}
+
+.ps-container {
+  width: 100%;
+  max-width: 90rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: clamp(1rem, 0.4286rem + 2.857vw, 3rem);
+  padding-right: clamp(1rem, 0.4286rem + 2.857vw, 3rem);
+}
+
+.ps-display {
+  font-size: clamp(2.75rem, 2.2rem + 2.7vw, 5rem);
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.ps-h2 {
+  font-size: clamp(1.5rem, 1.2143rem + 1.4286vw, 2.5rem);
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.ps-h3 {
+  font-size: clamp(1.375rem, 1.1964rem + 0.8929vw, 2rem);
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.ps-section-py {
+  padding-top: clamp(4.5rem, 3.5rem + 5vw, 8rem);
+  padding-bottom: clamp(4.5rem, 3.5rem + 5vw, 8rem);
+}
+
+.ps-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ps-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Card interactive effect with brand cyan highlight */
+.card-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: #02acc5;
+  box-shadow: 0 12px 24px -6px rgba(2, 172, 197, 0.12), 0 4px 8px -4px rgba(2, 172, 197, 0.08);
+}

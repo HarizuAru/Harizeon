@@ -1,0 +1,122 @@
+name: Harizeon Security Gates
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  secrets-and-sast:
+    name: Secrets (Gitleaks) & SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Semgrep SAST (TS, Python, Docker, SQL)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/typescript
+            p/python
+            p/dockerfile
+
+  dependency-and-container-cves:
+    name: SCA & Container Image Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy Filesystem & Lockfile Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Build Worker Image
+        run: docker build -t harizeon-worker:ci ./worker
+
+      - name: Verify Worker Runs Non-Root
+        run: |
+          USER_ID=$(docker run --rm --entrypoint id harizeon-worker:ci -u)
+          test "$USER_ID" != "0"
+
+      - name: Trivy Worker Image Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: harizeon-worker:ci
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+  postgres-rls-assertions:
+    name: PostgreSQL 16 Cross-Tenant RLS Gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: harizeon_migrator
+          POSTGRES_PASSWORD: ci_migrator_password
+          POSTGRES_DB: harizeon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Provision App Role & Run RLS Isolation Assertions
+        env:
+          DATABASE_URL: postgres://harizeon_migrator:ci_migrator_password@localhost:5432/harizeon_test
+          HARIZEON_APP_PASSWORD: ci_app_role_password
+        run: |
+          for f in db/migrations/*.sql; do
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+          sh infra/db/create-app-role.sh
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/tests/assert_rls.sql
+
+  worker-security-tests:
+    name: Worker SSRF, Redaction & Scope Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          cd worker
+          pip install -r requirements.txt pytest
+          pytest -v tests/test_security_gates.py
+
+  control-plane-security-tests:
+    name: Fastify Control-Plane Security Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: |
+          cd api
+          npm ci
+          npm run typecheck
+          npm test

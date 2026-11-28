@@ -15,6 +15,11 @@ type FindingRow = {
   title: string;
   severity: string;
   status: string;
+  category?: string | null;
+  known_exploited?: boolean | null;
+  epss_score?: number | null;
+  epss_percentile?: number | null;
+  cve_ids?: string[] | null;
   asset_value: string | null;
   first_seen_at: string;
 };
@@ -29,12 +34,55 @@ const columns: Column<FindingRow>[] = [
   { key: "severity", header: "Severity", render: (r) => <SeverityChip severity={r.severity as Severity} /> },
   {
     key: "title",
-    header: "Title",
+    header: "Threat Finding & Evidence",
     render: (r) => (
-      <Link href={`/findings/${r.id}`} className="underline">
-        {r.title}
-      </Link>
+      <div className="flex flex-col gap-1 py-0.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href={`/findings/${r.id}`} className="font-medium hover:underline hover:text-[#02acc5] transition-colors">
+            {r.title}
+          </Link>
+          {r.known_exploited ? (
+            <span className="border border-red-600 bg-red-600/10 text-red-600 px-1.5 py-0.2 font-mono text-[9px] font-bold uppercase tracking-wider">
+              KEV · ACTIVE EXPLOIT
+            </span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2 font-mono text-[10px] text-muted">
+          {r.category ? (
+            <span className="border border-line bg-subtle px-1.5 py-0.2 uppercase">
+              {r.category.replace("_", " ")}
+            </span>
+          ) : null}
+          {r.cve_ids && r.cve_ids.length > 0 ? (
+            <span className="text-muted">{r.cve_ids.slice(0, 2).join(", ")}</span>
+          ) : null}
+        </div>
+      </div>
     ),
+  },
+  {
+    key: "epss_score",
+    header: "EPSS Exploit Risk",
+    render: (r) => {
+      const score = typeof r.epss_score === "number" ? r.epss_score : null;
+      if (score === null) return <span className="font-mono text-[11px] text-faint">-</span>;
+      const pct = (score * 100).toFixed(1);
+      const isHigh = score >= 0.7;
+      const isMed = score >= 0.25;
+      return (
+        <div
+          className="flex flex-col gap-0.5 font-mono text-xs"
+          title={`Exploit Prediction Scoring System: ${(score * 100).toFixed(2)}% probability of active exploitation in wild`}
+        >
+          <span className={`font-bold ${isHigh ? "text-red-600" : isMed ? "text-amber-600" : "text-muted"}`}>
+            {pct}%
+          </span>
+          <span className="text-[9px] text-muted">
+            {r.epss_percentile ? `${Math.round(r.epss_percentile * 100)}th %tile` : "probability"}
+          </span>
+        </div>
+      );
+    },
   },
   { key: "asset_value", header: "Asset", mono: true },
   {

@@ -1,15 +1,18 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { withTx } from "../db";
-import { findUserByEmail, createUser, setEmailVerified, updateLastLogin } from "../repo/users";
+import { findUserByEmail, findUserById, createUser, setEmailVerified, updateLastLogin, setPendingMfaSecret, enableUserMfa } from "../repo/users";
 import { createSession, revokeAllUserSessions, revokeSession } from "../repo/sessions";
 import { createToken, consumeToken } from "../repo/userTokens";
 import { createMembership, orgIdsForUser } from "../repo/memberships";
+import { getOrgById } from "../repo/orgs";
 import { verifyPassword, hashPassword } from "../lib/password";
+import { buildOtpAuthUri, generateTotpSecret, openMfaSecret, sealMfaSecret, verifyTotpCode } from "../lib/totp";
 import { writeAudit } from "../lib/audit";
 import { sendEmail, buildAuthUrl } from "../lib/email";
 import { unauthorized, badRequest, conflict } from "../lib/errors";
-import { invalidateSession } from "../plugins/auth";
+import { config } from "../config";
+import { invalidateSession, requireAuth } from "../plugins/auth";
 import { randomUUID } from "node:crypto";
 
 const SignupBody = z.object({
@@ -19,7 +22,35 @@ const SignupBody = z.object({
   orgName: z.string().min(1).max(100),
   orgSlug: z.string().regex(/^[a-z0-9-]+$/).min(2).max(63),
 });
-const LoginBody = z.object({ email: z.string().email(), password: z.string().min(1) });
+const LoginBody = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  totp_code: z.string().trim().min(1).optional(),
+});
+const MfaVerifyBody = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "A 6-digit TOTP code is required"),
+});
+
+/** Enforce TOTP MFA when enabled on the user or mandated by the organization (ENT-01). */
+export function assertLoginMfaSatisfied(params: {
+  userMfaEnabled: boolean;
+  userMfaSecret: string | null;
+  orgEnforceMfa: boolean;
+  totpCode?: string;
+  masterKey?: string;
+}): void {
+  if (!params.userMfaEnabled && !params.orgEnforceMfa) return;
+  if (!params.userMfaSecret) {
+    throw unauthorized("mfa_required", "Organization requires TOTP MFA enrollment before login");
+  }
+  if (!params.totpCode) {
+    throw unauthorized("mfa_required", "TOTP verification code required");
+  }
+  const secret = openMfaSecret(params.userMfaSecret, params.masterKey);
+  if (!verifyTotpCode(secret, params.totpCode)) {
+    throw unauthorized("invalid_mfa_code", "Invalid TOTP verification code");
+  }
+}
 const VerifyEmailBody = z.object({ token: z.string().min(1) });
 const ResetRequestBody = z.object({ email: z.string().email() });
 const ResetConfirmBody = z.object({ token: z.string().min(1), password: z.string().min(12) });
@@ -99,7 +130,7 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /v1/auth/login
   app.post("/auth/login", {
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
-      const { email, password } = LoginBody.parse(req.body);
+      const { email, password, totp_code } = LoginBody.parse(req.body);
       const db = req.server.pg;
 
       const user = await findUserByEmail(db, email);
@@ -110,15 +141,22 @@ export async function authRoutes(app: FastifyInstance) {
       const orgId = (await orgIdsForUser(db, user.id))[0];
       if (!orgId) throw unauthorized("no_org", "User has no organization");
 
-      const { token } = await createSession(db, {
-        userId: user.id,
-        orgId,
-        userAgent: req.headers["user-agent"],
-        ip: req.ip,
+      const org = await withTx((client) => getOrgById(client, orgId), orgId);
+      assertLoginMfaSatisfied({
+        userMfaEnabled: Boolean(user.mfa_enabled),
+        userMfaSecret: user.mfa_secret,
+        orgEnforceMfa: Boolean(org?.enforce_mfa),
+        totpCode: totp_code,
+        masterKey: config.HARIZEON_MASTER_KEY,
       });
-      await updateLastLogin(db, user.id);
 
-      await withTx(async (client) => {
+      const { token } = await withTx(async (client) => {
+        const session = await createSession(client, {
+          userId: user.id,
+          orgId,
+          userAgent: req.headers["user-agent"],
+          ip: req.ip,
+        });
         await writeAudit(client, {
           orgId,
           actorType: "user",
@@ -127,11 +165,13 @@ export async function authRoutes(app: FastifyInstance) {
           ip: req.ip,
           userAgent: req.headers["user-agent"],
         });
+        return session;
       }, orgId);
+      await updateLastLogin(db, user.id);
 
       reply.setCookie(SESSION_COOKIE, token, {
         httpOnly: true,
-        secure: false, // set true behind TLS in production
+        secure: config.COOKIE_SECURE,
         sameSite: "lax",
         path: "/",
         maxAge: SESSION_MAX_AGE,
@@ -251,6 +291,79 @@ export async function authRoutes(app: FastifyInstance) {
       }, orgId);
 
       return { ok: true, message: "Password updated. Please log in again." };
+    },
+  });
+
+  // POST /v1/auth/mfa/setup — generate and store pending TOTP secret + otpauth URI
+  app.post("/auth/mfa/setup", {
+    preHandler: [requireAuth],
+    handler: async (req: FastifyRequest, _reply: FastifyReply) => {
+      const userId = req.auth!.userId;
+      if (!userId) {
+        throw badRequest("user_session_required", "MFA setup requires a user session");
+      }
+      const db = req.server.pg;
+      const user = await findUserById(db, userId);
+      if (!user) {
+        throw unauthorized("user_not_found", "Authenticated user not found");
+      }
+
+      const secret = generateTotpSecret();
+      const stored = sealMfaSecret(secret, config.HARIZEON_MASTER_KEY);
+      await setPendingMfaSecret(db, userId, stored);
+
+      await withTx(async (client) => {
+        await writeAudit(client, {
+          orgId: req.auth!.orgId,
+          actorType: "user",
+          actorId: userId,
+          action: "user.mfa.setup",
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+      }, req.auth!.orgId);
+
+      return {
+        secret,
+        otpauth_uri: buildOtpAuthUri({ secret, email: user.email }),
+      };
+    },
+  });
+
+  // POST /v1/auth/mfa/verify — verify 6-digit TOTP code and enable MFA
+  app.post("/auth/mfa/verify", {
+    preHandler: [requireAuth],
+    handler: async (req: FastifyRequest, _reply: FastifyReply) => {
+      const userId = req.auth!.userId;
+      if (!userId) {
+        throw badRequest("user_session_required", "MFA verification requires a user session");
+      }
+      const { code } = MfaVerifyBody.parse(req.body);
+      const db = req.server.pg;
+      const user = await findUserById(db, userId);
+      if (!user || !user.mfa_secret) {
+        throw badRequest("mfa_not_initialized", "Initialize TOTP setup before verifying");
+      }
+
+      const secret = openMfaSecret(user.mfa_secret, config.HARIZEON_MASTER_KEY);
+      if (!verifyTotpCode(secret, code)) {
+        throw badRequest("invalid_mfa_code", "Invalid TOTP verification code");
+      }
+
+      await enableUserMfa(db, userId);
+
+      await withTx(async (client) => {
+        await writeAudit(client, {
+          orgId: req.auth!.orgId,
+          actorType: "user",
+          actorId: userId,
+          action: "user.mfa.enabled",
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+      }, req.auth!.orgId);
+
+      return { mfa_enabled: true };
     },
   });
 }

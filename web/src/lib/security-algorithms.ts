@@ -17,6 +17,10 @@ export interface FindingInput {
   category?: string | null;
   asset_value?: string | null;
   first_seen_at?: string | Date;
+  known_exploited?: boolean | null;
+  epss_score?: number | null;
+  epss_percentile?: number | null;
+  cve_ids?: string[] | null;
 }
 
 export interface SecurityScoreResult {
@@ -104,20 +108,23 @@ export function calculateSecurityPosture(
     totalAgeDays += ageMs / (24 * 3600 * 1000);
 
     const baseWeight = weights[sev] ?? 1;
-    const multiplier = isOld && (sev === "critical" || sev === "high") ? 1.5 : 1.0;
+    const isKev = Boolean(f.known_exploited);
+    const multiplier = (isOld && (sev === "critical" || sev === "high") ? 1.4 : 1.0) * (isKev ? 1.6 : 1.0);
     const penalty = baseWeight * multiplier;
 
     penaltiesByCategory[cat] = (penaltiesByCategory[cat] || 0) + penalty;
 
-    // EPSS probability heuristic
-    let epss = 0.05;
-    if (sev === "critical") epss = 0.88;
-    else if (sev === "high") epss = 0.62;
-    else if (sev === "medium") epss = 0.28;
-    else if (sev === "low") epss = 0.08;
+    // EPSS probability heuristic & true EPSS score ingestion
+    let epss = typeof f.epss_score === "number" ? f.epss_score : 0.05;
+    if (typeof f.epss_score !== "number") {
+      if (sev === "critical") epss = isKev ? 0.94 : 0.88;
+      else if (sev === "high") epss = isKev ? 0.85 : 0.62;
+      else if (sev === "medium") epss = 0.28;
+      else if (sev === "low") epss = 0.08;
 
-    if (cat === "exposed_service" || cat === "web" || cat === "ai_exposure") {
-      epss = Math.min(0.99, epss * 1.25);
+      if (cat === "exposed_service" || cat === "web" || cat === "ai_exposure" || cat === "cloud_storage") {
+        epss = Math.min(0.99, epss * 1.25);
+      }
     }
     totalEpss += epss;
   }
@@ -265,53 +272,56 @@ export function calculateComplianceMatrix(
 
   const frameworks = [
     {
+      framework: "NACSA NCII (Act 854 / P.U.(A) 220)",
+      standardName: "Immediate Notice + 6h Particulars / 14d Supplementary Report",
+      categories: ["exposed_service", "tls", "headers", "cloud_storage", "api_security", "ai_exposure"],
+    },
+    {
+      framework: "OWASP Top 10 for LLMs & AI (v2.0)",
+      standardName: "Generative AI & Agentic Attack Surface Security",
+      categories: ["ai_exposure", "api_security"],
+    },
+    {
       framework: "ISO/IEC 27001:2022",
       standardName: "Information Security Management",
-      totalControls: 18,
-      categories: ["tls", "headers", "exposed_service", "web"],
+      categories: ["tls", "headers", "exposed_service", "web", "cloud_storage"],
     },
     {
       framework: "SOC 2 Type II",
       standardName: "Security & Confidentiality (Trust Services)",
-      totalControls: 16,
-      categories: ["exposed_service", "tls", "web", "ai_exposure"],
+      categories: ["exposed_service", "tls", "web", "ai_exposure", "cloud_storage", "api_security"],
     },
     {
       framework: "NIST CSF 2.0",
       standardName: "Identify, Protect, Detect (PR.AC / PR.DS)",
-      totalControls: 20,
-      categories: ["exposed_service", "headers", "tls"],
+      categories: ["exposed_service", "headers", "tls", "cloud_storage"],
     },
     {
       framework: "PCI-DSS v4.0",
       standardName: "Payment Card Industry Data Security",
-      totalControls: 14,
-      categories: ["tls", "exposed_service"],
+      categories: ["tls", "exposed_service", "api_security"],
     },
     {
-      framework: "PDPA / GDPR",
-      standardName: "Data Protection & Privacy Principles",
-      totalControls: 12,
-      categories: ["tls", "web"],
+      framework: "PDPA 2024 (Act 709) / GDPR",
+      standardName: "Data Protection, Processor s.9 & Breach s.12B (72h / 7d)",
+      categories: ["tls", "web", "cloud_storage", "ai_exposure"],
     },
   ];
 
   return frameworks.map((fw) => {
-    // Count violations impacting this framework
     const violations = openFindings.filter((f) =>
       fw.categories.includes((f.category || "").toLowerCase()),
     );
-
-    const deductionPerViolation = 2;
-    const passedControls = Math.max(
-      0,
-      fw.totalControls - Math.min(fw.totalControls, violations.length * deductionPerViolation),
+    const impactedCategories = new Set(
+      violations.map((v) => (v.category || "").toLowerCase()).filter(Boolean),
     );
+    const totalControls = fw.categories.length;
+    const passedControls = Math.max(0, totalControls - impactedCategories.size);
 
-    const scorePercent = Math.round((passedControls / fw.totalControls) * 100);
+    const scorePercent = totalControls > 0 ? Math.round((passedControls / totalControls) * 100) : 100;
 
-    // Readiness, not certification: this is a heuristic coverage score, never a
-    // claim that the org "is compliant".
+    // Heuristic technical-category coverage indicator, never a statutory
+    // compliance certification or legal opinion.
     let status: ComplianceFrameworkScore["status"] = "on_track";
     if (scorePercent < 70) status = "at_risk";
     else if (scorePercent < 90) status = "needs_attention";
@@ -325,7 +335,7 @@ export function calculateComplianceMatrix(
       standardName: fw.standardName,
       scorePercent,
       passedControls,
-      totalControls: fw.totalControls,
+      totalControls,
       status,
       primaryGaps: primaryGaps.length > 0 ? primaryGaps : ["All baseline controls verified passing"],
     };
@@ -367,6 +377,14 @@ export function clusterFindings(findings: FindingInput[]): VulnerabilityCluster[
       rootCause = "Unrestricted Network Perimeter Ingress";
       summary = "Internal database or cache service exposed without boundary firewall.";
       exploitRisk = "critical";
+    } else if (cat === "cloud_storage") {
+      rootCause = "Public Cloud Storage Access Control Deficiency";
+      summary = "Object storage bucket (AWS S3 / GCS) world-readable without authentication.";
+      exploitRisk = "critical";
+    } else if (cat === "api_security") {
+      rootCause = "API Schema Disclosure & Introspection Leak";
+      summary = "Production API endpoints permit full introspection and schema extraction.";
+      exploitRisk = "high";
     } else if (cat === "tls") {
       rootCause = "Cryptographic Transit Degradation";
       summary = "Deprecated cipher suites or expired TLS configurations in transit.";
@@ -376,8 +394,8 @@ export function clusterFindings(findings: FindingInput[]): VulnerabilityCluster[
       summary = "Missing HTTP security headers leaving endpoints vulnerable to XSS or MIME sniffing.";
       exploitRisk = "low";
     } else if (cat === "ai_exposure") {
-      rootCause = "API Credential Leakage Vector";
-      summary = "AI API keys or private service endpoints exposed in publicly accessible artifacts.";
+      rootCause = "Agentic & AI Infrastructure Endpoint Exposure";
+      summary = "Model Context Protocol (MCP) tools, LLM inference ports, or vector DBs exposed publicly.";
       exploitRisk = "critical";
     }
 

@@ -1,55 +1,38 @@
-# Harizeon data-plane worker. Deliberately holds NO database credentials — its
-# only inputs are the queue and the job payload (§06.3).
+# ---- Stage 1: Build pinned Go scanner binaries (MIT licensed) ----
+FROM golang:1.23-alpine AS go-tools
+RUN apk add --no-cache git ca-certificates
+
+ENV CGO_ENABLED=0
+RUN go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.8 && \
+    go install github.com/projectdiscovery/dnsx/cmd/dnsx@v1.2.1 && \
+    go install github.com/projectdiscovery/httpx/cmd/httpx@v1.6.10 && \
+    go install github.com/projectdiscovery/tlsx/cmd/tlsx@v1.1.7 && \
+    go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.3.7
+
+# ---- Stage 2: Minimal Non-Root Python Data Plane ----
 FROM python:3.12-slim
 
-# Pinned OSS engines (bump deliberately; each runs as a subprocess, never linked).
-# testssl.sh has no GitHub releases anymore — the stable tarball lives on testssl.sh.
-ARG SUBFINDER_VERSION=2.17.0
-ARG HTTPX_VERSION=1.12.0
-ARG DNSX_VERSION=1.3.1
-ARG NUCLEI_VERSION=3.11.1
-ARG WHATWEB_VERSION=0.6.4
-ARG TESTSSL_VERSION=3.2.5
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --create-home --uid 10001 --shell /usr/sbin/nologin scanner
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl openssl ruby tar unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-# ProjectDiscovery static binaries (linux/amd64 release zips).
-RUN set -eux; \
-    for spec in "subfinder ${SUBFINDER_VERSION}" "httpx ${HTTPX_VERSION}" \
-                "dnsx ${DNSX_VERSION}" "nuclei ${NUCLEI_VERSION}"; do \
-      set -- ${spec}; name="$1"; ver="$2"; \
-      curl -fsSL -o "/tmp/${name}.zip" \
-        "https://github.com/projectdiscovery/${name}/releases/download/v${ver}/${name}_${ver}_linux_amd64.zip"; \
-      unzip -q "/tmp/${name}.zip" -d "/tmp/${name}"; \
-      install -m 0755 "/tmp/${name}/${name}" "/usr/local/bin/${name}"; \
-      rm -rf "/tmp/${name}.zip" "/tmp/${name}"; \
-    done
-
-# Nuclei template corpus, baked in so scans never hit the network for updates.
-RUN nuclei -update-templates
-
-# WhatWeb fingerprinting (MIT).
-RUN curl -fsSL "https://github.com/urbanadventurer/WhatWeb/archive/refs/tags/v${WHATWEB_VERSION}.tar.gz" \
-      | tar -xz -C /opt --strip-components=1 --one-top-level=whatweb \
-    && printf '#!/bin/sh\nexec ruby /opt/whatweb/whatweb "$@"\n' > /usr/local/bin/whatweb \
-    && chmod 0755 /usr/local/bin/whatweb
-
-# testssl.sh (GPLv2, unmodified subprocess — attribution per upstream request:
-# HARIZEON uses testssl.sh, https://testssl.sh). Wrapper keeps etc/ next to the
-# real script since we install from a tarball, not a git checkout.
-RUN curl -fsSL -o /tmp/testssl.tgz "https://testssl.sh/testssl.sh-v${TESTSSL_VERSION}.tar.gz" \
-    && mkdir -p /opt/testssl \
-    && tar -xzf /tmp/testssl.tgz -C /opt/testssl \
-    && rm /tmp/testssl.tgz \
-    && SCRIPT="$(find /opt/testssl -maxdepth 2 -type f -name 'testssl.sh' | head -n1)" \
-    && test -n "$SCRIPT" \
-    && printf '#!/bin/sh\nexec /%s "$@"\n' "${SCRIPT#/}" > /usr/local/bin/testssl.sh \
-    && chmod 0755 /usr/local/bin/testssl.sh
+COPY --from=go-tools /go/bin/subfinder /usr/local/bin/subfinder
+COPY --from=go-tools /go/bin/dnsx      /usr/local/bin/dnsx
+COPY --from=go-tools /go/bin/httpx     /usr/local/bin/httpx
+COPY --from=go-tools /go/bin/tlsx      /usr/local/bin/tlsx
+COPY --from=go-tools /go/bin/nuclei    /usr/local/bin/nuclei
 
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["python", "worker.py"]
+
+COPY templates/ /opt/harizeon/templates/
+COPY .          /app/worker/
+
+ENV HOME=/tmp/scanner-home \
+    XDG_CONFIG_HOME=/tmp/scanner-home/.config \
+    XDG_CACHE_HOME=/tmp/scanner-home/.cache \
+    PYTHONUNBUFFERED=1
+
+USER scanner
+ENTRYPOINT ["python", "-m", "worker.main"]

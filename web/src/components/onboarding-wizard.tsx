@@ -144,7 +144,14 @@ export function OnboardingWizard() {
             <div className="flex justify-end pt-4 border-t border-line">
               <button
                 disabled={!orgName.trim()}
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  fetch("/api/v1/org", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: orgName }),
+                  }).catch(() => {});
+                  setStep(2);
+                }}
                 className="border border-ink bg-ink px-6 py-2.5 font-mono text-xs uppercase text-canvas hover:bg-canvas hover:text-ink transition-colors disabled:opacity-30"
               >
                 Continue to Domain Setup →

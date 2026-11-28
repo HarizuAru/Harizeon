@@ -90,9 +90,9 @@ export function TopBar({
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-line bg-canvas px-3 select-none">
+      <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between gap-2 border-b border-line bg-canvas px-3 select-none">
         {/* Left Section: Logo + Services Mega-Menu + Pinned Items */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Mobile Sidebar Toggle Button */}
           {onToggleSidebar && (
             <button
@@ -108,11 +108,19 @@ export function TopBar({
           {/* Harizeon Console Logo */}
           <Link
             href="/dashboard"
-            className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-[0.08em] text-ink"
+            className="flex items-center gap-2 text-ink group"
           >
-            <span className="border border-ink bg-ink px-1.5 py-0.5 text-canvas">◆</span>
-            <span className="hidden sm:inline">HARIZEON</span>
-            <span className="border border-line bg-subtle px-1 text-[9px] font-normal text-muted">
+            <img
+              src="/brand/logo-dark.png"
+              alt="Harizeon"
+              className="h-6 w-auto object-contain dark:hidden"
+            />
+            <img
+              src="/brand/logo-white.png"
+              alt="Harizeon"
+              className="h-6 w-auto object-contain hidden dark:block"
+            />
+            <span className="hidden sm:inline border border-line bg-subtle px-1.5 py-0.5 text-[9px] font-mono uppercase font-medium text-muted">
               Console
             </span>
           </Link>
@@ -120,7 +128,7 @@ export function TopBar({
           {/* Services Mega-Menu Button */}
           <button
             onClick={() => setIsServicesOpen(!isServicesOpen)}
-            className={`flex items-center gap-1.5 border px-2.5 py-1 font-mono text-xs uppercase tracking-wider transition-colors ${
+            className={`hidden md:flex items-center gap-1.5 border px-2.5 py-1 font-mono text-xs uppercase tracking-wider transition-colors ${
               isServicesOpen
                 ? "border-ink bg-ink text-canvas"
                 : "border-line bg-subtle text-ink hover:border-ink"
@@ -133,17 +141,17 @@ export function TopBar({
           </button>
 
           {/* Pinned Services Bar */}
-          <nav className="hidden xl:flex items-center gap-1 pl-2 border-l border-line" aria-label="Pinned favorites">
+          <nav className="hidden 2xl:flex items-center gap-1 pl-2 border-l border-line" aria-label="Pinned favorites">
             {PINNED_SERVICES.map((pin) => {
               const active = pathname === pin.href || pathname.startsWith(pin.href + "/");
               return (
                 <Link
                   key={pin.href}
                   href={pin.href}
-                  className={`px-2 py-1 font-mono text-[11px] transition-colors ${
+                  className={`px-2.5 py-1 font-mono text-[11px] rounded-md transition-colors ${
                     active
-                      ? "border-b-2 border-ink font-bold text-ink"
-                      : "text-muted hover:text-ink"
+                      ? "border-b-2 border-[#02acc5] font-bold text-[#02acc5] bg-[#02acc5]/10"
+                      : "text-muted hover:text-ink hover:bg-subtle"
                   }`}
                 >
                   {pin.label}
@@ -154,31 +162,32 @@ export function TopBar({
         </div>
 
         {/* Center: Global Search Bar */}
-        <div className="flex flex-1 items-center justify-center max-w-md px-2">
+        <div className="flex flex-1 min-w-0 items-center justify-end sm:justify-center max-w-sm px-1 sm:px-2">
           <button
             onClick={() => setIsSearchOpen(true)}
-            className="flex h-8 w-full items-center justify-between border border-line bg-subtle/70 px-3 font-mono text-xs text-muted hover:border-ink hover:bg-canvas transition-colors"
+            className="flex h-8.5 w-8.5 sm:w-full min-w-0 items-center justify-center sm:justify-between rounded-xl border border-line bg-subtle/70 px-2 sm:px-3 font-mono text-xs text-muted hover:border-[#02acc5] hover:bg-canvas transition-colors"
             title="Search services, assets, findings, and documentation (Press / or Alt+S)"
+            aria-label="Global Search"
           >
-            <div className="flex items-center gap-2 text-faint">
+            <div className="flex items-center gap-2 min-w-0 text-faint">
               <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.3-4.3" />
               </svg>
-              <span className="truncate">Search services, assets, scans, findings...</span>
+              <span className="hidden sm:inline truncate">Search services, assets, scans, findings...</span>
             </div>
-            <span className="hidden sm:inline border border-line bg-canvas px-1.5 text-[10px] text-faint">
+            <span className="hidden sm:inline shrink-0 border border-line bg-canvas px-1.5 text-[10px] text-faint">
               /
             </span>
           </button>
         </div>
 
         {/* Right Section: CloudShell + Region + Notifications + Account + Theme */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* CloudShell Button */}
           <button
             onClick={onToggleCloudShell}
-            className={`flex items-center gap-1 border px-2 py-1 font-mono text-xs transition-colors ${
+            className={`hidden sm:flex items-center gap-1 whitespace-nowrap shrink-0 border px-2 py-1 font-mono text-xs transition-colors ${
               isCloudShellOpen
                 ? "border-ink bg-ink text-canvas font-bold"
                 : "border-line bg-canvas text-muted hover:border-ink hover:text-ink"
@@ -186,18 +195,18 @@ export function TopBar({
             title="Open Harizeon CloudShell Terminal (Interactive CLI)"
           >
             <span className="text-[11px]">&gt;_</span>
-            <span className="hidden md:inline">CloudShell</span>
+            <span className="hidden xl:inline">CloudShell</span>
           </button>
 
           {/* Region Selector */}
-          <div className="relative">
+          <div className="relative hidden sm:block shrink-0">
             <button
               onClick={() => {
                 setIsRegionOpen(!isRegionOpen);
                 setIsAccountOpen(false);
                 setIsNotificationsOpen(false);
               }}
-              className="flex items-center gap-1 border border-line bg-canvas px-2 py-1 font-mono text-xs text-muted hover:border-ink hover:text-ink"
+              className="flex items-center gap-1 whitespace-nowrap border border-line bg-canvas px-2 py-1 font-mono text-xs text-muted hover:border-ink hover:text-ink"
               title="Scanner Cluster Region"
             >
               <span className="hidden lg:inline">{currentRegion}</span>
@@ -313,14 +322,14 @@ export function TopBar({
           </div>
 
           {/* Account / IAM Menu */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               onClick={() => {
                 setIsAccountOpen(!isAccountOpen);
                 setIsRegionOpen(false);
                 setIsNotificationsOpen(false);
               }}
-              className="flex items-center gap-1.5 border border-line bg-canvas px-2.5 py-1 font-mono text-xs text-muted hover:border-ink hover:text-ink"
+              className="flex items-center gap-1.5 whitespace-nowrap border border-line bg-canvas px-2.5 py-1 font-mono text-xs text-muted hover:border-ink hover:text-ink"
               title="Account & IAM Identity"
             >
               <span className="hidden md:inline truncate max-w-[130px]">
@@ -357,6 +366,17 @@ export function TopBar({
                   <div className="mt-2 flex items-center justify-between text-[11px] text-muted">
                     <span>Role: <strong className="text-ink">SecurityAdmin</strong></span>
                     <span>Org: <strong className="text-ink">Harizeon SecOps</strong></span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-[11px] border-t border-line pt-2">
+                    <span className="text-muted">Data Mode:</span>
+                    <Link
+                      href="/settings"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="font-mono text-[10px] text-[#02acc5] hover:underline"
+                    >
+                      Workspace Data Settings →
+                    </Link>
                   </div>
                 </div>
 

@@ -2,8 +2,13 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { withTx } from "../db";
 import * as repo from "../repo/findings";
+import * as scansRepo from "../repo/scans";
+import * as outboxRepo from "../repo/outbox";
+import { scanQueue } from "../services/scanQueue";
+import type { ScanJob } from "../lib/queue";
 import { badRequest, notFound } from "../lib/errors";
 import { writeAudit } from "../lib/audit";
+import { requireRole, requireScope } from "../plugins/auth";
 
 const ListQuery = z.object({
   severity: z.enum(["info", "low", "medium", "high", "critical"]).optional(),
@@ -52,7 +57,10 @@ export async function findingRoutes(app: FastifyInstance) {
   });
 
   // PATCH /v1/findings/:id { status, status_reason }
-  app.patch("/findings/:id", async (req: FastifyRequest, _reply: FastifyReply) => {
+  app.patch(
+    "/findings/:id",
+    { preHandler: [requireRole(["owner", "admin", "member"]), requireScope("findings:write")] },
+    async (req: FastifyRequest, _reply: FastifyReply) => {
     const orgId = req.auth!.orgId;
     const { id } = req.params as { id: string };
     const body = PatchBody.parse(req.body);
@@ -88,6 +96,81 @@ export async function findingRoutes(app: FastifyInstance) {
     }, orgId);
 
     return { finding: result.finding, changed: result.changed };
+  });
+
+  // POST /v1/findings/:id/verify — trigger 5-second micro-scan verification
+  app.post(
+    "/findings/:id/verify",
+    { preHandler: [requireRole(["owner", "admin", "member"]), requireScope("findings:write")] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+    const orgId = req.auth!.orgId;
+    const { id } = req.params as { id: string };
+    const actorId = req.auth!.userId ?? req.auth!.apiKeyId;
+
+    const result = await withTx(async (c) => {
+      const targetInfo = await repo.getFindingForVerification(c, orgId, id);
+      if (!targetInfo) {
+        throw notFound("finding_not_found", "Finding or associated asset not found");
+      }
+
+      const scan = await scansRepo.createScanRow(c, {
+        orgId,
+        projectId: null,
+        triggerSource: req.auth!.actorType === "api_key" ? "api" : "manual",
+        profile: "quick",
+        requestedBy: actorId ?? null,
+      });
+      await scansRepo.insertScanTargets(c, scan.id, [targetInfo.asset.id]);
+
+      const job: ScanJob = {
+        scan_id: scan.id,
+        org_id: orgId,
+        profile: "quick",
+        attempt: 0,
+        asset_id: targetInfo.asset.id,
+        targets: [
+          {
+            asset_id: targetInfo.asset.id,
+            type: targetInfo.asset.type,
+            value: targetInfo.asset.value,
+            verification_token: targetInfo.asset.verification_token ?? undefined,
+            verification_method: targetInfo.asset.verification_method ?? "dns_txt",
+          },
+        ],
+        mode: "verify_finding",
+        verify_check_id: targetInfo.finding.check_id || targetInfo.finding.category || "unknown",
+        verify_location: targetInfo.finding.location || `https://${targetInfo.asset.value}`,
+        verification_token: targetInfo.asset.verification_token ?? "",
+        verification_method: targetInfo.asset.verification_method ?? "dns_txt",
+        target_domain: targetInfo.asset.value,
+      };
+
+      await outboxRepo.stageScanJob(c, orgId, scan.id, job);
+      await writeAudit(c, {
+        orgId,
+        actorType: req.auth!.actorType,
+        actorId,
+        action: "finding.verify",
+        targetType: "finding",
+        targetId: id,
+        metadata: { scan_id: scan.id, check_id: job.verify_check_id },
+      });
+
+      return { scan, job };
+    }, orgId);
+
+    try {
+      await scanQueue.enqueue(result.job);
+    } catch {
+      // Outbox dispatcher will pick it up as fallback
+    }
+
+    return reply.status(202).send({
+      message: "Micro-scan verification scheduled",
+      scan_id: result.scan.id,
+      finding_id: id,
+      status: "verifying",
+    });
   });
 }
 

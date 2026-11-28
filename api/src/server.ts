@@ -15,7 +15,12 @@ import { reportRoutes } from "./routes/reports";
 import { billingRoutes } from "./routes/billing";
 import { auditLogRoutes } from "./routes/auditLog";
 import { healthRoutes } from "./routes/health";
+import { driftRoutes } from "./routes/drift";
+import { complianceRoutes } from "./routes/compliance";
+import { trustRoutes } from "./routes/trust";
+import { threatRoutes } from "./routes/threats";
 import { authenticate, requireAuth } from "./plugins/auth";
+import { securityPlugin } from "./plugins/security";
 import { requestIdHook, errorHandler } from "./lib/errors";
 import { rateLimit } from "./lib/ratelimit";
 import { startVerificationRecheck } from "./lib/recheck";
@@ -23,6 +28,7 @@ import { scanQueue } from "./services/scanQueue";
 import { startIngest } from "./workers/ingest";
 import { startReaper } from "./workers/reaper";
 import { startScheduler } from "./workers/scheduler";
+import { startRetentionPurge } from "./workers/retention";
 import { startOutboxDispatcher } from "./workers/outbox";
 
 export async function buildServer() {
@@ -43,6 +49,7 @@ export async function buildServer() {
   app.setErrorHandler(errorHandler);
 
   await app.register(cookie);
+  await securityPlugin(app);
 
   // Populate req.auth when a valid credential is present; never throws.
   app.addHook("preHandler", authenticate);
@@ -57,6 +64,8 @@ export async function buildServer() {
     async (v1) => {
     // Public auth routes — route paths already include /auth/...
     await v1.register(authRoutes);
+    // Public trust certification endpoint (/v1/public/trust/:slug)
+    await v1.register(trustRoutes);
 
       // Protected routes in their own encapsulated context: requireAuth is added
       // BEFORE these register, so it can never leak onto the public routes.
@@ -73,6 +82,9 @@ export async function buildServer() {
         await priv.register(reportRoutes);
         await priv.register(billingRoutes);
         await priv.register(auditLogRoutes);
+        await priv.register(driftRoutes);
+        await priv.register(complianceRoutes);
+        await priv.register(threatRoutes);
       });
     },
     { prefix: "/v1" },
@@ -107,6 +119,7 @@ async function start() {
       startIngest(scanQueue);
       startReaper(scanQueue);
       startScheduler();
+      startRetentionPurge();
       // Hourly ownership re-verification (background system task, not a request).
       startVerificationRecheck();
     } else {

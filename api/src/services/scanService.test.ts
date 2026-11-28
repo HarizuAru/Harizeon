@@ -57,7 +57,33 @@ test("garbage input yields empty array", () => {
   assert.deepEqual(parseFindings('"a string"'), []);
 });
 
-test("SCAN_PROFILES includes 'ai' profile", async () => {
+test("SCAN_PROFILES includes 'ai' and 'api' profiles", async () => {
   const { SCAN_PROFILES } = await import("./scanService");
   assert.ok((SCAN_PROFILES as readonly string[]).includes("ai"));
+  assert.ok((SCAN_PROFILES as readonly string[]).includes("api"));
+});
+
+test("v1.1 fields parse correctly in parseFindings", () => {
+  const [f] = parseFindings(
+    JSON.stringify([
+      {
+        check_id: "nuclei:exposed-dotenv-file",
+        location: "https://example.com/.env",
+        severity: "critical",
+        title: "Exposed Environment File",
+        source_tool: "nuclei",
+        evidence: "AWS_SECRET_ACCESS_KEY=[REDACTED]",
+        remediation_snippets: { nginx: "location ~ /\\.env { deny all; }" },
+        epss_score: 0.852,
+        epss_percentile: 0.985,
+        is_kev: true,
+      },
+    ]),
+  );
+  assert.equal(f.checkId, "nuclei:exposed-dotenv-file");
+  assert.equal(f.sourceTool, "nuclei");
+  assert.equal(f.evidence, "AWS_SECRET_ACCESS_KEY=[REDACTED]");
+  assert.deepEqual(f.remediationSnippets, { nginx: "location ~ /\\.env { deny all; }" });
+  assert.equal(f.epssScore, 0.852);
+  assert.equal(f.isKev, true);
 });

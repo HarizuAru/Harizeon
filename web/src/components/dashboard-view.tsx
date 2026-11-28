@@ -10,6 +10,11 @@ import {
   type SystemHealthData,
 } from "@/components/system-health-dashboard";
 import { DashboardCalendarHeatmap } from "@/components/dashboard-calendar-heatmap";
+import { SecurityInsights } from "@/components/security-insights";
+import {
+  EmergingThreatBanner,
+  type EmergingThreatSummary,
+} from "@/components/emerging-threat-banner";
 import {
   calculateSecurityPosture,
   getOptimizedRemediationPlan,
@@ -23,6 +28,10 @@ export interface DashboardFinding {
   severity: "critical" | "high" | "medium" | "low" | "info";
   status: "open" | "acknowledged" | "fixed" | "false_positive" | "accepted";
   category?: string | null;
+  known_exploited?: boolean | null;
+  epss_score?: number | null;
+  epss_percentile?: number | null;
+  cve_ids?: string[] | null;
   asset_value?: string | null;
   first_seen_at: string;
   last_seen_at: string;
@@ -58,51 +67,6 @@ export interface DashboardActivity {
   details?: string;
 }
 
-const RECENT_SERVICES = [
-  {
-    code: "ASM",
-    name: "Attack Surface",
-    description: "Verified domains, subdomains & public CIDRs",
-    href: "/assets",
-    stat: "3 Assets",
-  },
-  {
-    code: "SCN",
-    name: "Security Scans",
-    description: "Multi-phase port, TLS, and web exposure sweeps",
-    href: "/scans",
-    stat: "1 Completed",
-  },
-  {
-    code: "PRO",
-    name: "Harizeon Probe",
-    description: "TCP port recon and service banner grabbing",
-    href: "/services/pro",
-    stat: "Active Engine",
-  },
-  {
-    code: "INS",
-    name: "Harizeon Inspect",
-    description: "TLS protocols, cert expiry & security headers",
-    href: "/services/ins",
-    stat: "Active Engine",
-  },
-  {
-    code: "ADT",
-    name: "Harizeon Audit",
-    description: "Executive posture score and compliance control mapping",
-    href: "/reports",
-    stat: "2 Ready",
-  },
-  {
-    code: "VLT",
-    name: "Harizeon Vault",
-    description: "Public commit and credential leak monitoring",
-    href: "/services/vlt",
-    stat: "Roadmap",
-  },
-];
-
 /** Shape of GET /v1/usage: live plan limits and metered consumption. */
 export interface DashboardUsage {
   plan: { code: string; price_myr_month: number };
@@ -126,6 +90,7 @@ export function DashboardView({
   scans,
   systemHealth,
   usage = null,
+  emergingThreats = null,
   currentTime = 1789800000000,
 }: {
   findings: DashboardFinding[];
@@ -133,6 +98,7 @@ export function DashboardView({
   scans: DashboardScan[];
   systemHealth?: SystemHealthData | null;
   usage?: DashboardUsage | null;
+  emergingThreats?: EmergingThreatSummary | null;
   currentTime?: number;
 }) {
   const [showMethodology, setShowMethodology] = useState(false);
@@ -205,8 +171,77 @@ export function DashboardView({
   const chartDays = ["6d ago", "5d ago", "4d ago", "3d ago", "2d ago", "Yesterday", "Today"];
   const maxBar = Math.max(1, openFindings.length);
 
+  const dynamicServices = [
+    {
+      code: "ASM",
+      name: "Attack Surface",
+      description: "Verified domains, subdomains & public CIDRs",
+      href: "/assets",
+      stat: `${assets.length} Asset${assets.length === 1 ? "" : "s"}`,
+    },
+    {
+      code: "SCN",
+      name: "Security Scans",
+      description: "Multi-phase port, TLS, and web exposure sweeps",
+      href: "/scans",
+      stat: `${scans.length} Scan${scans.length === 1 ? "" : "s"}`,
+    },
+    {
+      code: "AIA",
+      name: "Harizeon AI-Armor",
+      description: "LLM daemon, vector DB, and agent tool auditing",
+      href: "/services/aia",
+      stat: "Active Engine",
+    },
+    {
+      code: "PRO",
+      name: "Harizeon Probe",
+      description: "TCP port recon and service banner grabbing",
+      href: "/services/pro",
+      stat: "Active Engine",
+    },
+    {
+      code: "INS",
+      name: "Harizeon Inspect",
+      description: "TLS protocols, cert expiry & security headers",
+      href: "/services/ins",
+      stat: "Active Engine",
+    },
+    {
+      code: "ADT",
+      name: "Harizeon Audit",
+      description: "Executive posture score and compliance control mapping",
+      href: "/reports",
+      stat: `${openFindings.length} Open Finding${openFindings.length === 1 ? "" : "s"}`,
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
+      {/* Clean Workspace Onboarding Banner when 0 assets */}
+      {assets.length === 0 ? (
+        <div className="border border-line bg-canvas p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold uppercase tracking-wider text-ink">
+                Clean Workspace · No Demo Data
+              </span>
+              <span className="border border-[#02acc5]/40 bg-[#02acc5]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#02acc5] font-semibold uppercase">
+                Ready for your perimeters
+              </span>
+            </div>
+            <p className="text-xs text-muted font-sans mt-1 max-w-xl leading-relaxed">
+              Operating in clean mode with no mock data. Add and verify your first domain or IP asset to run Harizeon Scan (SCN), AI-Armor (AIA), Surface reconnaissance, and compliance reports.
+            </p>
+          </div>
+          <Link
+            href="/assets/new"
+            className="border border-ink bg-ink text-canvas px-4 py-2 font-mono text-xs uppercase font-bold tracking-wider hover:bg-canvas hover:text-ink transition-colors shrink-0"
+          >
+            + Register First Asset →
+          </Link>
+        </div>
+      ) : null}
       {/* Top Console Home Title Bar */}
       <PageHeader
         title="Console Home"
@@ -225,6 +260,9 @@ export function DashboardView({
           </div>
         }
       />
+
+      {/* Intruder.io Parity: Emerging Threat Rapid Response Monitor */}
+      <EmergingThreatBanner initialData={emergingThreats} />
 
       {/* WIDGET 1: Console Welcome & Quick Solutions Banner */}
       <div className="border border-line bg-canvas p-5">
@@ -275,7 +313,11 @@ export function DashboardView({
           </div>
           <div className="border-r border-line pr-4">
             <div className="text-[10px] text-faint uppercase">Verification Status</div>
-            <div className="font-bold text-ink mt-0.5">100% Owned (3/3 Verified)</div>
+            <div className="font-bold text-ink mt-0.5">
+              {assets.length === 0
+                ? "0 Assets (Clean Slate)"
+                : `${assets.filter((a) => a.verification_status === "verified").length}/${assets.length} Verified`}
+            </div>
           </div>
           <div>
             <div className="text-[10px] text-faint uppercase">Service Tier</div>
@@ -299,7 +341,7 @@ export function DashboardView({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-          {RECENT_SERVICES.map((svc) => (
+          {dynamicServices.map((svc) => (
             <Link
               key={svc.code}
               href={svc.href}
@@ -540,6 +582,9 @@ export function DashboardView({
           </div>
         </div>
       </div>
+
+      {/* CONSOLE WIDGET: Scanner Telemetry & Security Insights */}
+      <SecurityInsights findings={findings} assets={assets} scans={scans} now={now} />
 
       {/* CONSOLE WIDGET: "Needs Attention" (Prioritized Findings) */}
       <div className="border border-line bg-canvas">

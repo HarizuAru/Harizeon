@@ -8,13 +8,6 @@ import { inputClass, labelClass } from "@/lib/ui";
 export function LoginForm() {
   const [state, action, pending] = useActionState(loginAction, null);
 
-  const handleInstantDemo = () => {
-    // Full-page navigation so the /api/demo-login route handler can sign up /
-    // log in for real and set the session cookie server-side.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/api/demo-login";
-  };
-
   return (
     <form action={action} className="mt-6 flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -27,8 +20,7 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           required
-          defaultValue="admin@harizeon.local"
-          placeholder="admin@harizeon.local"
+          placeholder="you@company.com"
           className={inputClass}
         />
       </div>
@@ -42,8 +34,21 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
-          defaultValue="HarizeonPass123!"
           placeholder="••••••••"
+          className={inputClass}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="totp_code" className={labelClass}>
+          Authenticator Code (if MFA enabled)
+        </label>
+        <input
+          id="totp_code"
+          name="totp_code"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="123456"
           className={inputClass}
         />
       </div>
@@ -55,23 +60,6 @@ export function LoginForm() {
       <Button type="submit" size="md" className="mt-2 w-full" disabled={pending}>
         {pending ? "Logging in..." : "Log in"}
       </Button>
-
-      <div className="relative my-2 flex items-center justify-center">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-line" />
-        </div>
-        <span className="relative bg-canvas px-2 font-mono text-[10px] text-faint uppercase">
-          or demo access
-        </span>
-      </div>
-
-      <button
-        type="button"
-        onClick={handleInstantDemo}
-        className="border border-line bg-subtle py-2.5 text-center font-mono text-xs uppercase tracking-wider text-ink hover:border-ink hover:bg-canvas transition-colors cursor-pointer"
-      >
-        ⚡ Instant Console Access (1-Click Demo)
-      </button>
     </form>
   );
 }

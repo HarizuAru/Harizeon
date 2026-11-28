@@ -1,0 +1,30 @@
+name: Harizeon Perimeter Security Quality Gate
+
+on:
+  pull_request:
+    branches: [main, master, staging]
+  push:
+    branches: [main, master]
+  schedule:
+    # Daily midnight attack surface audit
+    - cron: '0 0 * * *'
+
+jobs:
+  perimeter-security-gate:
+    name: Audit Attack Surface (Harizeon)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Harizeon CI/CD Gate
+        env:
+          HARIZEON_API_URL: ${{ secrets.HARIZEON_API_URL || 'https://api.harizeon.com' }}
+          HARIZEON_API_KEY: ${{ secrets.HARIZEON_API_KEY }}
+        run: |
+          node tools/ci-gate.mjs --fail-on high --max-allowed 0

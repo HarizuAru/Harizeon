@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PublicHeader } from "@/components/public-header";
-import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
   title: "REST API Reference · Harizeon Docs",
@@ -61,10 +59,6 @@ const ENDPOINTS = [
 
 export default function ApiReferencePage() {
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-ink">
-      <PublicHeader />
-
-      <main className="flex-1 py-16 px-4 sm:px-6">
         <div className="mx-auto max-w-5xl flex flex-col gap-10">
           <div>
             <div className="flex items-center gap-2 font-mono text-xs text-muted mb-4">
@@ -139,9 +133,5 @@ export function verifyHarizeonWebhook(payload: string, signatureHeader: string, 
             </pre>
           </div>
         </div>
-      </main>
-
-      <PublicFooter />
-    </div>
   );
 }

@@ -118,154 +118,115 @@ export async function healthRoutes(app: FastifyInstance) {
       };
     });
 
-    const activeWorkers = 4;
-    const totalSlots = 16;
-    const usedSlots = 11;
+    interface DbActiveScan {
+      id: string;
+      phase: string | null;
+      started_at: string | null;
+      target_value: string | null;
+    }
+
+    let activeScans: DbActiveScan[] = [];
+    try {
+      const activeRes = await pool.query<DbActiveScan>(
+        `SELECT s.id, s.phase, s.started_at, MIN(a.value) AS target_value
+         FROM scans s
+         LEFT JOIN scan_targets st ON st.scan_id = s.id
+         LEFT JOIN assets a ON a.id = st.asset_id
+         WHERE s.status IN ('claimed', 'running')
+         GROUP BY s.id
+         ORDER BY s.started_at DESC NULLS LAST
+         LIMIT 16`,
+      );
+      activeScans = activeRes.rows;
+    } catch {
+      // Postgres query failed or offline
+    }
+
+    const workers = activeScans.map((s, idx) => ({
+      id: `wkr-${s.id.slice(0, 8)}`,
+      name: `Worker ${String(idx + 1).padStart(2, "0")}`,
+      region: "local",
+      status: "busy",
+      current_scan_id: s.id,
+      current_target: s.target_value,
+      current_phase: s.phase,
+      slots_total: 1,
+      slots_used: 1,
+      cpu_percent: 0,
+      memory_mb: 0,
+      heartbeat_at: s.started_at ?? new Date().toISOString(),
+      uptime_seconds: 0,
+      jobs_completed: 0,
+      jobs_failed: 0,
+    }));
+
+    const activeWorkers = workers.length;
+    const totalSlots = Math.max(4, activeWorkers);
+    const usedSlots = activeWorkers;
+    const reaped24h = failureItems.filter(
+      (f) => f.error_code === "worker_timeout" && Date.now() - new Date(f.failed_at).getTime() <= 86_400_000,
+    ).length;
+
+    const recommendations = failureItems.slice(0, 3).map((f) => ({
+      title: f.error_title,
+      description: f.root_cause,
+      code: f.error_code,
+      affected_scans_count: 1,
+    }));
 
     return {
       timestamp: new Date().toISOString(),
       status: failureItems.length > 0 ? "degraded" : "operational",
       cluster: {
-        region: "ap-southeast-1",
-        fleet_name: "cluster-sg-prod-01",
+        region: "local",
+        fleet_name: "harizeon-worker-pool",
         total_workers: activeWorkers,
         active_workers: activeWorkers,
         total_slots: totalSlots,
         used_slots: usedSlots,
-        fleet_load_percent: Math.round((usedSlots / totalSlots) * 1000) / 10,
-        avg_job_duration_sec: 42,
+        fleet_load_percent: totalSlots > 0 ? Math.round((usedSlots / totalSlots) * 1000) / 10 : 0,
+        avg_job_duration_sec: 0,
       },
-      workers: [
-        {
-          id: "wkr-ap-se1-01",
-          name: "Worker 01 (Core Prober)",
-          region: "ap-southeast-1a",
-          status: "busy",
-          current_scan_id: "scn-7b89f012",
-          current_target: "api.example.com",
-          current_phase: "probe",
-          slots_total: 4,
-          slots_used: 3,
-          cpu_percent: 48,
-          memory_mb: 184,
-          heartbeat_at: new Date(Date.now() - 2000).toISOString(),
-          uptime_seconds: 345600,
-          jobs_completed: 184,
-          jobs_failed: 1,
-        },
-        {
-          id: "wkr-ap-se1-02",
-          name: "Worker 02 (TLS & Crypto)",
-          region: "ap-southeast-1a",
-          status: "busy",
-          current_scan_id: null,
-          current_target: "example.com",
-          current_phase: "inspect",
-          slots_total: 4,
-          slots_used: 4,
-          cpu_percent: 72,
-          memory_mb: 236,
-          heartbeat_at: new Date(Date.now() - 3000).toISOString(),
-          uptime_seconds: 345600,
-          jobs_completed: 162,
-          jobs_failed: 2,
-        },
-        {
-          id: "wkr-ap-se1-03",
-          name: "Worker 03 (Web & CSP Inspector)",
-          region: "ap-southeast-1b",
-          status: "busy",
-          current_scan_id: null,
-          current_target: "staging.example.com",
-          current_phase: "test",
-          slots_total: 4,
-          slots_used: 3,
-          cpu_percent: 39,
-          memory_mb: 165,
-          heartbeat_at: new Date(Date.now() - 4000).toISOString(),
-          uptime_seconds: 259200,
-          jobs_completed: 139,
-          jobs_failed: 0,
-        },
-        {
-          id: "wkr-ap-se1-04",
-          name: "Worker 04 (Discovery & DNS)",
-          region: "ap-southeast-1c",
-          status: "idle",
-          current_scan_id: null,
-          current_target: null,
-          current_phase: null,
-          slots_total: 4,
-          slots_used: 1,
-          cpu_percent: 14,
-          memory_mb: 118,
-          heartbeat_at: new Date(Date.now() - 1000).toISOString(),
-          uptime_seconds: 432000,
-          jobs_completed: 210,
-          jobs_failed: 0,
-        },
-      ],
+      workers,
       queues: {
         jobs: {
           name: "Scan Jobs Stream",
           stream_key: config.HARIZEON_QUEUE_PREFIX + JOBS_STREAM,
           type: "jobs",
-          length: Math.max(jobsLen, 2),
-          in_flight: 4,
+          length: jobsLen,
+          in_flight: usedSlots,
           consumer_group: "workers",
-          consumers_active: 4,
+          consumers_active: activeWorkers,
           lag: 0,
           status: "nominal",
-          throughput_per_min: 8.4,
-          avg_latency_ms: 18,
+          throughput_per_min: 0,
+          avg_latency_ms: 0,
         },
         events: {
           name: "Worker Events Stream",
           stream_key: config.HARIZEON_QUEUE_PREFIX + EVENTS_STREAM,
           type: "events",
-          length: Math.max(eventsLen, 12),
+          length: eventsLen,
           in_flight: 0,
           consumer_group: "ingest",
-          consumers_active: 1,
+          consumers_active: config.HARIZEON_RUN_LOOPS ? 1 : 0,
           lag: 0,
           status: "nominal",
-          throughput_per_min: 52.0,
-          avg_latency_ms: 6,
+          throughput_per_min: 0,
+          avg_latency_ms: 0,
         },
         reaper: {
           interval_sec: 15,
-          last_run_at: new Date(Date.now() - 8000).toISOString(),
-          scans_reaped_24h: 1,
+          last_run_at: new Date().toISOString(),
+          scans_reaped_24h: reaped24h,
           status: "operational",
         },
       },
       recent_failures: failureItems,
       diagnostics: {
         total_recent_failures: failureItems.length,
-        primary_failure_cause:
-          failureItems.length > 0
-            ? "Target perimeter firewall dropping scanner probe traffic (TCP timeouts)"
-            : null,
-        recommendations: [
-          {
-            title: "Perimeter Firewall Allowlisting Required",
-            description: "Recent scans timed out during port probing. Whitelist Harizeon scanner egress CIDRs (203.0.113.0/24) on target cloud security groups.",
-            code: "NET_FW_ALLOWLIST",
-            affected_scans_count: 1,
-          },
-          {
-            title: "Crawler Timeout on Complex Single-Page Apps",
-            description: "Scans exceeded the 60s worker heartbeat limit. Use the 'Quick' profile for SPA targets or tune web crawling limits.",
-            code: "CRAWLER_TIMEOUT_TUNE",
-            affected_scans_count: 1,
-          },
-          {
-            title: "Decommissioned or Split-Horizon Subdomain",
-            description: "Scan failed during DNS resolution with NXDOMAIN. Ensure monitored assets have publicly resolvable A/AAAA records.",
-            code: "DNS_PUBLIC_VERIFY",
-            affected_scans_count: 1,
-          },
-        ],
+        primary_failure_cause: failureItems[0]?.root_cause ?? null,
+        recommendations,
       },
     };
   };

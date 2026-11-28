@@ -34,6 +34,47 @@ describe("queue field codecs (Redis stores flat string maps)", () => {
     assert.deepEqual(parseEvent(serialise(ev as unknown as Record<string, unknown>)), ev);
   });
 
+  test("v1.1 snapshot and verify_result events parse correctly", () => {
+    const snapEv = parseEvent({
+      scan_id: "s1",
+      org_id: "o1",
+      kind: "snapshot",
+      snapshot: JSON.stringify({ hosts: ["sub.example.com"], live_urls: ["https://sub.example.com"] }),
+    });
+    assert.equal(snapEv.kind, "snapshot");
+    assert.ok(snapEv.snapshot?.includes("sub.example.com"));
+
+    const verifyEv = parseEvent({
+      scan_id: "s1",
+      org_id: "o1",
+      kind: "verify_result",
+      check_id: "nuclei:exposed-dotenv-file",
+      location: "https://example.com/.env",
+      fixed: "true",
+    });
+    assert.equal(verifyEv.kind, "verify_result");
+    assert.equal(verifyEv.check_id, "nuclei:exposed-dotenv-file");
+    assert.equal(verifyEv.fixed, true);
+  });
+
+  test("legacy worker type completed and failed map to terminal", () => {
+    const comp = parseEvent({
+      scan_id: "s1",
+      org_id: "o1",
+      type: "completed",
+    });
+    assert.equal(comp.kind, "terminal");
+    assert.equal(comp.status, "completed");
+
+    const fail = parseEvent({
+      scan_id: "s1",
+      org_id: "o1",
+      type: "failed",
+    });
+    assert.equal(fail.kind, "terminal");
+    assert.equal(fail.status, "failed");
+  });
+
   test("malformed job is rejected", () => {
     assert.throws(() => parseJob({ scan_id: "s1" }));
     assert.throws(() => parseJob({}));

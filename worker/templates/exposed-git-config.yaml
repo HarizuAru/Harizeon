@@ -1,0 +1,22 @@
+id: exposed-git-config
+info:
+  name: Exposed Git Repository Configuration (.git/config)
+  author: harizeon
+  severity: high
+  classification:
+    cwe-id: ["CWE-538"]
+  remediation: "Deny public access to /.git/ paths in Nginx/Apache/Cloudflare and audit commit history for leaked credentials."
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        part: body
+        words:
+          - "[core]"
+          - "repositoryformatversion"

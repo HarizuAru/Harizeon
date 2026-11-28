@@ -27,6 +27,7 @@ const Env = z.object({  NODE_ENV: z.enum(["development", "test", "production"]).
   HARIZEON_SESSION_SECRET: z.string().min(32).optional(),
   HARIZEON_MASTER_KEY: z.string().min(32).optional(),
   PUBLIC_API_BASE: z.string().url().default("http://localhost:8080"),
+  ALLOWED_ORIGINS: z.string().default("http://localhost:3000,https://harizeon.com"),
   // Transactional email (Resend). Unset in production = email endpoints fail
   // honestly instead of silently dropping mail (§08).
   HARIZEON_EMAIL_API_KEY: z.string().optional(),

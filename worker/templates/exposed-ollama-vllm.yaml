@@ -1,0 +1,24 @@
+id: exposed-llm-inference-daemon
+info:
+  name: Unauthenticated LLM Inference Daemon Exposed (Ollama / vLLM)
+  author: harizeon
+  severity: critical
+  classification:
+    cwe-id: ["CWE-306"]
+  remediation: "Bind Ollama/vLLM strictly to 127.0.0.1 or place behind an authenticated reverse proxy with IP allowlisting."
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/tags"
+      - "{{BaseURL}}/v1/models"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        part: body
+        condition: or
+        words:
+          - '"models":[{'
+          - '"object":"list"'

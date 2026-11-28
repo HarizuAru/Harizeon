@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
-  title: "Services Matrix · Harizeon",
+  title: "Services Matrix",
   description:
     "Harizeon external attack-surface, scanning, and compliance services · only shipped capabilities are listed here.",
 };
@@ -197,21 +197,21 @@ const SOLUTION_PILLARS = [
 
 export default function ServicesPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-ink">
+    <div className="flex min-h-screen flex-col bg-[#f5f6f8] text-[#171d29]">
       <PublicHeader />
 
       <main className="flex-1 py-16 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl flex flex-col gap-20">
           {/* Header */}
           <div>
-            <div className="border-b border-line pb-8 mb-10">
-              <span className="font-mono text-xs uppercase tracking-wider text-muted block mb-2">
+            <div className="border-b border-[#dce2e3] pb-8 mb-10">
+              <span className="font-mono text-xs uppercase tracking-wider text-[#02acc5] font-semibold block mb-2">
                 Unified Architecture &amp; Engines
               </span>
-              <h1 className="text-4xl font-bold tracking-tight text-ink font-sans">
+              <h1 className="text-4xl font-bold tracking-tight text-[#171d29]">
                 Services &amp; Infrastructure
               </h1>
-              <p className="mt-2 text-sm text-muted max-w-3xl font-sans leading-relaxed">
+              <p className="mt-2 text-sm text-muted max-w-3xl leading-relaxed">
                 Harizeon packages nine specialized security engines into three consolidated solution pillars.
                 Every check runs strictly against verified perimeter assets with proven domain ownership.
               </p>
@@ -219,8 +219,8 @@ export default function ServicesPage() {
 
             {/* SECTION 1: The 3 Consolidated Solution Pillars */}
             <div className="flex flex-col gap-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line pb-3">
-                <span className="font-mono text-xs font-bold uppercase tracking-wider text-ink">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#dce2e3] pb-3">
+                <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#171d29]">
                   Consolidated Solutions (How Teams Buy &amp; Use Harizeon)
                 </span>
                 <span className="font-mono text-[11px] text-muted">
@@ -232,29 +232,29 @@ export default function ServicesPage() {
                 {SOLUTION_PILLARS.map((p) => (
                   <div
                     key={p.code}
-                    className="border border-line bg-canvas p-6 flex flex-col justify-between card-interactive"
+                    className="rounded-[24px] border border-[#dce2e3] bg-white p-7 flex flex-col justify-between shadow-sm card-interactive"
                   >
                     <div>
-                      <div className="flex items-center justify-between border-b border-line pb-2.5 mb-3.5">
+                      <div className="flex items-center justify-between border-b border-[#dce2e3] pb-3 mb-4">
                         <span className="font-mono text-[10px] uppercase font-bold text-muted">
                           {p.badge}
                         </span>
-                        <span className="border border-ink bg-ink text-canvas font-mono text-[9px] uppercase px-1.5 py-0.5 font-bold">
+                        <span className="border border-[#02acc5] bg-[#02acc5] text-white font-mono text-[9px] uppercase px-2.5 py-0.5 font-bold">
                           {p.target}
                         </span>
                       </div>
 
-                      <h2 className="font-mono text-lg font-bold text-ink">
+                      <h2 className="font-mono text-lg font-bold text-[#171d29]">
                         {p.name}
                       </h2>
-                      <span className="font-mono text-[11px] text-muted block mt-0.5 mb-3">
+                      <span className="font-mono text-[11px] text-[#02acc5] block mt-0.5 mb-3 font-medium">
                         {p.tagline}
                       </span>
-                      <p className="text-xs text-muted font-sans leading-relaxed">
+                      <p className="text-xs text-muted leading-relaxed">
                         {p.description}
                       </p>
 
-                      <div className="mt-5 pt-4 border-t border-line">
+                      <div className="mt-5 pt-4 border-t border-[#dce2e3]">
                         <span className="font-mono text-[10px] uppercase font-bold text-muted block mb-2">
                           Integrated Engines:
                         </span>
@@ -263,17 +263,17 @@ export default function ServicesPage() {
                             <Link
                               key={eng.code}
                               href={eng.href}
-                              className="flex items-center justify-between border border-line bg-subtle/30 px-2.5 py-1.5 hover:bg-canvas hover:border-ink transition-colors"
+                              className="flex items-center justify-between rounded-xl border border-[#dce2e3] bg-[#f5f6f8] px-3 py-2 hover:bg-white hover:border-[#02acc5] transition-colors"
                             >
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-ink">{eng.code}</span>
+                                <span className="font-bold text-[#171d29]">{eng.code}</span>
                                 <span className="text-[11px] text-muted">· {eng.desc}</span>
                               </div>
                               <span
-                                className={`text-[9px] uppercase px-1 font-bold border ${
+                                className={`text-[9px] uppercase px-2 py-0.5 font-bold rounded-full border ${
                                   eng.status === "available"
-                                    ? "border-ink bg-ink text-canvas"
-                                    : "border-line text-muted"
+                                    ? "bg-[#02acc5]/15 border-[#02acc5]/30 text-[#02acc5]"
+                                    : "border-[#dce2e3] bg-white text-muted"
                                 }`}
                               >
                                 {eng.status}
@@ -290,14 +290,14 @@ export default function ServicesPage() {
           </div>
 
           {/* SECTION 2: Architecture Pipeline Data Flow */}
-          <div className="border border-line bg-canvas p-6 font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-line pb-3 mb-4">
-              <span className="font-bold text-ink uppercase tracking-wider">
+          <div className="rounded-[24px] border border-[#dce2e3] bg-white p-7 font-mono text-xs shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#dce2e3] pb-3 mb-4">
+              <span className="font-bold text-[#171d29] uppercase tracking-wider">
                 Execution Pipeline (§06 Master Plan Architecture)
               </span>
               <span className="text-muted text-[11px]">Strict Control / Data Plane Isolation</span>
             </div>
-            <pre className="overflow-x-auto text-[11px] leading-relaxed text-muted bg-subtle p-4 border border-line">
+            <pre className="overflow-x-auto text-[11px] leading-relaxed text-white/90 bg-[#171d29] rounded-xl p-5 border border-white/10">
 {`[01. VERIFY]  DNS TXT / HTTP File Proof  -->  [Strict Boundary Check: No Ownership, No Scan]
        ↓
 [02. ASM]     Certificate Logs & DNS      -->  Discovers unmapped subdomains (held for review)
@@ -314,16 +314,16 @@ export default function ServicesPage() {
 
           {/* SECTION 3: Shipped & Available Engines (v0.1) */}
           <div>
-            <div className="border-b border-line pb-6 mb-8">
+            <div className="border-b border-[#dce2e3] pb-6 mb-8">
               <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold tracking-tight text-ink font-sans">
+                <h2 className="text-2xl font-bold tracking-tight text-[#171d29]">
                   Active Shipped Engines (v0.1)
                 </h2>
-                <span className="border border-ink bg-ink text-canvas px-2 py-0.5 font-mono text-[10px] uppercase font-bold">
+                <span className="rounded-full bg-[#02acc5]/15 border border-[#02acc5]/30 text-[#02acc5] px-2.5 py-0.5 font-mono text-[10px] uppercase font-bold">
                   Live &amp; Production Ready
                 </span>
               </div>
-              <p className="mt-2 text-xs text-muted max-w-2xl font-sans leading-relaxed">
+              <p className="mt-2 text-xs text-muted max-w-2xl leading-relaxed">
                 These five engines form the core MVP. Everything listed here is deployed and operational in production today.
               </p>
             </div>
@@ -332,39 +332,39 @@ export default function ServicesPage() {
               {AVAILABLE_SERVICES.map((s) => (
                 <div
                   key={s.code}
-                  className="border border-line bg-canvas p-6 flex flex-col justify-between card-interactive"
+                  className="rounded-[24px] border border-[#dce2e3] bg-white p-7 flex flex-col justify-between shadow-sm card-interactive"
                 >
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="border border-ink px-2.5 py-0.5 font-mono text-xs font-bold text-ink">
+                      <span className="rounded-md border border-[#dce2e3] bg-[#f5f6f8] px-2.5 py-0.5 font-mono text-xs font-bold text-[#171d29]">
                         {s.code}
                       </span>
-                      <span className="border border-ink bg-ink px-2 py-0.5 font-mono text-[10px] uppercase text-canvas font-bold">
+                      <span className="rounded-full bg-[#02acc5]/15 border border-[#02acc5]/30 px-2 py-0.5 font-mono text-[10px] uppercase text-[#02acc5] font-bold">
                         available
                       </span>
                     </div>
 
-                    <h3 className="mt-4 font-mono text-lg font-bold text-ink">
+                    <h3 className="mt-4 font-mono text-lg font-bold text-[#171d29]">
                       {s.name}
                     </h3>
-                    <p className="mt-2 text-xs text-muted font-sans leading-relaxed">
+                    <p className="mt-2 text-xs text-muted leading-relaxed">
                       {s.description}
                     </p>
 
-                    <ul className="mt-4 pt-4 border-t border-line flex flex-col gap-1.5 font-mono text-[11px] text-muted">
+                    <ul className="mt-4 pt-4 border-t border-[#dce2e3] flex flex-col gap-1.5 font-mono text-[11px] text-muted">
                       {s.features.map((f) => (
                         <li key={f} className="flex items-start gap-2">
-                          <span className="text-ink">•</span>
+                          <span className="text-[#02acc5] font-bold">•</span>
                           <span>{f}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-line">
+                  <div className="mt-6 pt-4 border-t border-[#dce2e3]">
                     <Link
                       href={s.href}
-                      className="inline-block border border-ink bg-canvas px-4 py-2 font-mono text-xs uppercase text-ink hover:bg-ink hover:text-canvas transition-colors button-tactile"
+                      className="inline-block rounded-xl border border-[#dce2e3] bg-white px-4 py-2 font-mono text-xs uppercase text-[#171d29] hover:border-[#02acc5] hover:text-[#02acc5] hover:bg-[#f5f6f8] transition-colors"
                     >
                       View Specifications →
                     </Link>

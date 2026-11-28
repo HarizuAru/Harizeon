@@ -4,13 +4,8 @@ import { handleMockApi } from "./mock-service";
 export const SESSION_COOKIE = "hz_session";
 export const SESSION_MAX_AGE = 30 * 24 * 3600;
 
-/** Demo / In-Memory mode is active when HARIZEON_API_BASE is not configured or in preview/dev mode.
- *  This allows the Next.js console to function independently in preview and standalone environments. */
-export const DEMO_MODE =
-  process.env.HARIZEON_DEMO_MODE === "1" ||
-  process.env.NODE_ENV !== "production" ||
-  !process.env.HARIZEON_API_BASE ||
-  process.env.HARIZEON_API_BASE.includes("localhost:8080");
+/** Demo / In-Memory mode is strictly opt-in via HARIZEON_DEMO_MODE=1. */
+export const DEMO_MODE = process.env.HARIZEON_DEMO_MODE === "1";
 
 export function apiBase(): string {
   return process.env.HARIZEON_API_BASE ?? "http://localhost:8080";

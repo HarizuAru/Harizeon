@@ -1,0 +1,3 @@
+user default off
+user harizeon_api on >REPLACE_WITH_STRONG_API_REDIS_PASS ~harizeon:scans:jobs ~harizeon:scans:events ~harizeon:hb:* ~harizeon:cancel:* ~rl:* +ping +xadd +xreadgroup +xack +xgroup +xautoclaim +get +set +incr +pexpire +del +pttl +eval +evalsha
+user harizeon_worker on >REPLACE_WITH_STRONG_WORKER_REDIS_PASS ~harizeon:scans:jobs ~harizeon:scans:events +ping +xreadgroup +xack +xgroup +xadd -@dangerous -@admin -@keyspace

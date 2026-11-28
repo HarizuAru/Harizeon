@@ -93,7 +93,64 @@ export function RemediationSnippets({
     });
   }
 
-  // 3. Leaked Keys / Secrets / Tokens
+  // 3. Cloud Storage (S3 / GCS / Azure Blob)
+  if (category === "cloud_storage" || lowerTitle.includes("s3") || lowerTitle.includes("bucket") || lowerTitle.includes("storage")) {
+    tabs.push({
+      id: "s3-block",
+      label: "AWS S3 Block Public",
+      language: "bash",
+      code: `# Enable S3 Block Public Access across all 4 controls on the bucket:\naws s3api put-public-access-block \\\n  --bucket <bucket-name> \\\n  --public-access-block-configuration \\\n    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"\n\n# Audit bucket ACL:\naws s3api get-public-access-block --bucket <bucket-name>`,
+      notes: "Hardens the bucket against accidental anonymous or world-readable permissions.",
+    });
+
+    tabs.push({
+      id: "terraform-s3",
+      label: "Terraform (IaC)",
+      language: "hcl",
+      code: `resource "aws_s3_bucket_public_access_block" "block" {\n  bucket = aws_s3_bucket.data.id\n\n  block_public_acls       = true\n  block_public_policy     = true\n  ignore_public_acls      = true\n  restrict_public_buckets = true\n}`,
+      notes: "Enforce zero public exposure permanently in your infrastructure-as-code.",
+    });
+  }
+
+  // 4. API & Schema Security (GraphQL, OpenAPI, Swagger)
+  if (category === "api_security" || lowerTitle.includes("graphql") || lowerTitle.includes("introspection") || lowerTitle.includes("swagger") || lowerTitle.includes("openapi")) {
+    tabs.push({
+      id: "graphql-disable",
+      label: "GraphQL Server",
+      language: "typescript",
+      code: `// Apollo Server / Yoga / Express GraphQL:\nimport { ApolloServer } from '@apollo/server';\n\nconst server = new ApolloServer({\n  typeDefs,\n  resolvers,\n  // Disable introspection and schema polling in production:\n  introspection: process.env.NODE_ENV !== 'production',\n});`,
+      notes: "Prevents attackers from querying __schema to enumerate private internal types.",
+    });
+
+    tabs.push({
+      id: "api-gateway",
+      label: "Nginx / Gateway",
+      language: "nginx",
+      code: `# Block public access to docs and actuator endpoints:\nlocation ~* ^/(actuator|swagger-ui|api-docs|v3/api-docs) {\n  # Allow internal VPN subnet only:\n  allow 10.0.0.0/8;\n  deny all;\n}`,
+      notes: "Restricts API documentation to authorized development subnets only.",
+    });
+  }
+
+  // 5. Agentic & Model Context Protocol (MCP) Defense
+  if (category === "ai_exposure" || lowerTitle.includes("mcp") || lowerTitle.includes("model context") || lowerTitle.includes("ollama") || lowerTitle.includes("chroma")) {
+    tabs.push({
+      id: "mcp-auth",
+      label: "MCP Server Auth",
+      language: "typescript",
+      code: `// Secure Model Context Protocol (MCP) server endpoints with Bearer tokens:\nimport { Server } from "@modelcontextprotocol/sdk/server/index.js";\nimport { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";\n\napp.post("/mcp", async (req, res) => {\n  const auth = req.headers["authorization"];\n  if (!auth || auth !== \`Bearer \${process.env.MCP_SECRET_KEY}\`) {\n    return res.status(401).json({ error: "Unauthorized MCP tool execution" });\n  }\n  // Dispatch validated MCP call\n});`,
+      notes: "Enforce strict authentication before exposing agent tools to prevent remote exploitation.",
+    });
+
+    tabs.push({
+      id: "chroma-bind",
+      label: "ChromaDB Auth",
+      language: "bash",
+      code: `# Set authentication tokens for ChromaDB vector store:\nexport CHROMA_SERVER_AUTH_PROVIDER="chromadb.auth.token.TokenAuthServerProvider"\nexport CHROMA_SERVER_AUTH_CREDENTIALS="hz-vector-token-secret-2026"\n\n# Or bind to private localhost only:\nchroma run --host 127.0.0.1 --port 8000`,
+      notes: "Stops unauthenticated RAG vector and collection extraction.",
+    });
+  }
+
+  // 6. Leaked Keys / Secrets / Tokens
   if (lowerTitle.includes("key") || lowerTitle.includes("token") || lowerTitle.includes("secret") || lowerTitle.includes("credential") || lowerTitle.includes("leak")) {
     tabs.push({
       id: "revoke-rotate",

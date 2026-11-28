@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 -H 0.0.0.0",
+    "dev": "next dev -p 3000",
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "start": "next start -p 3000 -H 0.0.0.0",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:ux": "node --test tests/ux-usability.test.mjs"
   },
   "dependencies": {
     "d3": "^7.9.0",

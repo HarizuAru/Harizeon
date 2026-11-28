@@ -9,14 +9,12 @@ export type FindingActionState = {
   error?: string;
 };
 
-export const FINDING_STATUSES = [
-  "open",
-  "acknowledged",
-  "fixed",
-  "false_positive",
-  "accepted",
-] as const;
-export type FindingStatusAction = (typeof FINDING_STATUSES)[number];
+export type FindingStatusAction =
+  | "open"
+  | "acknowledged"
+  | "fixed"
+  | "false_positive"
+  | "accepted";
 
 export async function updateFindingStatusAction(
   findingId: string,

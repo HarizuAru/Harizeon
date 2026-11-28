@@ -29,9 +29,11 @@ import {
   methodAllowedForType,
   requiresManualReview,
   isPublicHost,
+  isRestrictedTarget,
 } from "../lib/verify";
 import { writeAudit } from "../lib/audit";
 import { badRequest, conflict, notFound } from "../lib/errors";
+import { requireRole, requireScope } from "../plugins/auth";
 
 const AssetTypeEnum = z.enum(["domain", "subdomain", "ip", "url"]);
 const CriticalityEnum = z.enum(["low", "medium", "high"]);
@@ -95,9 +97,18 @@ export async function assetRoutes(app: FastifyInstance) {
   });
 
   // POST /v1/assets
-  app.post("/assets", async (req: FastifyRequest, reply: FastifyReply) => {
+  app.post(
+    "/assets",
+    { preHandler: [requireRole(["owner", "admin", "member"]), requireScope("assets:write")] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
     const orgId = req.auth!.orgId;
     const body = CreateAssetBody.parse(req.body);
+    if (isRestrictedTarget(body.value)) {
+      throw badRequest(
+        "restricted_target",
+        "Government, military, and banking domains (.gov, .mil, .bank) require manual enterprise authorization.",
+      );
+    }
     try {
       const created = await withTx(async (client) => {
         const asset = await createAsset(client, {
@@ -148,7 +159,10 @@ export async function assetRoutes(app: FastifyInstance) {
   });
 
   // PATCH /v1/assets/:id
-  app.patch("/assets/:id", async (req: FastifyRequest, _reply: FastifyReply) => {
+  app.patch(
+    "/assets/:id",
+    { preHandler: [requireRole(["owner", "admin", "member"]), requireScope("assets:write")] },
+    async (req: FastifyRequest, _reply: FastifyReply) => {
     const orgId = req.auth!.orgId;
     const { id } = req.params as { id: string };
     const body = UpdateAssetBody.parse(req.body);
@@ -169,7 +183,10 @@ export async function assetRoutes(app: FastifyInstance) {
   });
 
   // DELETE /v1/assets/:id (soft delete; preserves findings history)
-  app.delete("/assets/:id", async (req: FastifyRequest, _reply: FastifyReply) => {
+  app.delete(
+    "/assets/:id",
+    { preHandler: [requireRole(["owner", "admin"]), requireScope("assets:write")] },
+    async (req: FastifyRequest, _reply: FastifyReply) => {
     const orgId = req.auth!.orgId;
     const { id } = req.params as { id: string };
     await withTx(async (client) => {
@@ -189,7 +206,10 @@ export async function assetRoutes(app: FastifyInstance) {
   });
 
   // POST /v1/assets/:id/verification — initiate DNS TXT or HTTP file proof
-  app.post("/assets/:id/verification", async (req: FastifyRequest, reply: FastifyReply) => {
+  app.post(
+    "/assets/:id/verification",
+    { preHandler: [requireRole(["owner", "admin", "member"]), requireScope("assets:write")] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
     const orgId = req.auth!.orgId;
     const { id } = req.params as { id: string };
     const { method } = InitiateBody.parse(req.body);
@@ -242,7 +262,10 @@ export async function assetRoutes(app: FastifyInstance) {
   });
 
   // POST /v1/assets/:id/verification/check — pollable; stays pending until proven
-  app.post("/assets/:id/verification/check", async (req: FastifyRequest, _reply: FastifyReply) => {
+  app.post(
+    "/assets/:id/verification/check",
+    { preHandler: [requireRole(["owner", "admin", "member"]), requireScope("assets:write")] },
+    async (req: FastifyRequest, _reply: FastifyReply) => {
     const orgId = req.auth!.orgId;
     const { id } = req.params as { id: string };
 

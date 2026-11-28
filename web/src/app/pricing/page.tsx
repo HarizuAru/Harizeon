@@ -72,39 +72,37 @@ export default function PricingPage() {
   const total = subtotal + sstTax;
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-ink">
+    <div className="flex min-h-screen flex-col bg-[#f5f6f8] text-[#171d29]">
       <PublicHeader />
 
       <main className="flex-1 py-16 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl flex flex-col gap-16">
           {/* Header */}
           <div className="text-center max-w-3xl mx-auto">
-            <span className="font-mono text-xs uppercase tracking-wider text-muted block mb-2">
+            <span className="font-mono text-xs uppercase tracking-wider text-[#02acc5] font-semibold block mb-2">
               Transparent & Self-Serve
             </span>
-            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-ink font-sans">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[#171d29]">
               Simple, Metered Pricing
             </h1>
-            <p className="mt-4 text-sm sm:text-base text-muted font-sans leading-relaxed">
+            <p className="mt-4 text-sm sm:text-base text-muted leading-relaxed">
               No sales negotiations or opaque quotes. Choose a tier based on the verified assets you need to defend.
             </p>
 
             {/* Currency Switcher */}
-            <div className="mt-6 inline-flex items-center gap-2 border border-line bg-canvas p-1 font-mono text-xs">
-              <span className="text-muted text-[11px] px-2">CURRENCY:</span>
+            <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#dce2e3] bg-white p-1 font-mono text-xs shadow-xs">
+              <span className="text-muted text-[11px] px-2.5">CURRENCY:</span>
               <button
                 onClick={() => setCurrency("MYR")}
-                className={`px-3 py-1 uppercase font-bold transition-colors ${
-                  currency === "MYR" ? "bg-ink text-canvas" : "text-muted hover:text-ink"
-                }`}
+                className={`px-3.5 py-1 uppercase font-medium transition-colors ${currency === "MYR" ? "bg-[#02acc5] text-white" : "text-muted hover:text-[#171d29]"
+                  }`}
               >
                 MYR (Default)
               </button>
               <button
                 onClick={() => setCurrency("USD")}
-                className={`px-3 py-1 uppercase font-bold transition-colors ${
-                  currency === "USD" ? "bg-ink text-canvas" : "text-muted hover:text-ink"
-                }`}
+                className={`px-3.5 py-1 uppercase font-medium transition-colors ${currency === "USD" ? "bg-[#02acc5] text-white" : "text-muted hover:text-[#171d29]"
+                  }`}
               >
                 USD (~0.22)
               </button>
@@ -112,24 +110,24 @@ export default function PricingPage() {
           </div>
 
           {/* Pricing Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-stretch">
             {/* Free */}
-            <div className="border border-line bg-canvas p-6 flex flex-col justify-between">
+            <div className="rounded-[24px] border border-[#dce2e3] bg-white p-7 flex flex-col justify-between shadow-sm hover:border-[#02acc5] transition-all">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-bold uppercase text-ink">Free</span>
-                  <span className="border border-line px-1.5 py-0.5 text-[9px] font-mono uppercase text-muted">Dev</span>
+                  <span className="font-mono text-sm font-bold uppercase text-[#171d29]">Free</span>
+                  <span className="rounded-full border border-[#dce2e3] bg-[#f5f6f8] px-2 py-0.5 text-[9px] font-mono uppercase text-muted">Dev</span>
                 </div>
                 <div className="mt-4">
-                  <span className="font-mono text-3xl font-bold text-ink">
+                  <span className="font-mono text-3xl font-bold text-[#171d29]">
                     {symbol}{currency === "USD" ? "0" : "0"}
                   </span>
                   <span className="font-mono text-xs text-muted"> / forever</span>
                 </div>
-                <p className="mt-2 text-xs text-muted font-sans leading-relaxed">
+                <p className="mt-2 text-xs text-muted leading-relaxed">
                   Best for individual developers securing a personal project or root domain.
                 </p>
-                <div className="mt-6 pt-4 border-t border-line font-mono text-xs flex flex-col gap-2 text-muted">
+                <div className="mt-6 pt-4 border-t border-[#dce2e3] font-mono text-xs flex flex-col gap-2 text-muted">
                   <div>• 1 verified asset</div>
                   <div>• 1 quick scan per month</div>
                   <div>• 14 days evidence retention</div>
@@ -138,29 +136,29 @@ export default function PricingPage() {
               </div>
               <Link
                 href="/signup"
-                className="mt-8 border border-line py-2 text-center font-mono text-xs uppercase text-ink hover:border-ink hover:bg-subtle transition-colors"
+                className="mt-8 border border-[#dce2e3] py-2.5 text-center font-mono text-xs uppercase font-medium text-[#171d29] hover:border-[#02acc5] hover:bg-[#f5f6f8] transition-colors"
               >
                 Get Started
               </Link>
             </div>
 
             {/* Starter */}
-            <div className="border border-line bg-canvas p-6 flex flex-col justify-between">
+            <div className="rounded-[24px] border border-[#dce2e3] bg-white p-7 flex flex-col justify-between shadow-sm hover:border-[#02acc5] transition-all">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-bold uppercase text-ink">Starter</span>
-                  <span className="border border-line px-1.5 py-0.5 text-[9px] font-mono uppercase text-muted">SMB</span>
+                  <span className="font-mono text-sm font-bold uppercase text-[#171d29]">Starter</span>
+                  <span className="rounded-full border border-[#dce2e3] bg-[#f5f6f8] px-2 py-0.5 text-[9px] font-mono uppercase text-muted">SMB</span>
                 </div>
                 <div className="mt-4">
-                  <span className="font-mono text-3xl font-bold text-ink">
+                  <span className="font-mono text-3xl font-bold text-[#171d29]">
                     {symbol}{(79 * rate).toFixed(0)}
                   </span>
                   <span className="font-mono text-xs text-muted"> / month</span>
                 </div>
-                <p className="mt-2 text-xs text-muted font-sans leading-relaxed">
+                <p className="mt-2 text-xs text-muted leading-relaxed">
                   Ideal for startups with a primary domain, API subdomain, and staging server.
                 </p>
-                <div className="mt-6 pt-4 border-t border-line font-mono text-xs flex flex-col gap-2 text-muted">
+                <div className="mt-6 pt-4 border-t border-[#dce2e3] font-mono text-xs flex flex-col gap-2 text-muted">
                   <div>• 5 verified assets</div>
                   <div>• 50 scans per month (Weekly)</div>
                   <div>• Quick + Standard profiles</div>
@@ -169,31 +167,31 @@ export default function PricingPage() {
               </div>
               <Link
                 href="/signup"
-                className="mt-8 border border-line py-2 text-center font-mono text-xs uppercase text-ink hover:border-ink hover:bg-subtle transition-colors"
+                className="mt-8 border border-[#dce2e3] py-2.5 text-center font-mono text-xs uppercase font-medium text-[#171d29] hover:border-[#02acc5] hover:bg-[#f5f6f8] transition-colors"
               >
                 Select Starter
               </Link>
             </div>
 
             {/* Growth */}
-            <div className="border-2 border-ink bg-subtle p-6 flex flex-col justify-between relative shadow-sm">
+            <div className="rounded-[24px] border-2 border-[#02acc5] bg-white p-7 flex flex-col justify-between relative shadow-xl shadow-[#02acc5]/10 scale-[1.02] transition-all">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-bold uppercase text-ink">Growth</span>
-                  <span className="border border-ink bg-ink text-canvas px-1.5 py-0.5 text-[9px] font-mono uppercase font-bold">
+                  <span className="font-mono text-sm font-bold uppercase text-[#171d29]">Growth</span>
+                  <span className="border border-[#02acc5] bg-[#02acc5] text-white px-2.5 py-0.5 text-[9px] font-mono uppercase font-bold">
                     Recommended
                   </span>
                 </div>
                 <div className="mt-4">
-                  <span className="font-mono text-3xl font-bold text-ink">
+                  <span className="font-mono text-3xl font-bold text-[#171d29]">
                     {symbol}{(249 * rate).toFixed(0)}
                   </span>
                   <span className="font-mono text-xs text-muted"> / month</span>
                 </div>
-                <p className="mt-2 text-xs text-muted font-sans leading-relaxed">
+                <p className="mt-2 text-xs text-muted leading-relaxed">
                   For growing engineering teams requiring automated daily scans, API gating, and Slack alerts.
                 </p>
-                <div className="mt-6 pt-4 border-t border-line font-mono text-xs flex flex-col gap-2 text-muted">
+                <div className="mt-6 pt-4 border-t border-[#dce2e3] font-mono text-xs flex flex-col gap-2 text-muted">
                   <div>• 25 verified assets</div>
                   <div>• 500 scans / month (Daily)</div>
                   <div>• Deep scan profiles + CVE correlation</div>
@@ -203,29 +201,29 @@ export default function PricingPage() {
               </div>
               <Link
                 href="/signup"
-                className="mt-8 border border-ink bg-ink py-2 text-center font-mono text-xs uppercase font-bold text-canvas hover:bg-canvas hover:text-ink transition-colors"
+                className="mt-8 bg-[#02acc5] py-3 text-center font-mono text-xs uppercase font-bold text-white hover:bg-[#029cb3] transition-colors"
               >
                 Select Growth
               </Link>
             </div>
 
             {/* Scale */}
-            <div className="border border-line bg-canvas p-6 flex flex-col justify-between">
+            <div className="rounded-[24px] border border-[#dce2e3] bg-white p-7 flex flex-col justify-between shadow-sm hover:border-[#02acc5] transition-all">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-bold uppercase text-ink">Scale</span>
-                  <span className="border border-line px-1.5 py-0.5 text-[9px] font-mono uppercase text-muted">Enterprise</span>
+                  <span className="font-mono text-sm font-bold uppercase text-[#171d29]">Scale</span>
+                  <span className="rounded-full border border-[#dce2e3] bg-[#f5f6f8] px-2 py-0.5 text-[9px] font-mono uppercase text-muted">Enterprise</span>
                 </div>
                 <div className="mt-4">
-                  <span className="font-mono text-3xl font-bold text-ink">
+                  <span className="font-mono text-3xl font-bold text-[#171d29]">
                     {symbol}{(799 * rate).toFixed(0)}
                   </span>
                   <span className="font-mono text-xs text-muted"> / month</span>
                 </div>
-                <p className="mt-2 text-xs text-muted font-sans leading-relaxed">
+                <p className="mt-2 text-xs text-muted leading-relaxed">
                   Complete attack surface protection with 100 assets, unlimited scans, and 4h SLA.
                 </p>
-                <div className="mt-6 pt-4 border-t border-line font-mono text-xs flex flex-col gap-2 text-muted">
+                <div className="mt-6 pt-4 border-t border-[#dce2e3] font-mono text-xs flex flex-col gap-2 text-muted">
                   <div>• 100 verified assets included</div>
                   <div>• Unlimited scan volume</div>
                   <div>• 730-day evidence retention</div>
@@ -235,7 +233,7 @@ export default function PricingPage() {
               </div>
               <Link
                 href="/signup"
-                className="mt-8 border border-line py-2 text-center font-mono text-xs uppercase text-ink hover:border-ink hover:bg-subtle transition-colors"
+                className="mt-8 border border-[#dce2e3] py-2.5 text-center font-mono text-xs uppercase font-medium text-[#171d29] hover:border-[#02acc5] hover:bg-[#f5f6f8] transition-colors"
               >
                 Select Scale
               </Link>
@@ -243,13 +241,13 @@ export default function PricingPage() {
           </div>
 
           {/* Interactive Metered Cost Calculator (§9.2) */}
-          <div className="border border-line bg-canvas p-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-line pb-4 mb-6">
+          <div className="rounded-[24px] border border-[#dce2e3] bg-white p-8 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#dce2e3] pb-4 mb-6">
               <div>
-                <h2 className="font-mono text-lg font-bold uppercase tracking-wider text-ink">
+                <h2 className="font-mono text-lg font-bold uppercase tracking-wider text-[#171d29]">
                   Interactive Metered Cost Calculator
                 </h2>
-                <p className="text-xs text-muted mt-1 font-sans">
+                <p className="text-xs text-muted mt-1">
                   Drag the slider to match your infrastructure size. Calculates your base plan and any metered overage.
                 </p>
               </div>
@@ -259,7 +257,7 @@ export default function PricingPage() {
               <div className="lg:col-span-2 flex flex-col gap-4">
                 <div className="flex items-center justify-between font-mono text-xs">
                   <span className="uppercase text-muted">Verified Targets:</span>
-                  <span className="font-bold text-ink text-xl">{calcAssets} Assets</span>
+                  <span className="font-bold text-[#02acc5] text-xl">{calcAssets} Assets</span>
                 </div>
 
                 <input
@@ -268,7 +266,7 @@ export default function PricingPage() {
                   max="150"
                   value={calcAssets}
                   onChange={(e) => setCalcAssets(parseInt(e.target.value, 10))}
-                  className="w-full accent-black cursor-pointer"
+                  className="w-full accent-[#02acc5] cursor-pointer"
                 />
 
                 <div className="flex justify-between font-mono text-[10px] text-muted">
@@ -279,13 +277,13 @@ export default function PricingPage() {
                   <span>150+ (Metered)</span>
                 </div>
 
-                <p className="text-xs text-muted font-sans leading-relaxed">
-                  Best fit: <strong className="font-mono text-ink uppercase">{suggestedPlan} Plan</strong>.
+                <p className="text-xs text-muted leading-relaxed">
+                  Best fit: <strong className="font-mono text-[#171d29] uppercase">{suggestedPlan} Plan</strong>.
                   {overageAssets > 0 ? ` Base includes 100 assets + ${overageAssets} additional targets at MYR 8/mo.` : ""}
                 </p>
               </div>
 
-              <div className="border border-line bg-subtle p-5 font-mono text-xs">
+              <div className="rounded-2xl border border-[#dce2e3] bg-[#f5f6f8] p-5 font-mono text-xs">
                 <div className="flex justify-between py-1 text-muted">
                   <span>Base Tier ({suggestedPlan.toUpperCase()}):</span>
                   <span>{symbol}{(basePrice * rate).toFixed(2)}</span>
@@ -296,7 +294,7 @@ export default function PricingPage() {
                     <span>{symbol}{(overageCost * rate).toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-1 text-muted border-t border-line mt-2 pt-2">
+                <div className="flex justify-between py-1 text-muted border-t border-[#dce2e3] mt-2 pt-2">
                   <span>Subtotal:</span>
                   <span>{symbol}{(subtotal * rate).toFixed(2)}</span>
                 </div>
@@ -304,7 +302,7 @@ export default function PricingPage() {
                   <span>Malaysian SST (8%):</span>
                   <span>{symbol}{(sstTax * rate).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-t border-ink font-bold text-sm text-ink mt-2">
+                <div className="flex justify-between py-2 border-t border-[#171d29] font-bold text-sm text-[#171d29] mt-2">
                   <span>TOTAL INVESTMENT:</span>
                   <span>{symbol}{(total * rate).toFixed(2)} / mo</span>
                 </div>
@@ -313,32 +311,32 @@ export default function PricingPage() {
           </div>
 
           {/* Full Feature Comparison Matrix (§9.2) */}
-          <div className="border border-line bg-canvas">
-            <div className="p-4 border-b border-line">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-ink">
+          <div className="rounded-[24px] border border-[#dce2e3] bg-white overflow-hidden shadow-sm">
+            <div className="p-5 border-b border-[#dce2e3]">
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-[#171d29]">
                 Detailed Feature Comparison Matrix
               </h2>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left font-mono text-xs">
-                <thead className="border-b border-line bg-subtle text-muted uppercase text-[10px]">
+                <thead className="border-b border-[#dce2e3] bg-[#f5f6f8] text-muted uppercase text-[10px]">
                   <tr>
-                    <th className="px-4 py-3">Capability</th>
-                    <th className="px-4 py-3">Free</th>
-                    <th className="px-4 py-3">Starter</th>
-                    <th className="px-4 py-3">Growth</th>
-                    <th className="px-4 py-3">Scale</th>
+                    <th className="px-5 py-3.5">Capability</th>
+                    <th className="px-5 py-3.5">Free</th>
+                    <th className="px-5 py-3.5">Starter</th>
+                    <th className="px-5 py-3.5 text-[#02acc5]">Growth</th>
+                    <th className="px-5 py-3.5">Scale</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line">
+                <tbody className="divide-y divide-[#dce2e3]">
                   {COMPARISON_ROWS.map((row) => (
-                    <tr key={row.label} className="hover:bg-subtle">
-                      <td className="px-4 py-3 font-medium text-ink">{row.label}</td>
-                      <td className="px-4 py-3 text-muted">{row.free}</td>
-                      <td className="px-4 py-3 text-muted">{row.starter}</td>
-                      <td className="px-4 py-3 font-bold text-ink">{row.growth}</td>
-                      <td className="px-4 py-3 text-ink">{row.scale}</td>
+                    <tr key={row.label} className="hover:bg-[#f5f6f8] transition-colors">
+                      <td className="px-5 py-3.5 font-medium text-[#171d29]">{row.label}</td>
+                      <td className="px-5 py-3.5 text-muted">{row.free}</td>
+                      <td className="px-5 py-3.5 text-muted">{row.starter}</td>
+                      <td className="px-5 py-3.5 font-bold text-[#02acc5]">{row.growth}</td>
+                      <td className="px-5 py-3.5 text-[#171d29]">{row.scale}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -347,17 +345,17 @@ export default function PricingPage() {
           </div>
 
           {/* FAQ Section (§9.2) */}
-          <div className="border border-line bg-canvas p-8">
-            <h2 className="font-mono text-base font-bold uppercase tracking-wider text-ink mb-6">
+          <div className="rounded-[24px] border border-[#dce2e3] bg-white p-8 shadow-sm">
+            <h2 className="font-mono text-base font-bold uppercase tracking-wider text-[#171d29] mb-6">
               Frequently Asked Questions
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {FAQS.map((faq) => (
-                <div key={faq.q} className="border border-line p-4">
-                  <h3 className="font-mono text-xs font-bold text-ink mb-2">
+                <div key={faq.q} className="rounded-xl border border-[#dce2e3] bg-[#f5f6f8] p-5">
+                  <h3 className="font-mono text-xs font-bold text-[#171d29] mb-2">
                     {faq.q}
                   </h3>
-                  <p className="text-xs text-muted font-sans leading-relaxed">
+                  <p className="text-xs text-muted leading-relaxed">
                     {faq.a}
                   </p>
                 </div>

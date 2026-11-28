@@ -28,6 +28,8 @@ export type ResolvedAsset = {
   value: string;
   is_active: boolean;
   verification_status: string | null;
+  verification_token?: string | null;
+  verification_method?: string | null;
 };
 
 export const SCAN_COLS = `id, org_id, project_id, trigger_source, profile, status,
@@ -126,9 +128,17 @@ export async function resolveScanAssets(
 ): Promise<ResolvedAsset[]> {
   const res = await db.query<ResolvedAsset>(
     `SELECT a.id, a.type, a.value, a.is_active,
-       (SELECT v.status::text FROM asset_verifications v
-         WHERE v.asset_id = a.id ORDER BY v.created_at DESC LIMIT 1) AS verification_status
+       lv.status::text AS verification_status,
+       lv.token AS verification_token,
+       lv.method::text AS verification_method
      FROM assets a
+     LEFT JOIN LATERAL (
+       SELECT v.status, v.token, v.method
+       FROM asset_verifications v
+       WHERE v.asset_id = a.id
+       ORDER BY v.created_at DESC
+       LIMIT 1
+     ) lv ON TRUE
      WHERE a.org_id = $1 AND a.id = ANY($2::uuid[])`,
     [orgId, assetIds],
   );

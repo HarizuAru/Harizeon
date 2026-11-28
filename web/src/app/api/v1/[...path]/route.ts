@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { apiBase, SESSION_COOKIE, SESSION_MAX_AGE, DEMO_MODE } from "@/lib/api";
+import { apiBase, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/api";
 import { handleMockApi, handleMockAuthPost } from "@/lib/mock-service";
 
 export const dynamic = "force-dynamic";
+
+const EXPLICIT_DEMO_MODE = process.env.HARIZEON_DEMO_MODE === "1";
 
 /**
  * API Proxy Route Handler (/api/v1/*):
@@ -34,7 +36,7 @@ async function proxyRequest(req: NextRequest, { params }: { params: Promise<{ pa
 
   // Handle Auth POST routes (signup/login)
   if (path === "/auth/login" || path === "/auth/signup") {
-    if (!DEMO_MODE && process.env.HARIZEON_API_BASE) {
+    if (!EXPLICIT_DEMO_MODE) {
       try {
         const upstream = await fetch(`${apiBase()}/v1${path}`, {
           method: "POST",
@@ -65,12 +67,13 @@ async function proxyRequest(req: NextRequest, { params }: { params: Promise<{ pa
           }
         }
         return res;
-      } catch {
-        // Fall back to mock auth post if upstream fails
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Upstream API unavailable";
+        return NextResponse.json({ error: { message, code: "upstream_unavailable" } }, { status: 502 });
       }
     }
 
-    // In-memory mock fallback for auth
+    // Explicit opt-in mock fallback for auth (HARIZEON_DEMO_MODE=1 only)
     const { res: mockRes, json } = await handleMockAuthPost(path, body);
     const res = NextResponse.json(json, { status: mockRes.status });
     const mockSetCookie = mockRes.headers.get("Set-Cookie");
@@ -90,8 +93,8 @@ async function proxyRequest(req: NextRequest, { params }: { params: Promise<{ pa
     return res;
   }
 
-  // If token is a mock session or DEMO_MODE is active and API base is unreachable
-  if (DEMO_MODE && (!token || token.startsWith("mock-session-"))) {
+  // If explicit opt-in demo mode is active with no live session
+  if (EXPLICIT_DEMO_MODE && (!token || token.startsWith("mock-session-"))) {
     try {
       const mockResult = await handleMockApi(fullPathWithQuery, { method, body });
       return NextResponse.json(mockResult);
@@ -136,8 +139,8 @@ async function proxyRequest(req: NextRequest, { params }: { params: Promise<{ pa
     }
     return res;
   } catch (err: unknown) {
-    // If upstream is unreachable and DEMO_MODE is allowed, fall back to mock service
-    if (DEMO_MODE) {
+    // Only fall back to mock service when HARIZEON_DEMO_MODE === "1"
+    if (EXPLICIT_DEMO_MODE) {
       try {
         const mockResult = await handleMockApi(fullPathWithQuery, { method, body });
         return NextResponse.json(mockResult);

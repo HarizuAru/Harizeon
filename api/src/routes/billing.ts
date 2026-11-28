@@ -3,6 +3,7 @@ import { z } from "zod";
 import { withTx } from "../db";
 import { getOrgPlanAndUsage, listInvoices, switchPlan } from "../repo/billing";
 import { writeAudit } from "../lib/audit";
+import { requireRole, requireScope } from "../plugins/auth";
 
 const CheckoutSessionBody = z.object({
   plan_code: z.enum(["free", "starter", "growth", "scale", "enterprise"]),
@@ -38,6 +39,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   // POST /v1/billing/checkout-session
   app.post("/billing/checkout-session", {
+    preHandler: [requireRole(["owner", "admin"]), requireScope("billing:write")],
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
       const orgId = req.auth!.orgId;
       const body = CheckoutSessionBody.parse(req.body);

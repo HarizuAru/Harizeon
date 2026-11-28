@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PublicHeader } from "@/components/public-header";
-import { PublicFooter } from "@/components/public-footer";
 
 export const metadata: Metadata = {
   title: "Services Documentation & Specifications · Harizeon Docs",
@@ -286,10 +284,6 @@ const SERVICES_CATALOG: ServiceDocItem[] = [
 
 export default function ServicesDocsPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-ink">
-      <PublicHeader />
-
-      <main className="flex-1 py-16 px-4 sm:px-6">
         <div className="mx-auto max-w-6xl flex flex-col gap-12">
           {/* Header & Breadcrumb */}
           <div>
@@ -539,9 +533,5 @@ export default function ServicesDocsPage() {
             </div>
           </div>
         </div>
-      </main>
-
-      <PublicFooter />
-    </div>
   );
 }

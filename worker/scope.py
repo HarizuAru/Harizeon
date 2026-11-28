@@ -12,6 +12,17 @@ deployment.
 
 import ipaddress
 import os
+import socket
+
+try:
+    import dns.resolver
+except ImportError:
+    dns = None
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")
 
@@ -81,3 +92,55 @@ def first_public_ip(addresses):
         if is_public_ip(addr):
             return addr
     return None
+
+
+def resolve_public_ips(hostname: str) -> list[str]:
+    """Resolve hostname and return only globally-routable public IP addresses."""
+    ips: set[str] = set()
+    try:
+        for info in socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM):
+            ip = info[4][0]
+            if is_public_ip(ip):
+                ips.add(ip)
+    except socket.gaierror:
+        return []
+    return sorted(ips)
+
+
+def is_in_domain_scope(candidate: str, root_domain: str) -> bool:
+    """Ensure candidate hostname is equal to or a subdomain of the root target."""
+    c = candidate.strip().lower().rstrip(".")
+    r = root_domain.strip().lower().rstrip(".")
+    return c == r or c.endswith(f".{r}")
+
+
+def verify_ownership(domain: str, token: str, method: str) -> bool:
+    """Phase 1 mandatory gate: cryptographic ownership check with zero bypasses."""
+    if not token or len(token) < 16:
+        return False
+
+    if method == "dns_txt":
+        if dns is None:
+            return False
+        try:
+            answers = dns.resolver.resolve(f"_harizeon-verify.{domain}", "TXT", lifetime=5.0)
+            return any(token in r.to_text().strip('"') for r in answers)
+        except Exception:
+            return False
+
+    if method == "http_file":
+        if httpx is None:
+            return False
+        public_ips = resolve_public_ips(domain)
+        if not public_ips:
+            return False
+        url = f"https://{domain}/.well-known/harizeon-verification.txt"
+        try:
+            with httpx.Client(timeout=5.0, follow_redirects=False) as client:
+                resp = client.get(url, headers={"User-Agent": "HarizeonVerifier/1.1"})
+                return resp.status_code == 200 and resp.text.strip() == token
+        except Exception:
+            return False
+
+    return False
+

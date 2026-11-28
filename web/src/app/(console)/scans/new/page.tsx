@@ -9,7 +9,12 @@ export const metadata: Metadata = { title: "New scan" };
 
 type Asset = { id: string; value: string; type: string };
 
-export default async function NewScanPage() {
+export default async function NewScanPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ asset_id?: string; profile?: string; target?: string }>;
+}) {
+  const { asset_id, profile } = (await searchParams) || {};
   let assets: Asset[] = [];
   let error: string | null = null;
   try {
@@ -28,7 +33,11 @@ export default async function NewScanPage() {
       {error ? (
         <EmptyState title="Could not load assets." description={error} />
       ) : (
-        <NewScanForm assets={assets} />
+        <NewScanForm
+          assets={assets}
+          defaultAssetId={asset_id}
+          defaultProfile={profile}
+        />
       )}
     </div>
   );

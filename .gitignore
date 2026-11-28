@@ -11,6 +11,8 @@ web/out/
 .env
 .env.*
 !.env.example
+infra/redis/users.acl
+.playwright-mcp/
 
 # logs
 *.log

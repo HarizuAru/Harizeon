@@ -7,7 +7,7 @@ process.env.RATE_LIMIT_ENABLED ??= "true";
 process.env.RATE_LIMIT_AUTH_PER_MIN ??= "3";
 process.env.RATE_LIMIT_PER_MIN ??= "3";
 
-const { consume, resetBuckets, sweep, rateLimit, WINDOW_MS } = await import("./ratelimit");
+const { consume, consumeRedis, resetBuckets, sweep, rateLimit, WINDOW_MS } = await import("./ratelimit");
 
 test("rate limit: allows up to the limit then blocks within the window", () => {
   resetBuckets();
@@ -71,4 +71,41 @@ test("rate limit hook: authenticated users get independent budgets", async () =>
   );
   // A different user behind the same IP is unaffected.
   await rateLimit(asUser("user-b"), reply);
+});
+
+test("rate limit Redis: uses atomic INCR + PEXPIRE under rl:* prefix", async () => {
+  const counts = new Map<string, number>();
+  const expiries = new Map<string, number>();
+  const mockRedis = {
+    async incr(key: string) {
+      const next = (counts.get(key) ?? 0) + 1;
+      counts.set(key, next);
+      return next;
+    },
+    async pexpire(key: string, ms: number) {
+      expiries.set(key, ms);
+      return 1;
+    },
+    async pttl(key: string) {
+      return expiries.get(key) ?? 60_000;
+    },
+  };
+
+  const replyHeaders: Record<string, unknown> = {};
+  const reply = { header: (k: string, v: unknown) => { replyHeaders[k] = v; } } as never;
+  const req = { url: "/v1/auth/login", ip: "1.2.3.4" } as never;
+
+  const res1 = await consumeRedis(mockRedis, "1.2.3.4:auth", 2, 60_000);
+  assert.equal(res1.allowed, true);
+  assert.equal(expiries.get("rl:1.2.3.4:auth"), 60_000);
+
+  counts.clear();
+  expiries.clear();
+  for (let i = 0; i < 3; i++) await rateLimit(req, reply, mockRedis);
+  await assert.rejects(
+    () => rateLimit(req, reply, mockRedis),
+    (e: unknown) => (e as { statusCode: number }).statusCode === 429,
+  );
+  assert.ok(counts.has("rl:1.2.3.4:auth"));
+  assert.equal(replyHeaders["Retry-After"], 60);
 });

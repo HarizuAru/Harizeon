@@ -68,19 +68,50 @@ export async function checkHttpFile(
   token: string,
   fetcher: HttpFetcher = (u, init) => fetch(u, init),
   timeoutMs: number = VERIFY_HTTP_TIMEOUT_MS,
+  validateRedirectHost: (hostname: string) => Promise<boolean> = resolvesToPublicOnly,
 ): Promise<{ ok: boolean; reason: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetcher(url, {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: { "User-Agent": "Harizeon-Verify/0.1" },
-    });
-    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
-    const text = (await res.text()).trim();
-    if (text === token) return { ok: true, reason: "matched" };
-    return { ok: false, reason: "mismatch" };
+    let currentUrl = url;
+    const initialHost = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
+
+    for (let hop = 0; hop < 2; hop++) {
+      const res = await fetcher(currentUrl, {
+        signal: controller.signal,
+        redirect: "manual",
+        headers: { "User-Agent": "Harizeon-Verify/0.1" },
+      });
+
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers?.get?.("location");
+        if (!location || hop === 1) {
+          return { ok: false, reason: "redirect_blocked" };
+        }
+        let nextParsed: URL;
+        try {
+          nextParsed = new URL(location, currentUrl);
+        } catch {
+          return { ok: false, reason: "redirect_blocked" };
+        }
+        if (nextParsed.protocol !== "http:" && nextParsed.protocol !== "https:") {
+          return { ok: false, reason: "redirect_blocked" };
+        }
+        const nextHost = nextParsed.hostname.toLowerCase().replace(/\.$/, "");
+        const inScope = nextHost === initialHost || nextHost.endsWith(`.${initialHost}`);
+        if (!inScope || !isPublicHost(nextHost) || !(await validateRedirectHost(nextHost))) {
+          return { ok: false, reason: "redirect_blocked" };
+        }
+        currentUrl = nextParsed.toString();
+        continue;
+      }
+
+      if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+      const text = (await res.text()).trim();
+      if (text === token) return { ok: true, reason: "matched" };
+      return { ok: false, reason: "mismatch" };
+    }
+    return { ok: false, reason: "redirect_blocked" };
   } catch (e: unknown) {
     if ((e as Error)?.name === "AbortError") return { ok: false, reason: "timeout" };
     return { ok: false, reason: "fetch_error" };
@@ -205,3 +236,27 @@ export async function resolvesToPublicOnly(
     return false; // cannot prove public -> refuse (fail closed)
   }
 }
+
+/**
+ * Protected government, military, banking, and critical infrastructure TLDs (§12.5).
+ * Automated self-serve scanning is prohibited on these namespaces to protect the
+ * platform and national infrastructure from unauthorized targeting.
+ */
+const RESTRICTED_TLDS = [
+  ".gov",
+  ".gov.my",
+  ".mil",
+  ".police.uk",
+  ".bank",
+  ".centralbank",
+  ".army.mil",
+  ".navy.mil",
+];
+
+export function isRestrictedTarget(target: string): boolean {
+  const lower = target.trim().toLowerCase();
+  // Strip protocol and path if passed as full URL
+  const host = lower.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0];
+  return RESTRICTED_TLDS.some((tld) => host === tld.slice(1) || host.endsWith(tld));
+}
+

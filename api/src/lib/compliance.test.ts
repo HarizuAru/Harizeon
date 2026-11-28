@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mapFindingsToControls, CONTROL_MAP } from "./compliance";
+import { mapFindingsToControls, CONTROL_MAP, NACSA_NCII_REPORTING_REFERENCE } from "./compliance";
 
 const f = (over: Partial<Parameters<typeof mapFindingsToControls>[0][number]> = {}) => ({
   id: "fnd-1",
@@ -86,4 +86,17 @@ test("compliance: maps specific checkId to OWASP Top 10 for LLMs and ISO 42001",
 
   const iso42001 = results.find((r) => r.framework === "ISO/IEC 42001:2023");
   assert.ok(iso42001, "ISO 42001 present");
+});
+
+test("compliance: references PDPA 2024 (Act 709) and NACSA P.U.(A) 220 timelines accurately", () => {
+  const results = mapFindingsToControls([f(), f({ id: "fnd-exp", category: "exposed_service" })]);
+  assert.equal(results.some((r) => r.framework.includes("PDPA 2010")), false);
+  const pdpa = results.find((r) => r.framework === "PDPA 2024 (Act 709)");
+  assert.ok(pdpa, "PDPA 2024 (Act 709) framework present");
+
+  const nacsa = results.find((r) => r.framework === "NACSA NCII (Act 854 / P.U.(A) 220)");
+  assert.ok(nacsa, "NACSA NCII framework present");
+  assert.equal(NACSA_NCII_REPORTING_REFERENCE.prescribed_particulars_hours, 6);
+  assert.equal(NACSA_NCII_REPORTING_REFERENCE.supplementary_report_days, 14);
+  assert.match(NACSA_NCII_REPORTING_REFERENCE.initial_notification, /Immediate electronic notice/i);
 });

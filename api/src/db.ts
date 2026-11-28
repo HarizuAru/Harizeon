@@ -21,15 +21,20 @@ pool.on("error", (err) => {
 /** Minimal interface satisfied by both Pool and PoolClient for read queries. */
 export type Queryable = Pick<pg.Pool | pg.PoolClient, "query">;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Run a callback inside a transaction with the org GUC set (RLS second net).
- * If orgId is provided, sets `harizeon.org_id` for the transaction scope.
+ * If orgId is provided, validates UUID format and sets `harizeon.org_id` for the transaction scope.
  * If orgId is null/undefined, leaves the GUC unset (default-deny for org-scoped tables).
  */
 export async function withTx<T>(
   fn: (client: pg.PoolClient) => Promise<T>,
   orgId?: string | null,
 ): Promise<T> {
+  if (orgId && !UUID_RE.test(orgId)) {
+    throw new Error("Invalid tenant orgId");
+  }
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
+import { WorkspaceDataControl } from "@/components/workspace-data-control";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -26,6 +27,11 @@ const SETTINGS_SECTIONS = [
     desc: "Generate scoped Bearer tokens for GitHub Actions, GitLab CI, or SIEM pipelines with one-time secret view.",
   },
   {
+    title: "CI/CD & Developer Quality Gates",
+    href: "/settings/ci-cd",
+    desc: "Automated quality gates for GitHub Actions, GitLab CI, and CLI pipelines. Fail pull requests on high/critical perimeter exposures.",
+  },
+  {
     title: "Notifications & Alerts",
     href: "/settings/notifications",
     desc: "Alert channels (email, Slack webhook, custom HMAC-SHA256 webhooks, Discord) and automated digests.",
@@ -49,6 +55,8 @@ export default function SettingsPage() {
         title="Settings"
         description="Configure organization preferences, notification channels, API keys, and team access."
       />
+
+      <WorkspaceDataControl />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {SETTINGS_SECTIONS.map((sec) => (

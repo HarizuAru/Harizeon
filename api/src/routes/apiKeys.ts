@@ -3,6 +3,7 @@ import { z } from "zod";
 import { withTx } from "../db";
 import { createApiKey, listApiKeys, revokeApiKey } from "../repo/apiKeys";
 import { writeAudit } from "../lib/audit";
+import { requireRole, requireScope } from "../plugins/auth";
 
 const CreateApiKeyBody = z.object({
   name: z.string().min(1).max(100),
@@ -18,6 +19,7 @@ export async function apiKeyRoutes(app: FastifyInstance) {
 
   // POST /v1/api-keys — returns the secret ONCE
   app.post("/api-keys", {
+    preHandler: [requireRole(["owner", "admin"]), requireScope("api_keys:write")],
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
       const orgId = req.auth!.orgId;
       const body = CreateApiKeyBody.parse(req.body);
@@ -51,20 +53,23 @@ export async function apiKeyRoutes(app: FastifyInstance) {
   });
 
   // DELETE /v1/api-keys/:id
-  app.delete("/api-keys/:id", async (req: FastifyRequest, _reply: FastifyReply) => {
-    const orgId = req.auth!.orgId;
-    const { id } = req.params as { id: string };
-    await withTx(async (client) => {
-      await revokeApiKey(client, orgId, id);
-      await writeAudit(client, {
-        orgId,
-        actorType: req.auth!.actorType,
-        actorId: req.auth!.userId ?? req.auth!.apiKeyId,
-        action: "apikey.revoke",
-        targetType: "api_key",
-        targetId: id,
-      });
-    }, orgId);
-    return { ok: true };
+  app.delete("/api-keys/:id", {
+    preHandler: [requireRole(["owner", "admin"]), requireScope("api_keys:write")],
+    handler: async (req: FastifyRequest, _reply: FastifyReply) => {
+      const orgId = req.auth!.orgId;
+      const { id } = req.params as { id: string };
+      await withTx(async (client) => {
+        await revokeApiKey(client, orgId, id);
+        await writeAudit(client, {
+          orgId,
+          actorType: req.auth!.actorType,
+          actorId: req.auth!.userId ?? req.auth!.apiKeyId,
+          action: "apikey.revoke",
+          targetType: "api_key",
+          targetId: id,
+        });
+      }, orgId);
+      return { ok: true };
+    },
   });
 }

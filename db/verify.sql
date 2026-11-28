@@ -5,16 +5,23 @@
 --   docker compose exec -T db psql -U harizeon -d harizeon -v ON_ERROR_STOP=1 < db/verify.sql
 \set ON_ERROR_STOP on
 
--- Fixtures (owner bypasses RLS) ------------------------------------------------
+-- Fixtures (set tenant context so FORCE ROW LEVEL SECURITY also passes cleanly) --
 INSERT INTO orgs (id, name, slug) VALUES
   ('11111111-1111-1111-1111-111111111111', 'Verify Org A', 'verify-a'),
   ('22222222-2222-2222-2222-222222222222', 'Verify Org B', 'verify-b')
 ON CONFLICT (id) DO NOTHING;
 
+SELECT set_config('harizeon.org_id', '11111111-1111-1111-1111-111111111111', false);
 INSERT INTO assets (org_id, type, value) VALUES
-  ('11111111-1111-1111-1111-111111111111', 'domain', 'a.verify.local'),
+  ('11111111-1111-1111-1111-111111111111', 'domain', 'a.verify.local')
+ON CONFLICT (org_id, type, value) DO NOTHING;
+
+SELECT set_config('harizeon.org_id', '22222222-2222-2222-2222-222222222222', false);
+INSERT INTO assets (org_id, type, value) VALUES
   ('22222222-2222-2222-2222-222222222222', 'domain', 'b.verify.local')
 ON CONFLICT (org_id, type, value) DO NOTHING;
+
+SELECT set_config('harizeon.org_id', '11111111-1111-1111-1111-111111111111', false);
 
 -- 1) audit_log is append-only --------------------------------------------------
 DO $$
@@ -61,6 +68,26 @@ BEGIN
     RAISE EXCEPTION 'FAIL: org_ids_for_user(uuid) missing';
   END IF;
   RAISE NOTICE 'OK: pre-auth SECURITY DEFINER functions present';
+END $$;
+
+-- 4) v1.1 compliance controls seeded & RLS enabled on drift tables ------------
+DO $$
+DECLARE ctrl_count int;
+BEGIN
+  IF to_regclass('public.drift_events') IS NULL THEN
+    RAISE EXCEPTION 'FAIL: drift_events table missing';
+  END IF;
+  IF to_regclass('public.asset_snapshots') IS NULL THEN
+    RAISE EXCEPTION 'FAIL: asset_snapshots table missing';
+  END IF;
+  IF to_regclass('public.compliance_controls') IS NULL THEN
+    RAISE EXCEPTION 'FAIL: compliance_controls table missing';
+  END IF;
+  SELECT count(*) INTO ctrl_count FROM compliance_controls;
+  IF ctrl_count < 6 THEN
+    RAISE EXCEPTION 'FAIL: compliance_controls has fewer than 6 baseline controls (got %)', ctrl_count;
+  END IF;
+  RAISE NOTICE 'OK: v1.1 tables and % compliance controls verified', ctrl_count;
 END $$;
 
 \echo 'verify.sql: all security invariants passed'

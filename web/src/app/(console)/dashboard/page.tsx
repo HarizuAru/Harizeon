@@ -8,6 +8,7 @@ import {
   type DashboardUsage,
 } from "@/components/dashboard-view";
 import { type SystemHealthData } from "@/components/system-health-dashboard";
+import { type EmergingThreatSummary } from "@/components/emerging-threat-banner";
 import { apiFetch, ApiError } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -22,21 +23,24 @@ export default async function DashboardPage() {
   let scans: DashboardScan[] = [];
   let systemHealth: SystemHealthData | null = null;
   let usage: DashboardUsage | null = null;
+  let emergingThreats: EmergingThreatSummary | null = null;
   let error: string | null = null;
 
   try {
-    const [findingsRes, assetsRes, scansRes, systemHealthRes, usageRes] = await Promise.all([
+    const [findingsRes, assetsRes, scansRes, systemHealthRes, usageRes, threatsRes] = await Promise.all([
       apiFetch<{ data: DashboardFinding[] }>("/findings?limit=50"),
       apiFetch<{ data: DashboardAsset[] }>("/assets?limit=50"),
       apiFetch<{ data: DashboardScan[] }>("/scans?limit=50"),
       apiFetch<SystemHealthData>("/system/health").catch(() => null),
       apiFetch<DashboardUsage>("/usage").catch(() => null),
+      apiFetch<EmergingThreatSummary>("/threats/emerging").catch(() => null),
     ]);
     findings = findingsRes.data ?? [];
     assets = assetsRes.data ?? [];
     scans = scansRes.data ?? [];
     systemHealth = systemHealthRes;
     usage = usageRes;
+    emergingThreats = threatsRes;
   } catch (e: unknown) {
     if (e instanceof ApiError && e.status === 401) redirect("/login");
     error = e instanceof ApiError ? e.message : "Cannot reach the API. Is it running?";
@@ -52,7 +56,14 @@ export default async function DashboardPage() {
           </p>
         </div>
       ) : null}
-      <DashboardView findings={findings} assets={assets} scans={scans} systemHealth={systemHealth} usage={usage} />
+      <DashboardView
+        findings={findings}
+        assets={assets}
+        scans={scans}
+        systemHealth={systemHealth}
+        usage={usage}
+        emergingThreats={emergingThreats}
+      />
     </div>
   );
 }

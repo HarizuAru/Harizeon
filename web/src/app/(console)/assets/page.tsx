@@ -6,6 +6,7 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { AssetFilters } from "@/components/asset-filters";
+import { PerimeterSyncModal } from "@/components/perimeter-sync-modal";
 import { apiFetch, ApiError } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Assets" };
@@ -95,9 +96,12 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
         title="Assets"
         description="Everything you own and have verified."
         actions={
-          <Link href="/assets/new" className={buttonClass("primary", "md")}>
-            Add asset
-          </Link>
+          <div className="flex items-center gap-2">
+            <PerimeterSyncModal />
+            <Link href="/assets/new" className={buttonClass("primary", "md")}>
+              Add asset
+            </Link>
+          </div>
         }
       />
       <AssetFilters q={q} type={type} criticality={criticality} verified={verified} />

@@ -1,0 +1,28 @@
+id: exposed-dotenv-file
+info:
+  name: Exposed Environment Configuration (.env)
+  author: harizeon
+  severity: critical
+  classification:
+    cwe-id: ["CWE-538"]
+  remediation: "Block HTTP access to dotfiles at your web server or WAF and rotate all exposed secrets immediately."
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.env"
+      - "{{BaseURL}}/.env.production"
+      - "{{BaseURL}}/.env.local"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: regex
+        part: body
+        regex:
+          - "(?m)^(APP_KEY|DB_PASSWORD|AWS_SECRET_ACCESS_KEY|STRIPE_SECRET|OPENAI_API_KEY|DATABASE_URL)="
+      - type: word
+        part: header
+        negative: true
+        words:
+          - "text/html"

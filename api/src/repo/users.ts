@@ -8,11 +8,15 @@ export type UserRow = {
   name: string | null;
   email_verified_at: string | null;
   mfa_secret: string | null;
+  mfa_enabled: boolean;
   last_login_at: string | null;
   locale: string;
   created_at: string;
   updated_at: string;
 };
+
+const USER_COLS =
+  "id, email, password_hash, name, email_verified_at, mfa_secret, mfa_enabled, last_login_at, locale, created_at, updated_at";
 
 export async function createUser(
   db: Queryable,
@@ -25,7 +29,7 @@ export async function createUser(
   const res = await db.query<UserRow>(
     `INSERT INTO users (email, password_hash, name, locale)
      VALUES ($1,$2,$3,$4)
-     RETURNING id, email, password_hash, name, email_verified_at, mfa_secret, last_login_at, locale, created_at, updated_at`,
+     RETURNING ${USER_COLS}`,
     [input.email, passwordHash, input.name ?? null, input.locale ?? "en"],
   );
   return res.rows[0];
@@ -33,11 +37,34 @@ export async function createUser(
 
 export async function findUserByEmail(db: Queryable, email: string): Promise<UserRow | null> {
   const res = await db.query<UserRow>(
-    `SELECT id, email, password_hash, name, email_verified_at, mfa_secret, last_login_at, locale, created_at, updated_at
+    `SELECT ${USER_COLS}
      FROM users WHERE email = $1`,
     [email],
   );
   return res.rows[0] ?? null;
+}
+
+export async function findUserById(db: Queryable, userId: string): Promise<UserRow | null> {
+  const res = await db.query<UserRow>(
+    `SELECT ${USER_COLS}
+     FROM users WHERE id = $1`,
+    [userId],
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function setPendingMfaSecret(db: Queryable, userId: string, storedSecret: string): Promise<void> {
+  await db.query(
+    `UPDATE users SET mfa_secret = $2, mfa_enabled = false, updated_at = now() WHERE id = $1`,
+    [userId, storedSecret],
+  );
+}
+
+export async function enableUserMfa(db: Queryable, userId: string): Promise<void> {
+  await db.query(
+    `UPDATE users SET mfa_enabled = true, updated_at = now() WHERE id = $1`,
+    [userId],
+  );
 }
 
 export async function updateUserPassword(db: Queryable, userId: string, newPassword: string): Promise<void> {

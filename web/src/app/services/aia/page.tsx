@@ -74,7 +74,7 @@ const COMPLIANCE_ROWS = [
 
 export default function ServiceAiArmorPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-ink">
+    <div className="flex min-h-screen flex-col bg-[#f5f6f8] text-[#171d29]">
       <PublicHeader />
 
       <main className="flex-1 py-16 px-4 sm:px-6">
@@ -82,71 +82,71 @@ export default function ServiceAiArmorPage() {
           {/* Header & Breadcrumb */}
           <div>
             <div className="flex items-center gap-2 font-mono text-xs text-muted mb-4">
-              <Link href="/services" className="hover:text-ink">Services</Link>
+              <Link href="/services" className="hover:text-[#02acc5] transition-colors">Services</Link>
               <span>/</span>
-              <span className="text-ink font-bold">AIA</span>
+              <span className="text-[#02acc5] font-bold">AIA</span>
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="border-2 border-ink px-3 py-1 font-mono text-base font-bold text-ink">
+              <span className="rounded-lg border border-[#02acc5]/30 bg-[#02acc5]/10 px-3 py-1 font-mono text-base font-bold text-[#02acc5]">
                 AIA
               </span>
-              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-ink font-sans">
+              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[#171d29]">
                 Harizeon AI-Armor
               </h1>
             </div>
 
-            <p className="mt-4 text-base text-muted max-w-3xl font-sans leading-relaxed">
+            <p className="mt-4 text-base text-muted max-w-3xl leading-relaxed">
               The external attack surface management engine engineered specifically for modern AI startups, SaaS companies, and GenAI builders. Continuous discovery and non-destructive validation across your entire AI perimeter.
             </p>
           </div>
 
           {/* Quick CTA banner */}
-          <div className="border border-line bg-subtle p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="rounded-[24px] bg-[#171d29] text-white p-7 border-t-4 border-t-[#02acc5] shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <span className="font-mono text-xs font-bold uppercase tracking-wider text-ink block mb-1">
+              <span className="font-mono text-xs font-bold uppercase tracking-wider text-white block mb-1">
                 Fast AI Perimeter Audit · 30 Seconds
               </span>
-              <p className="text-xs text-muted font-sans">
+              <p className="text-xs text-[#dce2e3]">
                 Available on all plans including Free. Probes model endpoints, vector databases, and client tokens.
               </p>
             </div>
             <Link
               href="/scans/new"
-              className="border border-ink bg-ink text-canvas px-4 py-2 font-mono text-xs font-bold uppercase hover:bg-transparent hover:text-ink transition-colors whitespace-nowrap button-tactile"
+              className="bg-[#02acc5] text-white px-5 py-2.5 font-mono text-xs font-bold uppercase hover:bg-[#029cb3] transition-colors whitespace-nowrap"
             >
               Launch AI Scan →
             </Link>
           </div>
 
           {/* 4 Core Threat Vectors */}
-          <div className="border border-line bg-canvas p-8">
-            <h2 className="font-mono text-base font-bold uppercase tracking-wider text-ink mb-6">
+          <div className="rounded-[24px] border border-[#dce2e3] bg-white p-8 shadow-sm">
+            <h2 className="font-mono text-base font-bold uppercase tracking-wider text-[#171d29] mb-6">
               AI Surface Vectors Inspected
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
               {VECTORS.map((v) => (
-                <div key={v.num} className="border border-line p-5 flex flex-col justify-between">
+                <div key={v.num} className="rounded-xl border border-[#dce2e3] bg-[#f5f6f8] p-5.5 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-muted font-bold">{v.num}.</span>
-                      <span className="border border-line px-1.5 py-0.5 text-[10px] text-muted">
+                      <span className="text-[#02acc5] font-bold">{v.num}.</span>
+                      <span className="rounded-full border border-[#dce2e3] bg-white px-2 py-0.5 text-[10px] text-muted">
                         NON-DESTRUCTIVE
                       </span>
                     </div>
-                    <span className="font-bold text-ink text-sm block mb-1">
+                    <span className="font-bold text-[#171d29] text-sm block mb-1">
                       {v.title}
                     </span>
-                    <span className="text-[10px] text-faint block mb-3 font-mono">
+                    <span className="text-[10px] text-muted block mb-3 font-mono">
                       Targets: {v.ports}
                     </span>
-                    <p className="text-muted text-[11px] leading-relaxed mb-4 font-sans">
+                    <p className="text-muted text-[11px] leading-relaxed mb-4">
                       {v.description}
                     </p>
                   </div>
-                  <div className="pt-3 border-t border-line text-[11px] text-muted">
-                    <strong className="text-ink">Remediation:</strong> {v.mitigation}
+                  <div className="pt-3 border-t border-[#dce2e3] text-[11px] text-muted">
+                    <strong className="text-[#171d29]">Remediation:</strong> {v.mitigation}
                   </div>
                 </div>
               ))}
@@ -154,29 +154,29 @@ export default function ServiceAiArmorPage() {
           </div>
 
           {/* Compliance & Governance Matrix */}
-          <div className="border border-line bg-canvas p-8">
-            <h2 className="font-mono text-base font-bold uppercase tracking-wider text-ink mb-2">
+          <div className="rounded-[24px] border border-[#dce2e3] bg-white p-8 shadow-sm">
+            <h2 className="font-mono text-base font-bold uppercase tracking-wider text-[#171d29] mb-2">
               Compliance &amp; Governance Mapping
             </h2>
-            <p className="text-xs text-muted font-sans mb-6">
+            <p className="text-xs text-muted mb-6">
               Findings map directly to recognized international AI risk frameworks to provide auditor-ready proof.
             </p>
 
-            <div className="overflow-x-auto border border-line">
+            <div className="overflow-x-auto rounded-xl border border-[#dce2e3]">
               <table className="w-full text-left font-mono text-xs">
-                <thead className="border-b border-line bg-subtle text-muted text-[11px] uppercase">
+                <thead className="border-b border-[#dce2e3] bg-[#f5f6f8] text-muted text-[11px] uppercase">
                   <tr>
-                    <th className="p-3">Framework</th>
-                    <th className="p-3">Control Reference</th>
-                    <th className="p-3">Threat Scope</th>
+                    <th className="p-3.5">Framework</th>
+                    <th className="p-3.5">Control Reference</th>
+                    <th className="p-3.5">Threat Scope</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line font-sans text-xs">
+                <tbody className="divide-y divide-[#dce2e3] text-xs">
                   {COMPLIANCE_ROWS.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-subtle/50">
-                      <td className="p-3 font-mono text-ink font-bold">{row.framework}</td>
-                      <td className="p-3 font-mono text-muted">{row.control}</td>
-                      <td className="p-3 text-muted">{row.focus}</td>
+                    <tr key={idx} className="hover:bg-[#f5f6f8] transition-colors">
+                      <td className="p-3.5 font-mono text-[#171d29] font-bold">{row.framework}</td>
+                      <td className="p-3.5 font-mono text-muted">{row.control}</td>
+                      <td className="p-3.5 text-muted">{row.focus}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -185,17 +185,17 @@ export default function ServiceAiArmorPage() {
           </div>
 
           {/* Technical Implementation & Safety Note (§12) */}
-          <div className="border border-line bg-canvas p-8 font-mono text-xs">
-            <h2 className="font-bold uppercase tracking-wider text-ink mb-4">
+          <div className="rounded-[24px] border border-[#dce2e3] bg-white p-8 font-mono text-xs shadow-sm">
+            <h2 className="font-bold uppercase tracking-wider text-[#171d29] mb-4">
               Data Plane Safety &amp; Non-Destructive Scanning (§12)
             </h2>
-            <p className="text-muted text-[11px] font-sans leading-relaxed mb-4">
+            <p className="text-muted text-[11px] leading-relaxed mb-4">
               Harizeon AI-Armor adheres to strict safety boundaries. Probes are benign metadata queries that verify endpoint presence without executing model inferences, extracting training weights, or dumping vector databases.
             </p>
             <ul className="flex flex-col gap-2 text-[11px] text-muted">
-              <li>- Zero heavy GPU computation: no completion payloads sent to inference daemons.</li>
-              <li>- Zero secret disclosure: leaked API keys are redacted before storing or emitting.</li>
-              <li>- Isolated workers: scan workers run in isolated data containers with zero database credentials.</li>
+              <li>• Zero heavy GPU computation: no completion payloads sent to inference daemons.</li>
+              <li>• Zero secret disclosure: leaked API keys are redacted before storing or emitting.</li>
+              <li>• Isolated workers: scan workers run in isolated data containers with zero database credentials.</li>
             </ul>
           </div>
         </div>

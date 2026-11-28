@@ -92,3 +92,26 @@ export async function setDiscoveryScopeAction(
     return { ok: false, error: "Cannot reach the API. Is it running?" };
   }
 }
+
+export async function bulkCreateAssetsAction(
+  domains: string[],
+): Promise<{ imported: number; failed: number }> {
+  let imported = 0;
+  let failed = 0;
+  for (const domain of domains) {
+    try {
+      await apiFetch("/assets", {
+        method: "POST",
+        body: {
+          value: domain,
+          type: domain.split(".").length > 2 ? "subdomain" : "domain",
+        },
+      });
+      imported++;
+    } catch {
+      failed++;
+    }
+  }
+  revalidatePath("/assets");
+  return { imported, failed };
+}

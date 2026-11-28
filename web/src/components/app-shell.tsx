@@ -10,6 +10,7 @@ import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts-modal";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCloudShellOpen, setIsCloudShellOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [activeRegion, setActiveRegion] = useState("ap-southeast-1");
@@ -24,8 +25,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     segments.length === 0
       ? "Home"
       : segments[0] === "dashboard"
-      ? "Dashboard"
-      : segments[0].charAt(0).toUpperCase() + segments[0].slice(1);
+        ? "Dashboard"
+        : segments[0].charAt(0).toUpperCase() + segments[0].slice(1);
 
   // Global keyboard shortcuts (Vim / GitHub style chords)
   useEffect(() => {
@@ -140,36 +141,36 @@ export function AppShell({ children }: { children: ReactNode }) {
           onToggleCloudShell={() => setIsCloudShellOpen(!isCloudShellOpen)}
           activeRegion={activeRegion}
           onSelectRegion={setActiveRegion}
-          onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
         />
       </div>
 
       {/* Console Sub-Header / Breadcrumb & Status Bar */}
-      <div className="flex h-9 items-center justify-between border-b border-line bg-subtle/50 px-4 font-mono text-[11px] select-none print:hidden">
-        <div className="flex items-center gap-2 text-muted">
+      <div className="flex h-9 items-center justify-between gap-2 overflow-hidden border-b border-line bg-subtle/50 px-3 sm:px-4 font-mono text-[11px] select-none print:hidden">
+        <div className="flex items-center gap-2 text-muted min-w-0">
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="border border-line bg-canvas px-1.5 py-0.5 text-muted hover:border-ink hover:text-ink transition-colors cursor-pointer"
+            className="hidden lg:inline-flex border border-line bg-canvas px-1.5 py-0.5 text-muted hover:border-ink hover:text-ink transition-colors cursor-pointer shrink-0"
             title="Toggle left service sidebar"
             aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {isSidebarCollapsed ? "☰ Expand" : "☷ Collapse"}
           </button>
-          <span className="text-faint" aria-hidden="true">|</span>
-          <Link href="/dashboard" className="text-muted hover:text-ink">
+          <span className="hidden lg:inline text-faint" aria-hidden="true">|</span>
+          <Link href="/dashboard" className="text-muted hover:text-ink truncate">
             Harizeon Console
           </Link>
-          <span className="text-faint" aria-hidden="true">&gt;</span>
-          <span className="font-semibold text-ink">{breadcrumbName}</span>
+          <span className="text-faint shrink-0" aria-hidden="true">&gt;</span>
+          <span className="font-semibold text-ink truncate">{breadcrumbName}</span>
           {segments.length > 1 && (
             <>
-              <span className="text-faint" aria-hidden="true">&gt;</span>
-              <span className="text-muted truncate max-w-[150px]">{segments[1]}</span>
+              <span className="hidden sm:inline text-faint" aria-hidden="true">&gt;</span>
+              <span className="hidden sm:inline text-muted truncate max-w-[150px]">{segments[1]}</span>
             </>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Scanner Fleet Status Indicator */}
           <Link
             href="/status"
@@ -180,8 +181,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
 
           {/* Region Indicator Pill */}
-          <span className="border border-line bg-canvas px-2 py-0.5 text-faint">
-            Cluster: <strong className="text-ink">{activeRegion}</strong>
+          <span className="hidden md:inline-flex border border-line bg-canvas px-2 py-0.5 text-faint">
+            Cluster: <strong className="text-ink ml-1">{activeRegion}</strong>
           </span>
 
           {/* Keyboard Shortcuts Help Trigger */}
@@ -213,6 +214,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Sidebar
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            isMobileOpen={isMobileSidebarOpen}
+            onCloseMobile={() => setIsMobileSidebarOpen(false)}
           />
         </div>
         <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 p-4 sm:p-6 overflow-x-auto focus:outline-none print:p-0 print:m-0 print:w-full print:max-w-none print:overflow-visible">

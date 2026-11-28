@@ -74,6 +74,23 @@ export type ReportRow = {
   updated_at: Date | string;
 };
 
+export type PublicReportRow = Omit<ReportRow, "file_ref" | "generated_by">;
+
+/** Strip internal storage/blob references and generator user IDs from report metadata responses. */
+export function publicReport(row: ReportRow): PublicReportRow {
+  return {
+    id: row.id,
+    org_id: row.org_id,
+    project_id: row.project_id,
+    type: row.type,
+    generated_at: row.generated_at,
+    period_start: row.period_start,
+    period_end: row.period_end,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 const DISCLAIMER =
   "Automated testing only; not a substitute for a manual penetration test. Findings reflect detected state at the time of scan execution. Harizeon provides vulnerability identification and telemetry but does not certify immune status. Compliance control references are indicative mappings for guidance only and are not an audit opinion or a statement of certification.";
 

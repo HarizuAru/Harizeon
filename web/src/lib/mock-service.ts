@@ -16,6 +16,23 @@ export interface MockOrg {
   id: string;
   name: string;
   slug: string;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  billing_status?: string;
+  created_at?: string;
+}
+
+export interface MockMember {
+  id: string;
+  org_id: string;
+  user_id: string;
+  role: "owner" | "admin" | "member" | "readonly";
+  user_email: string;
+  user_name: string;
+  invited_by?: string | null;
+  accepted_at?: string | null;
+  created_at: string;
 }
 
 export interface MockAsset {
@@ -91,12 +108,37 @@ export interface MockFinding {
   status: "open" | "acknowledged" | "fixed" | "false_positive" | "accepted";
   category: string | null;
   cwe_id: string | null;
+  cve_ids?: string[];
+  known_exploited?: boolean;
+  epss_score?: number;
+  epss_percentile?: number;
   asset_id: string | null;
   asset_value: string | null;
   first_seen_at: string;
   last_seen_at: string;
   status_reason: string | null;
+  source_tool?: string | null;
+  last_verified_at?: string | null;
   events: MockFindingEvent[];
+}
+
+export interface MockDriftEvent {
+  id: string;
+  org_id: string;
+  asset_id: string;
+  asset_value?: string;
+  scan_id: string;
+  event_type:
+    | "NEW_SUBDOMAIN_DETECTED"
+    | "NEW_PORT_EXPOSED"
+    | "TLS_CERT_EXPIRING_SOON"
+    | "FINDING_INTRODUCED"
+    | "FINDING_REGRESSED"
+    | "FINDING_RESOLVED";
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  summary: string;
+  details?: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface MockSchedule {
@@ -137,10 +179,35 @@ export interface MockReport {
   content?: Record<string, unknown>;
 }
 
+export interface MockApiKey {
+  id: string;
+  org_id?: string;
+  orgId?: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  key?: string;
+  createdAt?: string;
+  created_at?: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+}
+
+const isCleanDefault =
+  process.env.HARIZEON_DEMO_DATA === "0" ||
+  process.env.HARIZEON_NO_DEMO_DATA === "1" ||
+  process.env.NEXT_PUBLIC_NO_DEMO_DATA === "1";
+
 const defaultOrg: MockOrg = {
   id: "org-harizeon-demo",
-  name: "Acme Cyber Ops",
-  slug: "acme-cyber-ops",
+  name: isCleanDefault ? "My Organization" : "Acme Cyber Ops",
+  slug: isCleanDefault ? "my-org" : "acme-cyber-ops",
+  country: "Malaysia",
+  currency: "MYR",
+  timezone: "Asia/Kuala_Lumpur",
+  billing_status: "active",
+  created_at: "2026-08-01T00:00:00.000Z",
 };
 
 const defaultUser: MockUser = {
@@ -149,6 +216,36 @@ const defaultUser: MockUser = {
   name: "Security Lead",
   emailVerified: true,
 };
+
+const initialMembers: MockMember[] = [
+  {
+    id: "mem-01",
+    org_id: defaultOrg.id,
+    user_id: defaultUser.id,
+    role: "owner",
+    user_email: defaultUser.email,
+    user_name: defaultUser.name,
+    created_at: "2026-08-01T00:00:00.000Z",
+  },
+  {
+    id: "mem-02",
+    org_id: defaultOrg.id,
+    user_id: "usr-02",
+    role: "admin",
+    user_email: "devops-eng@harizeon.local",
+    user_name: "DevOps Engineer",
+    created_at: "2026-08-15T09:30:00.000Z",
+  },
+  {
+    id: "mem-03",
+    org_id: defaultOrg.id,
+    user_id: "usr-03",
+    role: "readonly",
+    user_email: "compliance-auditor@harizeon.local",
+    user_name: "Compliance Auditor",
+    created_at: "2026-09-01T14:20:00.000Z",
+  },
+];
 
 // Initial Seed Data
 const initialAssets: MockAsset[] = [
@@ -419,11 +516,16 @@ const initialFindings: MockFinding[] = [
     status: "open",
     category: "tls",
     cwe_id: "CWE-326",
+    cve_ids: ["CVE-2011-3389"],
+    known_exploited: false,
+    epss_score: 0.082,
+    epss_percentile: 0.35,
     asset_id: "ast-001",
     asset_value: "example.com",
     first_seen_at: new Date(Date.now() - 4 * 3600000).toISOString(),
     last_seen_at: new Date().toISOString(),
     status_reason: null,
+    source_tool: "tls_audit",
     events: [
       {
         id: "fev-1",
@@ -445,11 +547,16 @@ const initialFindings: MockFinding[] = [
     status: "open",
     category: "headers",
     cwe_id: "CWE-693",
+    cve_ids: [],
+    known_exploited: false,
+    epss_score: 0.124,
+    epss_percentile: 0.48,
     asset_id: "ast-001",
     asset_value: "example.com",
     first_seen_at: new Date(Date.now() - 4 * 3600000).toISOString(),
     last_seen_at: new Date().toISOString(),
     status_reason: null,
+    source_tool: "tls_audit",
     events: [
       {
         id: "fev-2",
@@ -464,18 +571,23 @@ const initialFindings: MockFinding[] = [
     id: "fnd-103",
     title: "Exposed Redis port on public interface",
     description:
-      "Port 6379 responded to ping from public scanner IP address.\nEvidence: Connected to 203.0.113.10:6379; received PONG response without authentication.",
+      "Port 6379 responded to ping from public scanner IP address without credentials.\nEvidence: Connected to 203.0.113.10:6379; received PONG response without authentication. CISA KEV verified active ransomware weaponization targeting unauth Redis.",
     remediation:
       "Bind Redis exclusively to 127.0.0.1 or VPC private network interface. Block port 6379 on external firewall rules.",
-    severity: "medium",
+    severity: "critical",
     status: "open",
     category: "exposed_service",
     cwe_id: "CWE-200",
+    cve_ids: ["CVE-2022-0543"],
+    known_exploited: true,
+    epss_score: 0.968,
+    epss_percentile: 0.99,
     asset_id: "ast-003",
     asset_value: "203.0.113.10",
     first_seen_at: new Date(Date.now() - 4 * 3600000).toISOString(),
     last_seen_at: new Date().toISOString(),
     status_reason: null,
+    source_tool: "tls_audit",
     events: [
       {
         id: "fev-3",
@@ -497,6 +609,10 @@ const initialFindings: MockFinding[] = [
     status: "open",
     category: "web",
     cwe_id: "CWE-200",
+    cve_ids: ["CVE-2022-22965"],
+    known_exploited: true,
+    epss_score: 0.925,
+    epss_percentile: 0.98,
     asset_id: "ast-002",
     asset_value: "api.example.com",
     first_seen_at: new Date(Date.now() - 2 * 3600000).toISOString(),
@@ -511,6 +627,189 @@ const initialFindings: MockFinding[] = [
         at: new Date(Date.now() - 2 * 3600000).toISOString(),
       },
     ],
+  },
+  {
+    id: "fnd-105",
+    title: "Unauthenticated Model Context Protocol (MCP) tool endpoint",
+    description:
+      "Publicly exposed Model Context Protocol (MCP) server endpoints (/mcp, /sse) accept unauthenticated remote procedure calls, allowing attackers to invoke agent tools.\nEvidence: POST https://api.example.com/mcp returned HTTP 200 OK with tool declarations: [readFile, runCommand, dbQuery, gitCommit].",
+    remediation:
+      "Place agentic MCP endpoints behind mTLS or strict API bearer tokens. Never expose raw MCP tool execution interfaces to public ingress.",
+    severity: "critical",
+    status: "open",
+    category: "ai_exposure",
+    cwe_id: "CWE-306",
+    cve_ids: ["OWASP-LLM06", "OWASP-LLM08"],
+    known_exploited: true,
+    epss_score: 0.912,
+    epss_percentile: 0.97,
+    asset_id: "ast-002",
+    asset_value: "api.example.com",
+    first_seen_at: new Date(Date.now() - 1 * 3600000).toISOString(),
+    last_seen_at: new Date().toISOString(),
+    status_reason: null,
+    events: [
+      {
+        id: "fev-5",
+        from_status: null,
+        to_status: "open",
+        note: "Detected via Harizeon AI-Armor (AIA) Agentic Prober",
+        at: new Date(Date.now() - 1 * 3600000).toISOString(),
+      },
+    ],
+  },
+  {
+    id: "fnd-106",
+    title: "Publicly readable AWS S3 cloud storage bucket",
+    description:
+      "Cloud storage bucket s3://example-corp-backups is world-readable without authentication.\nEvidence: GET https://example-corp-backups.s3.amazonaws.com/?list-type=2 returned ListBucketResult with 48 objects including db_dump_2026.sql.gz.",
+    remediation:
+      "Enable S3 Block Public Access at the bucket and account level. Restrict bucket IAM policy to authorized application roles only.",
+    severity: "critical",
+    status: "open",
+    category: "cloud_storage",
+    cwe_id: "CWE-732",
+    cve_ids: ["CWE-200"],
+    known_exploited: true,
+    epss_score: 0.941,
+    epss_percentile: 0.98,
+    asset_id: "ast-001",
+    asset_value: "example.com",
+    first_seen_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+    last_seen_at: new Date().toISOString(),
+    status_reason: null,
+    events: [
+      {
+        id: "fev-6",
+        from_status: null,
+        to_status: "open",
+        note: "Detected via Cloud Storage & Bucket Exposure Audit",
+        at: new Date(Date.now() - 2 * 3600000).toISOString(),
+      },
+    ],
+  },
+  {
+    id: "fnd-107",
+    title: "GraphQL Introspection enabled in production",
+    description:
+      "Production GraphQL endpoint on /graphql permits unrestricted schema introspection, exposing the complete internal data model and unreleased mutations.\nEvidence: POST /graphql with query { __schema { types { name } } } returned HTTP 200 OK disclosing 124 internal entity types.",
+    remediation:
+      "Disable schema introspection in production environments (e.g., introspection: false in Apollo Server / Yoga / GraphQL Yoga).",
+    severity: "medium",
+    status: "open",
+    category: "api_security",
+    cwe_id: "CWE-200",
+    cve_ids: [],
+    known_exploited: false,
+    epss_score: 0.285,
+    epss_percentile: 0.64,
+    asset_id: "ast-002",
+    asset_value: "api.example.com",
+    first_seen_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+    last_seen_at: new Date().toISOString(),
+    status_reason: null,
+    events: [
+      {
+        id: "fev-7",
+        from_status: null,
+        to_status: "open",
+        note: "Detected via API & Schema Security Inspection",
+        at: new Date(Date.now() - 3 * 3600000).toISOString(),
+      },
+    ],
+  },
+  {
+    id: "fnd-108",
+    title: "Unprotected ChromaDB vector database endpoint on port 8000",
+    description:
+      "Enterprise RAG vector store on port 8000 answered /api/v1/collections without authentication, allowing extraction of private embedded knowledge bases.\nEvidence: GET http://203.0.113.10:8000/api/v1/collections returned 200 OK with collections: ['enterprise-hr-docs', 'financial-audit-2025'].",
+    remediation:
+      "Bind ChromaDB to a private loopback or isolated internal overlay network. Enable server token authentication via CHROMA_SERVER_AUTH_CREDENTIALS.",
+    severity: "critical",
+    status: "open",
+    category: "ai_exposure",
+    cwe_id: "CWE-306",
+    cve_ids: ["OWASP-LLM06"],
+    known_exploited: true,
+    epss_score: 0.895,
+    epss_percentile: 0.96,
+    asset_id: "ast-003",
+    asset_value: "203.0.113.10",
+    first_seen_at: new Date(Date.now() - 1 * 3600000).toISOString(),
+    last_seen_at: new Date().toISOString(),
+    status_reason: null,
+    events: [
+      {
+        id: "fev-8",
+        from_status: null,
+        to_status: "open",
+        note: "Detected via Harizeon AI-Armor (AIA) RAG Scanner",
+        at: new Date(Date.now() - 1 * 3600000).toISOString(),
+      },
+    ],
+  },
+];
+
+const initialDriftEvents: MockDriftEvent[] = [
+  {
+    id: "drf-001",
+    org_id: defaultOrg.id,
+    asset_id: "ast-001",
+    asset_value: "example.com",
+    scan_id: "scn-7b89f012",
+    event_type: "NEW_SUBDOMAIN_DETECTED",
+    severity: "high",
+    summary: "New unannounced subdomain api-gateway.internal.example.com discovered via Certificate Transparency log stream.",
+    details: { fqdn: "api-gateway.internal.example.com", source: "crt.sh" },
+    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+  },
+  {
+    id: "drf-002",
+    org_id: defaultOrg.id,
+    asset_id: "ast-003",
+    asset_value: "203.0.113.10",
+    scan_id: "scn-7b89f012",
+    event_type: "NEW_PORT_EXPOSED",
+    severity: "critical",
+    summary: "New exposed listening port TCP/8443 (Management Console) detected on public IP address.",
+    details: { port: 8443, proto: "tcp", service: "https-mgmt" },
+    created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
+  },
+  {
+    id: "drf-003",
+    org_id: defaultOrg.id,
+    asset_id: "ast-001",
+    asset_value: "example.com",
+    scan_id: "scn-7b89f012",
+    event_type: "TLS_CERT_EXPIRING_SOON",
+    severity: "medium",
+    summary: "Wildcard TLS certificate for *.example.com expires in 14 days. Immediate renewal required to prevent outages.",
+    details: { issuer: "Let's Encrypt", expires_at: new Date(Date.now() + 14 * 86400000).toISOString() },
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+  },
+  {
+    id: "drf-004",
+    org_id: defaultOrg.id,
+    asset_id: "ast-002",
+    asset_value: "api.example.com",
+    scan_id: "scn-7b89f012",
+    event_type: "FINDING_INTRODUCED",
+    severity: "critical",
+    summary: "Unauthenticated Model Context Protocol (MCP) tool endpoint introduced on public API ingress.",
+    details: { finding_id: "fnd-105", check_id: "ai.mcp.unauthenticated" },
+    created_at: new Date(Date.now() - 1 * 3600000).toISOString(),
+  },
+  {
+    id: "drf-005",
+    org_id: defaultOrg.id,
+    asset_id: "ast-001",
+    asset_value: "example.com",
+    scan_id: "scn-7b89f012",
+    event_type: "FINDING_RESOLVED",
+    severity: "info",
+    summary: "Deprecated TLS 1.0 cipher suite negotiated on primary HTTPS endpoint was disabled.",
+    details: { finding_id: "fnd-101", resolved_check: "tls.cipher.weak" },
+    created_at: new Date(Date.now() - 8 * 3600000).toISOString(),
   },
 ];
 
@@ -610,18 +909,116 @@ const initialReports: MockReport[] = [
 class MockStore {
   users: Map<string, MockUser> = new Map();
   orgs: Map<string, MockOrg> = new Map();
-  assets: MockAsset[] = [...initialAssets];
-  verifications: Map<string, MockVerification> = new Map(Object.entries(initialVerifications));
-  discovered: MockDiscovered[] = [...initialDiscovered];
-  scans: MockScan[] = [...initialScans];
-  findings: MockFinding[] = [...initialFindings];
-  schedules: MockSchedule[] = [...initialSchedules];
-  channels: MockChannel[] = [...initialChannels];
-  reports: MockReport[] = [...initialReports];
+  assets: MockAsset[] = isCleanDefault ? [] : [...initialAssets];
+  verifications: Map<string, MockVerification> = isCleanDefault ? new Map() : new Map(Object.entries(initialVerifications));
+  discovered: MockDiscovered[] = isCleanDefault ? [] : [...initialDiscovered];
+  scans: MockScan[] = isCleanDefault ? [] : [...initialScans];
+  findings: MockFinding[] = isCleanDefault ? [] : [...initialFindings];
+  driftEvents: MockDriftEvent[] = isCleanDefault ? [] : [...initialDriftEvents];
+  schedules: MockSchedule[] = isCleanDefault ? [] : [...initialSchedules];
+  channels: MockChannel[] = isCleanDefault ? [] : [...initialChannels];
+  reports: MockReport[] = isCleanDefault ? [] : [...initialReports];
+  members: MockMember[] = isCleanDefault
+    ? [
+        {
+          id: "mem-01",
+          org_id: defaultOrg.id,
+          user_id: defaultUser.id,
+          role: "owner",
+          user_email: defaultUser.email,
+          user_name: defaultUser.name,
+          created_at: "2026-08-01T00:00:00.000Z",
+        },
+      ]
+    : [...initialMembers];
+  apiKeys: MockApiKey[] = isCleanDefault ? [] : [
+    {
+      id: "key-01",
+      org_id: defaultOrg.id,
+      name: "GitHub Actions CI Runner",
+      prefix: "hrz_live_a9f2...",
+      scopes: ["assets:read", "scans:write", "findings:read"],
+      last_used_at: "2026-09-18T10:45:00.000Z",
+      expires_at: null,
+      revoked_at: null,
+      created_at: "2026-08-01T00:00:00.000Z",
+    },
+    {
+      id: "key-02",
+      org_id: defaultOrg.id,
+      name: "Internal SIEM Ingestion",
+      prefix: "hrz_live_7c41...",
+      scopes: ["findings:read", "reports:read"],
+      last_used_at: "2026-09-19T02:15:00.000Z",
+      expires_at: null,
+      revoked_at: null,
+      created_at: "2026-08-10T12:00:00.000Z",
+    },
+  ];
 
   constructor() {
     this.users.set(defaultUser.email, defaultUser);
     this.orgs.set(defaultOrg.id, defaultOrg);
+  }
+
+  reset(clean: boolean) {
+    if (clean) {
+      this.assets = [];
+      this.verifications = new Map();
+      this.discovered = [];
+      this.scans = [];
+      this.findings = [];
+      this.driftEvents = [];
+      this.schedules = [];
+      this.reports = [];
+      this.apiKeys = [];
+      this.members = [
+        {
+          id: "mem-01",
+          org_id: defaultOrg.id,
+          user_id: defaultUser.id,
+          role: "owner",
+          user_email: defaultUser.email,
+          user_name: defaultUser.name,
+          created_at: new Date().toISOString(),
+        },
+      ];
+    } else {
+      this.assets = [...initialAssets];
+      this.verifications = new Map(Object.entries(initialVerifications));
+      this.discovered = [...initialDiscovered];
+      this.scans = [...initialScans];
+      this.findings = [...initialFindings];
+      this.driftEvents = [...initialDriftEvents];
+      this.schedules = [...initialSchedules];
+      this.channels = [...initialChannels];
+      this.reports = [...initialReports];
+      this.members = [...initialMembers];
+      this.apiKeys = [
+        {
+          id: "key-01",
+          org_id: defaultOrg.id,
+          name: "GitHub Actions CI Runner",
+          prefix: "hrz_live_a9f2...",
+          scopes: ["assets:read", "scans:write", "findings:read"],
+          last_used_at: "2026-09-18T10:45:00.000Z",
+          expires_at: null,
+          revoked_at: null,
+          created_at: "2026-08-01T00:00:00.000Z",
+        },
+        {
+          id: "key-02",
+          org_id: defaultOrg.id,
+          name: "Internal SIEM Ingestion",
+          prefix: "hrz_live_7c41...",
+          scopes: ["findings:read", "reports:read"],
+          last_used_at: "2026-09-19T02:15:00.000Z",
+          expires_at: null,
+          revoked_at: null,
+          created_at: "2026-08-10T12:00:00.000Z",
+        },
+      ];
+    }
   }
 }
 
@@ -629,6 +1026,48 @@ class MockStore {
 const globalKey = "__hz_mock_store__";
 const store: MockStore = (globalThis as unknown as Record<string, MockStore>)[globalKey] || new MockStore();
 (globalThis as unknown as Record<string, MockStore>)[globalKey] = store;
+store.reset = MockStore.prototype.reset.bind(store);
+if (!store.apiKeys) {
+  store.apiKeys = isCleanDefault ? [] : [
+    {
+      id: "key-01",
+      org_id: defaultOrg.id,
+      name: "GitHub Actions CI Runner",
+      prefix: "hrz_live_a9f2...",
+      scopes: ["assets:read", "scans:write", "findings:read"],
+      last_used_at: "2026-09-18T10:45:00.000Z",
+      expires_at: null,
+      revoked_at: null,
+      created_at: "2026-08-01T00:00:00.000Z",
+    },
+    {
+      id: "key-02",
+      org_id: defaultOrg.id,
+      name: "Internal SIEM Ingestion",
+      prefix: "hrz_live_7c41...",
+      scopes: ["findings:read", "reports:read"],
+      last_used_at: "2026-09-19T02:15:00.000Z",
+      expires_at: null,
+      revoked_at: null,
+      created_at: "2026-08-10T12:00:00.000Z",
+    },
+  ];
+}
+if (!store.members) {
+  store.members = isCleanDefault
+    ? [
+        {
+          id: "mem-01",
+          org_id: defaultOrg.id,
+          user_id: defaultUser.id,
+          role: "owner",
+          user_email: defaultUser.email,
+          user_name: defaultUser.name,
+          created_at: "2026-08-01T00:00:00.000Z",
+        },
+      ]
+    : [...initialMembers];
+}
 
 function buildMockReportContent(report: MockReport, mockStore: MockStore) {
   const assets = mockStore.assets.filter((a) => a.is_active);
@@ -693,10 +1132,30 @@ function buildMockReportContent(report: MockReport, mockStore: MockStore) {
       action: f.remediation,
     }));
 
+  const org = mockStore.orgs.get(report.org_id) || mockStore.orgs.get(defaultOrg.id);
+  let resolvedOrgName = org?.name || defaultOrg.name;
+
+  // If org name is still the unconfigured default, derive from tested assets so each target receives an accurate organization title
+  if (
+    (!resolvedOrgName || resolvedOrgName === "Acme Cyber Ops" || resolvedOrgName === "My Organization") &&
+    assets.length > 0 &&
+    assets[0]?.value
+  ) {
+    const rawVal = assets[0].value.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+    const hostWithoutWww = rawVal.replace(/^www\./, "");
+    const parts = hostWithoutWww.split(".");
+    if (parts.length >= 2 && !/^\d+\.\d+\.\d+\.\d+$/.test(hostWithoutWww)) {
+      const brand = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      resolvedOrgName = `${brand} Security Operations (${hostWithoutWww})`;
+    } else {
+      resolvedOrgName = `${hostWithoutWww} Perimeter`;
+    }
+  }
+
   return {
     id: report.id,
     org_id: report.org_id,
-    org_name: defaultOrg.name,
+    org_name: resolvedOrgName,
     type: report.type,
     generated_at: report.generated_at,
     period_start: report.period_start,
@@ -1160,10 +1619,167 @@ export async function handleMockApi<T>(
         message: "Scan complete. Targets analyzed successfully.",
         at: new Date().toISOString(),
       });
-      newScan.summary = { new: 0, resolved: 0, unchanged: 3 };
-    }, 4000);
+
+      let newlyCreated = 0;
+      for (const t of targets) {
+        if (body.profile === "ai") {
+          // AI-Armor findings for this target
+          const aiaFindings: MockFinding[] = [
+            {
+              id: `fnd-aia-${Math.random().toString(36).slice(2, 8)}`,
+              title: "Exposed LLM Inference Server Daemon (Ollama / vLLM)",
+              description: `Autonomous probe detected unauthenticated inference endpoint answering at https://${t.value}:11434/api/tags. Open model access permits prompt injection and weights extraction.`,
+              remediation: "Bind LLM serving daemon exclusively to loopback interface (127.0.0.1) or implement mutual TLS and bearer token proxy authorization.",
+              severity: "critical",
+              status: "open",
+              category: "ai_exposure",
+              cwe_id: "CWE-306",
+              known_exploited: true,
+              epss_score: 0.88,
+              epss_percentile: 0.95,
+              asset_id: t.asset_id,
+              asset_value: t.value,
+              first_seen_at: new Date().toISOString(),
+              last_seen_at: new Date().toISOString(),
+              status_reason: null,
+              events: [
+                {
+                  id: `fev-${Date.now()}-1`,
+                  from_status: null,
+                  to_status: "open",
+                  note: "Recorded via Harizeon AI-Armor audit",
+                  at: new Date().toISOString(),
+                },
+              ],
+            },
+            {
+              id: `fnd-aia-${Math.random().toString(36).slice(2, 8)}`,
+              title: "Client-Side AI Provider API Key Disclosed in Bundle",
+              description: `Client-side JavaScript bundle on ${t.value} contains hardcoded OpenAI / Anthropic API token. Token confirmed active with high entropy.`,
+              remediation: "Immediately revoke the leaked key in your AI provider dashboard and migrate inference calls to server-side Next.js route handlers.",
+              severity: "high",
+              status: "open",
+              category: "ai_exposure",
+              cwe_id: "CWE-798",
+              known_exploited: false,
+              epss_score: 0.45,
+              epss_percentile: 0.78,
+              asset_id: t.asset_id,
+              asset_value: t.value,
+              first_seen_at: new Date().toISOString(),
+              last_seen_at: new Date().toISOString(),
+              status_reason: null,
+              events: [
+                {
+                  id: `fev-${Date.now()}-2`,
+                  from_status: null,
+                  to_status: "open",
+                  note: "Recorded via Harizeon AI-Armor audit",
+                  at: new Date().toISOString(),
+                },
+              ],
+            },
+          ];
+          for (const f of aiaFindings) {
+            store.findings.unshift(f);
+            newlyCreated++;
+          }
+        } else {
+          // Perimeter & Web Scan findings for this target
+          const standardFindings: MockFinding[] = [
+            {
+              id: `fnd-scn-${Math.random().toString(36).slice(2, 8)}`,
+              title: "Missing Strict-Transport-Security (HSTS) Header",
+              description: `Target ${t.value} does not serve a Strict-Transport-Security header with includeSubDomains and preload directives.`,
+              remediation: "Add header: Strict-Transport-Security: max-age=63072000; includeSubDomains; preload to all HTTPS responses.",
+              severity: "medium",
+              status: "open",
+              category: "headers",
+              cwe_id: "CWE-693",
+              known_exploited: false,
+              epss_score: 0.12,
+              epss_percentile: 0.42,
+              asset_id: t.asset_id,
+              asset_value: t.value,
+              first_seen_at: new Date().toISOString(),
+              last_seen_at: new Date().toISOString(),
+              status_reason: null,
+              events: [],
+            },
+            {
+              id: `fnd-scn-${Math.random().toString(36).slice(2, 8)}`,
+              title: "Server Banner Software Version Disclosure",
+              description: `Target ${t.value} discloses full web server version banner in HTTP responses, aiding automated attacker profiling.`,
+              remediation: "Disable server software version banners in server configuration (e.g., ServerTokens Prod in Apache, server_tokens off in nginx).",
+              severity: "low",
+              status: "open",
+              category: "headers",
+              cwe_id: "CWE-200",
+              known_exploited: false,
+              epss_score: 0.05,
+              epss_percentile: 0.2,
+              asset_id: t.asset_id,
+              asset_value: t.value,
+              first_seen_at: new Date().toISOString(),
+              last_seen_at: new Date().toISOString(),
+              status_reason: null,
+              events: [],
+            },
+          ];
+
+          for (const f of standardFindings) {
+            store.findings.unshift(f);
+            newlyCreated++;
+          }
+
+          // Discover subdomains for domain assets
+          if (t.type === "domain") {
+            const subs = [`api.${t.value}`, `admin.${t.value}`, `staging.${t.value}`];
+            for (const sub of subs) {
+              if (!store.discovered.some((d) => d.fqdn === sub)) {
+                store.discovered.push({
+                  id: `ast-sub-${Math.random().toString(36).slice(2, 8)}`,
+                  parent_id: t.asset_id,
+                  fqdn: sub,
+                  is_active: false,
+                  ignored: false,
+                  first_seen_at: new Date().toISOString(),
+                });
+              }
+            }
+          }
+        }
+      }
+
+      newScan.summary = { new: newlyCreated, resolved: 0, unchanged: 0 };
+    }, 2500);
 
     return { scan: newScan } as T;
+  }
+
+  // GET /workspace/mode
+  if (pathname === "/workspace/mode" && method === "GET") {
+    const isClean = store.assets.length === 0 || !store.assets.some((a) => a.id === "ast-001");
+    return {
+      mode: isClean ? "clean" : "demo",
+      assetsCount: store.assets.length,
+      scansCount: store.scans.length,
+      findingsCount: store.findings.length,
+    } as T;
+  }
+
+  // POST /workspace/reset
+  if (pathname === "/workspace/reset" && method === "POST") {
+    const body = (init.body ?? {}) as { mode?: "clean" | "demo" };
+    const toClean = body.mode !== "demo";
+    store.reset(toClean);
+    return {
+      ok: true,
+      mode: toClean ? "clean" : "demo",
+      message: toClean
+        ? "Workspace cleared. No demo data is loaded."
+        : "Demo data restored.",
+    } as T;
   }
 
   // GET /scans/:id
@@ -1299,6 +1915,11 @@ export async function handleMockApi<T>(
       title: f.title,
       severity: f.severity,
       status: f.status,
+      category: f.category,
+      known_exploited: f.known_exploited ?? false,
+      epss_score: f.epss_score ?? null,
+      epss_percentile: f.epss_percentile ?? null,
+      cve_ids: f.cve_ids ?? [],
       asset_value: f.asset_value,
       first_seen_at: f.first_seen_at,
     }));
@@ -1351,6 +1972,223 @@ export async function handleMockApi<T>(
         at: new Date().toISOString(),
       });
     }
+    return { ok: true, finding } as T;
+  }
+
+  // POST /findings/:id/verify
+  const findingVerifyMatch = pathname.match(/^\/findings\/([^/]+)\/verify$/);
+  if (findingVerifyMatch && method === "POST") {
+    const id = findingVerifyMatch[1];
+    const finding = store.findings.find((f) => f.id === id);
+    const verifiedAt = new Date().toISOString();
+    if (finding) {
+      finding.status = "fixed";
+      finding.last_verified_at = verifiedAt;
+      finding.events.unshift({
+        id: `fev-${Date.now()}`,
+        from_status: "open",
+        to_status: "fixed",
+        note: "Target verified clean via 5-second active micro-scan.",
+        at: verifiedAt,
+      });
+    }
+    return {
+      ok: true,
+      verified: true,
+      status: "fixed",
+      duration_ms: 184,
+      verified_at: verifiedAt,
+    } as T;
+  }
+
+  // GET /drift
+  if (pathname === "/drift" && method === "GET") {
+    return { data: store.driftEvents } as T;
+  }
+
+  // GET /compliance/summary
+  if (pathname === "/compliance/summary" && method === "GET") {
+    return {
+      frameworks: [
+        {
+          framework_code: "pdpa_2024",
+          framework_name: "PDPA 2024 (Malaysia)",
+          authority: "Personal Data Protection Commissioner (JPDP)",
+          jurisdiction: "Malaysia · Act 709 (2024 Amendment)",
+          controls: [
+            {
+              control_code: "PDPA-S9",
+              control_title: "Security Principle (Section 9)",
+              description: "Mandates practical steps to protect personal data from loss, misuse, modification, unauthorized access, or accidental disclosure.",
+              mapped_findings_count: 2,
+              open_findings_count: 0,
+              status: "pass",
+            },
+            {
+              control_code: "PDPA-BREACH",
+              control_title: "Mandatory Data Breach Prevention",
+              description: "Enforces continuous perimeter oversight to prevent exposure of databases, secrets, and customer PII triggering statutory 72-hour breach notification.",
+              mapped_findings_count: 3,
+              open_findings_count: 1,
+              status: "attention_required",
+              sample_finding_title: "Client-Side AI API Token Disclosed in JavaScript Bundle",
+            },
+            {
+              control_code: "PDPA-ENCRYPT",
+              control_title: "Cryptographic Transit Standards",
+              description: "Ensures all public communications and authentication tokens are encrypted using non-deprecated TLS protocols.",
+              mapped_findings_count: 4,
+              open_findings_count: 0,
+              status: "pass",
+            },
+            {
+              control_code: "PDPA-ACCESS",
+              control_title: "Perimeter Access Controls",
+              description: "Ensures internal administrative endpoints and database listener ports are never exposed to the public internet.",
+              mapped_findings_count: 1,
+              open_findings_count: 0,
+              status: "pass",
+            },
+          ],
+        },
+        {
+          framework_code: "bnm_rmit",
+          framework_name: "BNM RMiT (Financial Services)",
+          authority: "Bank Negara Malaysia (BNM)",
+          jurisdiction: "Malaysia · Financial Institutions & Fintechs",
+          controls: [
+            {
+              control_code: "RMiT-10.39",
+              control_title: "System & Perimeter Hardening",
+              description: "Institutions must implement secure baseline configurations, disable unnecessary services/ports, and enforce strong TLS parameters.",
+              mapped_findings_count: 4,
+              open_findings_count: 1,
+              status: "attention_required",
+              sample_finding_title: "Missing Strict-Transport-Security Header",
+            },
+            {
+              control_code: "RMiT-10.56",
+              control_title: "Continuous Vulnerability Monitoring",
+              description: "Mandates ongoing automated scanning and asset discovery to identify and remediate perimeter weaknesses on internet-facing systems.",
+              mapped_findings_count: 5,
+              open_findings_count: 0,
+              status: "pass",
+            },
+            {
+              control_code: "RMiT-11.12",
+              control_title: "Third-Party & API Exposure",
+              description: "Prohibits unauthenticated API schema introspection and leaked service tokens on public endpoints.",
+              mapped_findings_count: 2,
+              open_findings_count: 0,
+              status: "pass",
+            },
+            {
+              control_code: "RMiT-12.04",
+              control_title: "DNS & Email Domain Integrity",
+              description: "Requires protective DNS controls, DMARC/SPF email spoofing defense, and monitoring for dangling DNS takeover vectors.",
+              mapped_findings_count: 1,
+              open_findings_count: 0,
+              status: "pass",
+            },
+          ],
+        },
+        {
+          framework_code: "iso_27001",
+          framework_name: "ISO / IEC 27001:2022",
+          authority: "International Organization for Standardization",
+          jurisdiction: "Global · Enterprise Information Security",
+          controls: [
+            {
+              control_code: "A.8.9",
+              control_title: "Configuration Management",
+              description: "Security configurations for hardware, software, services and networks must be established, documented, implemented, and monitored.",
+              mapped_findings_count: 5,
+              open_findings_count: 1,
+              status: "attention_required",
+              sample_finding_title: "Missing Strict-Transport-Security Header",
+            },
+            {
+              control_code: "A.8.20",
+              control_title: "Networks Security",
+              description: "Networks must be secured, managed, and controlled to protect information in systems and applications.",
+              mapped_findings_count: 3,
+              open_findings_count: 0,
+              status: "pass",
+            },
+            {
+              control_code: "A.8.24",
+              control_title: "Use of Cryptography",
+              description: "Rules for the effective use of cryptography, including cryptographic key management and modern cipher suites, must be defined and applied.",
+              mapped_findings_count: 4,
+              open_findings_count: 0,
+              status: "pass",
+            },
+            {
+              control_code: "A.8.8",
+              control_title: "Management of Technical Vulnerabilities",
+              description: "Information about technical vulnerabilities of information systems being used must be obtained in a timely fashion.",
+              mapped_findings_count: 6,
+              open_findings_count: 0,
+              status: "pass",
+            },
+          ],
+        },
+      ],
+    } as T;
+  }
+
+  // GET /public/trust/:slug
+  const trustMatch = pathname.match(/^\/public\/trust\/([^/]+)$/);
+  if (trustMatch && method === "GET") {
+    const slug = trustMatch[1];
+    const org = store.orgs.get(defaultOrg.id) ?? defaultOrg;
+    return {
+      profile: {
+        org_name: org.name,
+        slug,
+        posture_score: 98,
+        grade: "A+",
+        verified_domains_count: store.assets.filter((a) => a.type === "domain" && a.verification_status === "verified").length || 3,
+        open_critical_count: store.findings.filter((f) => f.status === "open" && f.severity === "critical").length,
+        last_scan_at: new Date().toISOString(),
+        is_verified: true,
+        sha256_attestation: "4f8a9b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcd",
+      },
+    } as T;
+  }
+
+  // GET /api-keys
+  if (pathname === "/api-keys" && method === "GET") {
+    return { keys: store.apiKeys } as T;
+  }
+
+  // POST /api-keys
+  if (pathname === "/api-keys" && method === "POST") {
+    const body = (init.body ?? {}) as { name?: string; scopes?: string[] };
+    const rand = Math.random().toString(36).slice(2, 8);
+    const secret = `hrz_live_${rand}${Math.random().toString(36).slice(2, 18)}`;
+    const prefix = `hrz_live_${rand}...`;
+    const newKey = {
+      id: `key-${Date.now().toString(36)}`,
+      orgId: defaultOrg.id,
+      name: body.name || "Default API Key",
+      prefix,
+      scopes: body.scopes || ["assets:read", "findings:read"],
+      key: secret,
+      createdAt: new Date().toISOString(),
+      last_used_at: null,
+      expires_at: null,
+      revoked_at: null,
+    };
+    store.apiKeys.unshift(newKey);
+    return newKey as T;
+  }
+
+  // DELETE /api-keys/:id
+  const apiKeyMatch = pathname.match(/^\/api-keys\/([^/]+)$/);
+  if (apiKeyMatch && method === "DELETE") {
+    const id = apiKeyMatch[1];
+    store.apiKeys = store.apiKeys.filter((k: MockApiKey) => k.id !== id);
     return { ok: true } as T;
   }
 
@@ -1519,9 +2357,186 @@ export async function handleMockApi<T>(
     throw { status: 404, message: "Report not found", code: "not_found" };
   }
 
+  // GET /org
+  if (pathname === "/org" && method === "GET") {
+    const org = store.orgs.get(defaultOrg.id) ?? defaultOrg;
+    return { org } as T;
+  }
+
+  // PATCH /org
+  if (pathname === "/org" && method === "PATCH") {
+    let body = init.body as Record<string, unknown> | string | undefined;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body) as Record<string, unknown>;
+      } catch {
+        body = {};
+      }
+    }
+    const b = (body ?? {}) as Record<string, unknown>;
+    let org = store.orgs.get(defaultOrg.id) ?? { ...defaultOrg };
+    const rawName = (b.name || b.orgName || b.org_name || org.name) as string;
+    const cleanName = typeof rawName === "string" && rawName.trim() ? rawName.trim() : org.name;
+    org = {
+      ...org,
+      ...b,
+      name: cleanName,
+      slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    };
+    store.orgs.set(defaultOrg.id, org);
+    defaultOrg.name = org.name;
+    defaultOrg.slug = org.slug;
+    return { org } as T;
+  }
+
+  // GET /org/members
+  if (pathname === "/org/members" && method === "GET") {
+    return { members: store.members } as T;
+  }
+
+  // POST /org/members/invite
+  if (pathname === "/org/members/invite" && method === "POST") {
+    const body = (init.body ?? {}) as { email?: string; role?: "admin" | "member" | "readonly" };
+    const newMember: MockMember = {
+      id: `mem-${Date.now().toString(36)}`,
+      org_id: defaultOrg.id,
+      user_id: `usr-${Math.random().toString(36).slice(2, 8)}`,
+      role: body.role || "member",
+      user_email: body.email || "colleague@harizeon.local",
+      user_name: body.email ? body.email.split("@")[0] : "Team Member",
+      created_at: new Date().toISOString(),
+    };
+    store.members.push(newMember);
+    return { ok: true, member: newMember } as T;
+  }
+
+  // DELETE /org/members/:id
+  const memberMatch = pathname.match(/^\/org\/members\/([^/]+)$/);
+  if (memberMatch && method === "DELETE") {
+    const id = memberMatch[1];
+    store.members = store.members.filter((m) => m.id !== id);
+    return { ok: true } as T;
+  }
+
   // POST /auth/logout
   if (pathname === "/auth/logout") {
     return { ok: true } as T;
+  }
+
+  // GET /threats/emerging
+  if (pathname === "/threats/emerging" && method === "GET") {
+    const openFindings = store.findings.filter((f) => f.status === "open" || f.status === "acknowledged");
+    const catalog = [
+      {
+        id: "threat-regresshion",
+        name: "RegreSSHion OpenSSH Unauthenticated Remote Code Execution",
+        cve_id: "CVE-2024-6387",
+        severity: "critical" as const,
+        cvss: 9.8,
+        cisa_kev: true,
+        cisa_date: "2024-07-01",
+        vector: "TCP Port 22 (glibc-based OpenSSH)",
+        description: "Signal handler race condition in OpenSSH server (sshd) allows unauthenticated remote code execution as root.",
+        mitigation: "Update openssh-server to 9.8p1+ or enforce LoginGraceTime 0 in sshd_config.",
+      },
+      {
+        id: "threat-panos-gp",
+        name: "Palo Alto PAN-OS GlobalProtect Command Injection",
+        cve_id: "CVE-2024-3400",
+        severity: "critical" as const,
+        cvss: 10.0,
+        cisa_kev: true,
+        cisa_date: "2024-04-12",
+        vector: "HTTPS Gateway / GlobalProtect Portal",
+        description: "Arbitrary command injection in GlobalProtect allowing unauthenticated root RCE.",
+        mitigation: "Apply vendor hotfix release or temporarily disable device telemetry.",
+      },
+      {
+        id: "threat-ivanti-connect",
+        name: "Ivanti Connect Secure Authentication Bypass & RCE",
+        cve_id: "CVE-2024-21887",
+        severity: "critical" as const,
+        cvss: 9.1,
+        cisa_kev: true,
+        cisa_date: "2024-01-10",
+        vector: "HTTPS / SAML Web Endpoint",
+        description: "Command injection in web components permitting unauthenticated arbitrary command execution.",
+        mitigation: "Import vendor mitigation XML or patch to supported maintenance firmware.",
+      },
+      {
+        id: "threat-http2-rapid-reset",
+        name: "HTTP/2 Rapid Reset Distributed Denial of Service",
+        cve_id: "CVE-2023-44487",
+        severity: "high" as const,
+        cvss: 7.5,
+        cisa_kev: true,
+        cisa_date: "2023-10-10",
+        vector: "HTTP/2 (Port 443)",
+        description: "Abuse of HTTP/2 stream cancellation (RST_STREAM) causing amplification DoS across reverse proxies.",
+        mitigation: "Upgrade web server / proxy (Nginx 1.25.3+, Apache 2.4.58+, Cloudflare edge protections).",
+      },
+      {
+        id: "threat-ollama-vllm-rce",
+        name: "Unauthenticated LLM / Vector DB / MCP Gateway Exposure",
+        cve_id: "AI-0DAY-2025",
+        severity: "critical" as const,
+        cvss: 9.4,
+        cisa_kev: true,
+        cisa_date: "2025-01-15",
+        vector: "TCP Ports 11434, 8000, 6333, 8080",
+        description: "Exposed unauthenticated LLM endpoints leaking private embeddings and allowing unauthorized agent tool calls.",
+        mitigation: "Bind daemon sockets to 127.0.0.1 or place behind mTLS / Bearer token reverse proxy.",
+      },
+      {
+        id: "threat-exposed-env-secrets",
+        name: "Public Production Environment Secrets & Git Config Leak",
+        cve_id: "SEC-ENV-0DAY",
+        severity: "critical" as const,
+        cvss: 9.8,
+        cisa_kev: true,
+        cisa_date: "2024-08-01",
+        vector: "Web / .env, .git/config, .aws/credentials",
+        description: "Direct internet accessibility of configuration dotfiles disclosing cloud keys and DB secrets.",
+        mitigation: "Add web server location block denying access to all hidden dotfiles.",
+      },
+    ];
+
+    const threats = catalog.map((threat) => {
+      const matched = openFindings.filter((f) => {
+        if (f.cve_ids?.includes(threat.cve_id)) return true;
+        const lower = f.title.toLowerCase();
+        if (threat.cve_id === "AI-0DAY-2025") return lower.includes("ollama") || lower.includes("vllm") || lower.includes("mcp");
+        if (threat.cve_id === "SEC-ENV-0DAY") return lower.includes(".env") || lower.includes(".git");
+        return lower.includes(threat.cve_id.toLowerCase());
+      });
+      const exposedAssets = Array.from(new Set(matched.map((m) => m.asset_value || "perimeter")));
+      return {
+        ...threat,
+        status: matched.length > 0 ? ("exposed" as const) : ("safe" as const),
+        exposed_assets: exposedAssets,
+        finding_id: matched[0]?.id,
+      };
+    });
+
+    const exposedCount = threats.filter((t) => t.status === "exposed").length;
+    return {
+      fleet_immunity_pct: Math.round(((threats.length - exposedCount) / threats.length) * 100),
+      total_threats_tracked: threats.length,
+      exposed_threats_count: exposedCount,
+      exposed_assets_count: new Set(threats.flatMap((t) => t.exposed_assets)).size,
+      last_fleet_check_at: new Date().toISOString(),
+      threats,
+    } as T;
+  }
+
+  // POST /threats/check
+  if (pathname === "/threats/check" && method === "POST") {
+    return {
+      ok: true,
+      message: "Rapid response fleet sweep initiated across all verified perimeters",
+      swept_threats: 6,
+      timestamp: new Date().toISOString(),
+    } as T;
   }
 
   return {} as T;
@@ -1546,9 +2561,18 @@ export async function handleMockAuthPost(
       emailVerified: true,
     };
     store.users.set(email, user);
+    if (b.orgName) {
+      defaultOrg.name = b.orgName;
+      defaultOrg.slug = b.orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      store.orgs.set(defaultOrg.id, {
+        ...defaultOrg,
+        name: b.orgName,
+        slug: defaultOrg.slug,
+      });
+    }
     const json = {
       user: { id: user.id, email: user.email, name: user.name, emailVerified: true },
-      org: { id: "org-1", name: b.orgName || "Demo Org", slug: b.orgSlug || "demo-org" },
+      org: { id: defaultOrg.id, name: b.orgName || defaultOrg.name, slug: defaultOrg.slug },
       message: "Account created successfully",
     };
     return {

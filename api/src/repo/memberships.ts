@@ -41,6 +41,18 @@ export async function getMembershipsByOrg(db: Queryable, orgId: string): Promise
   return res.rows;
 }
 
+export async function getMembershipRole(
+  db: Queryable,
+  orgId: string,
+  userId: string,
+): Promise<MembershipRow["role"] | null> {
+  const res = await db.query<{ role: MembershipRow["role"] }>(
+    `SELECT role FROM memberships WHERE org_id = $1 AND user_id = $2 LIMIT 1`,
+    [orgId, userId],
+  );
+  return res.rows[0]?.role ?? null;
+}
+
 /**
  * Pre-auth org resolution: uses the org_ids_for_user() SECURITY DEFINER function
  * so it works before any org GUC is set (memberships is org-scoped under RLS).

@@ -14,6 +14,7 @@ import {
   autoVerifiable,
   requiresManualReview,
   VERIFY_TXT_PREFIX,
+  isRestrictedTarget,
 } from "./verify";
 
 function fakeResponse(ok: boolean, status: number, text: string): Response {
@@ -108,6 +109,37 @@ describe("checkHttpFile", () => {
     const r = await checkHttpFile("http://x/f", "tok", async () => { throw new Error("conn refused"); });
     assert.deepStrictEqual(r, { ok: false, reason: "fetch_error" });
   });
+
+  test("rejects 3xx redirects to private/metadata IPs or out-of-scope hosts (SEC-02)", async () => {
+    const makeRedirect = (loc: string) =>
+      ({ ok: false, status: 302, headers: new Headers({ location: loc }), text: async () => "" }) as unknown as Response;
+
+    const metaRedirect = await checkHttpFile(
+      "http://example.com/.well-known/harizeon-verification.txt",
+      "tok",
+      async (_u, init) => {
+        assert.strictEqual(init?.redirect, "manual");
+        return makeRedirect("http://169.254.169.254/latest/meta-data/");
+      },
+    );
+    assert.deepStrictEqual(metaRedirect, { ok: false, reason: "redirect_blocked" });
+
+    const outOfScope = await checkHttpFile(
+      "http://example.com/.well-known/harizeon-verification.txt",
+      "tok",
+      async () => makeRedirect("https://evil.attacker.com/.well-known/harizeon-verification.txt"),
+    );
+    assert.deepStrictEqual(outOfScope, { ok: false, reason: "redirect_blocked" });
+
+    const rebindRedirect = await checkHttpFile(
+      "http://example.com/.well-known/harizeon-verification.txt",
+      "tok",
+      async () => makeRedirect("https://sub.example.com/tok"),
+      1000,
+      async () => false, // fails DNS public-only check
+    );
+    assert.deepStrictEqual(rebindRedirect, { ok: false, reason: "redirect_blocked" });
+  });
 });
 
 describe("asset type / method matrix", () => {
@@ -191,5 +223,22 @@ describe("resolvesToPublicOnly (SSRF via DNS rebinding, §11)", () => {
     assert.equal(await resolvesToPublicOnly("127.0.0.1", spy), false);
     assert.equal(await resolvesToPublicOnly("1.1.1.1", spy), true);
     assert.equal(called, false, "no DNS lookup for a literal IP");
+  });
+});
+
+describe("isRestrictedTarget (Government & Critical Infrastructure TLD Guard §12.5)", () => {
+  test("flags government, military and critical banking TLDs", () => {
+    assert.strictEqual(isRestrictedTarget("malaysia.gov.my"), true);
+    assert.strictEqual(isRestrictedTarget("https://portal.army.mil/login"), true);
+    assert.strictEqual(isRestrictedTarget("cimb.bank"), true);
+    assert.strictEqual(isRestrictedTarget("defense.gov"), true);
+    assert.strictEqual(isRestrictedTarget("https://www.met.police.uk/"), true);
+  });
+
+  test("permits legitimate commercial and enterprise domains", () => {
+    assert.strictEqual(isRestrictedTarget("acme.com"), false);
+    assert.strictEqual(isRestrictedTarget("api.startup.io"), false);
+    assert.strictEqual(isRestrictedTarget("mycompany.com.my"), false);
+    assert.strictEqual(isRestrictedTarget("https://app.harizeon.net:8443/"), false);
   });
 });

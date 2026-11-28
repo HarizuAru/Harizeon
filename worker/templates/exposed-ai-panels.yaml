@@ -1,0 +1,24 @@
+id: exposed-ai-orchestration-panel
+info:
+  name: Exposed AI Orchestration or Vector DB Interface
+  author: harizeon
+  severity: high
+  classification:
+    cwe-id: ["CWE-306"]
+  remediation: "Restrict public internet access to Flowise, OpenWebUI, n8n, and Qdrant dashboards via VPN or Zero-Trust Access."
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/collections"
+      - "{{BaseURL}}/api/v1/auths/signin"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        part: body
+        condition: or
+        words:
+          - '"collections":'
+          - '"status":"ok"'

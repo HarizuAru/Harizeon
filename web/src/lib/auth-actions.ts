@@ -35,6 +35,7 @@ function apiErrorMessage(json: unknown, fallback: string): string {
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const email = String(formData.get("email") ?? "admin@harizeon.local");
   const password = String(formData.get("password") ?? "");
+  const totpCode = String(formData.get("totp_code") ?? "").trim();
 
   if (DEMO_MODE) {
     const token = `mock-session-demo-${Date.now()}`;
@@ -45,7 +46,11 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   let res: Response;
   let json: unknown;
   try {
-    ({ res, json } = await postJson("/auth/login", { email, password }, true));
+    ({ res, json } = await postJson(
+      "/auth/login",
+      { email, password, ...(totpCode ? { totp_code: totpCode } : {}) },
+      true,
+    ));
   } catch {
     return { error: "Cannot reach the API. Is it running?" };
   }
@@ -59,10 +64,13 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
   const password = String(formData.get("password") ?? "");
   const name = String(formData.get("name") ?? "");
   const orgName = String(formData.get("orgName") ?? "");
-  const orgSlug = String(formData.get("orgSlug") ?? "")
+  const rawSlug = String(formData.get("orgSlug") ?? "").trim() || orgName;
+  const normalizedSlug = rawSlug
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63);
+  const orgSlug = normalizedSlug.length >= 2 ? normalizedSlug : `org-${Date.now()}`;
 
   if (DEMO_MODE) {
     const token = `mock-session-demo-${Date.now()}`;

@@ -10,7 +10,7 @@ import { scanQueue } from "../services/scanQueue";
 
 const CreateScanBody = z.object({
   asset_ids: z.array(z.string().uuid()).min(1).max(50),
-  profile: z.enum(["quick", "standard", "deep", "ai"]),
+  profile: z.enum(["quick", "standard", "deep", "ai", "api"]),
 });
 const ListQuery = z.object({
   status: z.string().optional(),
@@ -19,6 +19,9 @@ const ListQuery = z.object({
   cursor: z.string().optional(),
 });
 const EventsQuery = z.object({ since: z.coerce.number().int().min(0).default(0) });
+
+const MAX_SSE_PER_ORG = 5;
+const activeSseByOrg = new Map<string, number>();
 
 export async function scanRoutes(app: FastifyInstance) {
   // POST /v1/scans — create + enqueue. Verified assets only (§12).
@@ -74,6 +77,19 @@ export async function scanRoutes(app: FastifyInstance) {
     const scan = await withTx((c) => repo.getScan(c, orgId, id), orgId);
     if (!scan) throw notFound("scan_not_found", "Scan not found");
 
+    const active = activeSseByOrg.get(orgId) ?? 0;
+    if (active >= MAX_SSE_PER_ORG) {
+      return reply.status(429).send({
+        error: {
+          code: "sse_limit_exceeded",
+          message: "Too many concurrent scan event streams for this organization",
+          doc_url: "/docs/errors/rate_limited",
+          request_id: req.id,
+        },
+      });
+    }
+    activeSseByOrg.set(orgId, active + 1);
+
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
@@ -84,8 +100,17 @@ export async function scanRoutes(app: FastifyInstance) {
 
     let cursor = since;
     let closed = false;
+    let released = false;
+    const releaseStream = () => {
+      if (released) return;
+      released = true;
+      const cur = activeSseByOrg.get(orgId) ?? 1;
+      if (cur <= 1) activeSseByOrg.delete(orgId);
+      else activeSseByOrg.set(orgId, cur - 1);
+    };
     req.raw.on("close", () => {
       closed = true;
+      releaseStream();
     });
     const send = (event: string, data: unknown): void => {
       reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -115,16 +140,19 @@ export async function scanRoutes(app: FastifyInstance) {
           send("status", { status: snap.status, phase: snap.phase, progress_pct: snap.progress_pct });
           if (snap.done) {
             send("done", { status: snap.status });
+            releaseStream();
             reply.raw.end();
             return;
           }
         } catch (e: unknown) {
           send("error", { message: e instanceof Error ? e.message : "stream error" });
+          releaseStream();
           reply.raw.end();
           return;
         }
         await new Promise((r) => setTimeout(r, 700));
       }
+      releaseStream();
       reply.raw.end();
     };
     void pump();

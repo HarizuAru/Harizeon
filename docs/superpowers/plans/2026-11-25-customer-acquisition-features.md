@@ -30,9 +30,9 @@
 - Create: `web/src/components/remediation-snippets.tsx`
 - Modify: `web/src/app/(console)/findings/[id]/page.tsx`
 
-- [ ] **Step 1.1**: Build `web/src/components/remediation-snippets.tsx` with dynamic snippet generation for UFW/iptables, Docker, Web Server (Nginx), and Secrets/Tokens, with 1-click clipboard copy.
-- [ ] **Step 1.2**: Integrate `RemediationSnippets` into `web/src/app/(console)/findings/[id]/page.tsx` replacing plain text with rich tabbed snippets.
-- [ ] **Step 1.3**: Validate type-checking and component rendering.
+- [x] **Step 1.1**: Build `web/src/components/remediation-snippets.tsx` with dynamic snippet generation for UFW/iptables, Docker, Web Server (Nginx), and Secrets/Tokens, with 1-click clipboard copy.
+- [x] **Step 1.2**: Integrate `RemediationSnippets` into `web/src/app/(console)/findings/[id]/page.tsx` replacing plain text with rich tabbed snippets.
+- [x] **Step 1.3**: Validate type-checking and component rendering.
 
 ---
 
@@ -43,10 +43,10 @@
 - Create: `web/src/components/scan-report-button.tsx`
 - Modify: `web/src/app/(console)/scans/[id]/page.tsx`
 
-- [ ] **Step 2.1**: Upgrade `web/src/components/report-document.tsx` with publication-grade print styles: Letter Grade Badge (A-F), formal Auditor Header, Executive Sign-Off signature block, and `@media print` page breaks.
-- [ ] **Step 2.2**: Create `web/src/components/scan-report-button.tsx` allowing 1-click generation of an executive report directly from any scan.
-- [ ] **Step 2.3**: Embed `ScanReportButton` into `web/src/app/(console)/scans/[id]/page.tsx`.
-- [ ] **Step 2.4**: Verify print formatting and report generation flow.
+- [x] **Step 2.1**: Upgrade `web/src/components/report-document.tsx` with publication-grade print styles: Letter Grade Badge (A-F), formal Auditor Header, Executive Sign-Off signature block, and `@media print` page breaks.
+- [x] **Step 2.2**: Create `web/src/components/scan-report-button.tsx` allowing 1-click generation of an executive report directly from any scan.
+- [x] **Step 2.3**: Embed `ScanReportButton` into `web/src/app/(console)/scans/[id]/page.tsx`.
+- [x] **Step 2.4**: Verify print formatting and report generation flow.
 
 ---
 
@@ -56,14 +56,14 @@
 - Modify: `web/src/components/notifications-manager.tsx`
 - Modify: `web/src/app/(console)/schedules/page.tsx`
 
-- [ ] **Step 3.1**: Enhance `web/src/components/notifications-manager.tsx` with 1-click Slack and Discord channel presets, helper guides, and instant test alert feedback.
-- [ ] **Step 3.2**: Update `web/src/app/(console)/schedules/page.tsx` to display active notification channel routing so users can confirm their automated scans are connected to alerts.
-- [ ] **Step 3.3**: Validate channel creation, testing, and schedule overview.
+- [x] **Step 3.1**: Enhance `web/src/components/notifications-manager.tsx` with 1-click Slack and Discord channel presets, helper guides, and instant test alert feedback.
+- [x] **Step 3.2**: Update `web/src/app/(console)/schedules/page.tsx` to display active notification channel routing so users can confirm their automated scans are connected to alerts.
+- [x] **Step 3.3**: Validate channel creation, testing, and schedule overview.
 
 ---
 
 ### Task 4: End-to-End Build & Lint Verification
 
-- [ ] **Step 4.1**: Run `npm --prefix web run build` to verify Next.js Turbopack compilation across all 39+ pages.
-- [ ] **Step 4.2**: Run `npm --prefix web run lint` to verify zero ESLint errors or warnings.
-- [ ] **Step 4.3**: Run `npm --prefix api test` to ensure existing API tests remain 100% passing.
+- [x] **Step 4.1**: Run `npm --prefix web run build` to verify Next.js Turbopack compilation across all 39+ pages.
+- [x] **Step 4.2**: Run `npm --prefix web run lint` to verify zero ESLint errors or warnings.
+- [x] **Step 4.3**: Run `npm --prefix api test` to ensure existing API tests remain 100% passing.

@@ -1,6 +1,9 @@
 networks:
-  default:
-    name: harizeon_default
+  control_internal:
+    internal: true
+  worker_bus:
+    internal: true
+  public_egress: {}
 
 services:
   db:
@@ -10,89 +13,72 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-harizeon}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harizeon}
       POSTGRES_DB: ${POSTGRES_DB:-harizeon}
-    # No host port publishing: the database is reachable only inside the compose
-    # network (@db:5432). Host-side scripts run inside the api container instead;
-    # the native Postgres on the host owns 5432.
+    # No host port publishing: the database is reachable only inside the control_internal
+    # network (@db:5432). Host-side scripts run inside the api container instead.
     volumes:
       - dbdata:/var/lib/postgresql/data
+    networks:
+      - control_internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-harizeon} -d ${POSTGRES_DB:-harizeon}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-harizeon} -d ${POSTGRES_DB:-harizeon}" ]
       interval: 5s
       timeout: 5s
       retries: 12
 
   redis:
-    image: redis:7-alpine
+    build:
+      context: ./infra/redis
+      dockerfile_inline: |
+        FROM redis:7-alpine
+        COPY users.acl /usr/local/etc/redis/users.acl
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes", "--aclfile", "/usr/local/etc/redis/users.acl" ]
     ports:
-      # Localhost only (§07.5): the broker is control-plane/data-plane internal.
+      # Localhost only: the broker is control-plane/data-plane internal.
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
+    networks:
+      - control_internal
+      - worker_bus
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "--user", "harizeon_api", "--pass", "${REDIS_API_PASSWORD:-REPLACE_WITH_STRONG_API_REDIS_PASS}", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 12
 
-  # Data-plane scan worker (W04). Separate container, NO database credentials —
-  # it only reaches Redis and the job payload (§06.1 trust boundary).
+  # Data-plane scan worker (v1.1 Hardened Container).
+  # Separate container, ZERO database credentials, read-only root FS, dropped capabilities.
+  # Isolated on worker_bus and public_egress; physically cannot connect to postgres (control_internal).
   worker:
     build:
       context: ./worker
     depends_on:
       redis:
         condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 1.5
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
     environment:
-      REDIS_URL: redis://redis:6379
-      SCAN_STEP_MS: "500"
-      # Sandbox allowlist (comma-separated hosts/addresses). Empty by default;
-      # the worker refuses to start with this set when NODE_ENV=production.
-      HARIZEON_SANDBOX_HOSTS: ${HARIZEON_SANDBOX_HOSTS:-}
-      # OWASP ZAP for deep-profile baseline scans (spider + passive only).
-      # Unreachable ZAP = warn line + skipped, never a failed scan.
-      ZAP_URL: ${ZAP_URL:-http://zap:8080}
-    restart: unless-stopped
-
-  # OWASP ZAP daemon for the deep profile. Deliberately NOT published to the
-  # host: only containers on the compose network can reach it, and the worker
-  # never runs active rules against it (passive baseline only).
-  zap:
-    image: ghcr.io/zaproxy/zaproxy:stable
-    command:
-      - zap.sh
-      - -daemon
-      - -host
-      - 0.0.0.0
-      - -port
-      - "8080"
-      - -silent
-      - -config
-      - api.disablekey=true
-      - -config
-      - api.addrs.addr.name=.*
-      - -config
-      - api.addrs.addr.regex=true
-    restart: unless-stopped
-
-  # Intentionally-vulnerable target so scans can be demonstrated end-to-end
-  # against a host you own. Started only with `--profile sandbox`.
-  sandbox:
-    build:
-      context: ./sandbox
-    profiles: ["sandbox"]
-    ports:
-      - "127.0.0.1:8081:80"   # localhost only, for manual browsing
+      REDIS_URL: redis://harizeon_worker:${REDIS_WORKER_PASSWORD:-REPLACE_WITH_STRONG_WORKER_REDIS_PASS}@redis:6379
+      WORKER_ID: worker-01
+      HARIZEON_TEMPLATES_DIR: /opt/harizeon/templates
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     networks:
-      default:
-        aliases:
-          - sandbox.test      # dotted so it passes domain validation
-    restart: "no"
+      - worker_bus
+      - public_egress
+    restart: unless-stopped
 
   # One-shot provisioner: apply migrations, then create the non-owner app role.
-  # `docker compose up` builds it (files are copied into the image, so no host
-  # bind mount is needed), and it's safe to re-run (idempotent).
   migrate:
     build:
       context: .
@@ -103,6 +89,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-harizeon}:${POSTGRES_PASSWORD:-harizeon}@db:5432/${POSTGRES_DB:-harizeon}
       HARIZEON_APP_PASSWORD: ${HARIZEON_APP_PASSWORD:?set HARIZEON_APP_PASSWORD in .env}
+    networks:
+      - control_internal
     restart: "no"
 
   # Control plane (Fastify). Connects as the RLS-restricted app role; owns the
@@ -123,11 +111,18 @@ services:
       NODE_ENV: production
       PORT: "8080"
       DATABASE_URL: postgresql://harizeon_app:${HARIZEON_APP_PASSWORD:?}@db:5432/${POSTGRES_DB:-harizeon}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://harizeon_api:${REDIS_API_PASSWORD:-REPLACE_WITH_STRONG_API_REDIS_PASS}@redis:6379
       HARIZEON_MASTER_KEY: ${HARIZEON_MASTER_KEY:?set HARIZEON_MASTER_KEY in .env}
       COOKIE_SECURE: "true"
       PUBLIC_API_BASE: ${PUBLIC_API_BASE:-http://localhost:8080}
       HARIZEON_RUN_LOOPS: "true"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    networks:
+      - control_internal
+      - worker_bus
+      - public_egress
     restart: unless-stopped
 
   # Console (Next.js). Proxies /api/v1 to the api service and renders the UI.
@@ -145,12 +140,19 @@ services:
       HARIZEON_API_BASE: http://api:8080
     ports:
       - "${WEB_PORT:-3000}:3000"
+    networks:
+      - control_internal
+      - public_egress
     restart: unless-stopped
 
   # TLS terminator. Auto-issues a Let's Encrypt cert for $DOMAIN once the DNS
   # record points at this host, then forwards everything to the console.
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ./infra/proxy
+      dockerfile_inline: |
+        FROM caddy:2-alpine
+        COPY Caddyfile /etc/caddy/Caddyfile
     depends_on:
       - web
     environment:
@@ -159,9 +161,11 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./infra/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      - control_internal
+      - public_egress
     restart: unless-stopped
 
 volumes:

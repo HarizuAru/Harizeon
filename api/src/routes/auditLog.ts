@@ -36,54 +36,7 @@ export async function auditLogRoutes(app: FastifyInstance) {
       params.push(limit);
 
       const res = await client.query<AuditLogRow>(sql, params);
-      let logs = res.rows;
-
-      if (logs.length === 0) {
-        // Fallback initial entries so UI displays audit trail
-        logs = [
-          {
-            id: "aud-001",
-            org_id: orgId,
-            actor_type: "user",
-            actor_id: req.auth!.userId ?? "usr-initial",
-            action: "asset.verify",
-            target_type: "asset",
-            target_id: "ast-01",
-            ip: "203.0.113.195",
-            user_agent: "Mozilla/5.0 (Harizeon Console)",
-            metadata: { method: "dns_txt", value: "example.com" },
-            created_at: "2026-09-19T06:00:00.000Z",
-          },
-          {
-            id: "aud-002",
-            org_id: orgId,
-            actor_type: "user",
-            actor_id: req.auth!.userId ?? "usr-initial",
-            action: "scan.start",
-            target_type: "scan",
-            target_id: "scn-01",
-            ip: "203.0.113.195",
-            user_agent: "Mozilla/5.0 (Harizeon Console)",
-            metadata: { profile: "standard", asset_ids: ["ast-01"] },
-            created_at: "2026-09-19T06:01:00.000Z",
-          },
-          {
-            id: "aud-003",
-            org_id: orgId,
-            actor_type: "system",
-            actor_id: null,
-            action: "finding.create",
-            target_type: "finding",
-            target_id: "fnd-101",
-            ip: null,
-            user_agent: "harizeon-worker/0.1",
-            metadata: { severity: "critical", fingerprint: "fp-tls-001" },
-            created_at: "2026-09-19T06:05:00.000Z",
-          },
-        ];
-      }
-
-      return { logs };
+      return { logs: res.rows };
     }, orgId);
   });
 }

@@ -5,6 +5,7 @@ import { isTerminal, type ScanStatus } from "../lib/scan-state";
 import { sha256Hex } from "../lib/tokens";
 import { assertScanAllowed, recordUsage } from "../lib/quota";
 import type { ScanJob, ScanQueue, WorkerEvent } from "../lib/queue";
+import { calculatePostureScore } from "../lib/scoring";
 import * as repo from "../repo/scans";
 import * as assetsRepo from "../repo/assets";
 import * as outboxRepo from "../repo/outbox";
@@ -24,9 +25,14 @@ export type WorkerFinding = {
   cveIds?: string[];
   /** CISA KEV: this CVE is known exploited in the wild (worker enrichment). */
   knownExploited?: boolean;
+  sourceTool?: string;
+  remediationSnippets?: Record<string, string>;
+  epssScore?: number;
+  epssPercentile?: number;
+  isKev?: boolean;
 };
 
-export const SCAN_PROFILES = ["quick", "standard", "deep", "ai"] as const;
+export const SCAN_PROFILES = ["quick", "standard", "deep", "ai", "api"] as const;
 const MAX_TARGETS = 50;
 
 const TERMINAL_SQL = `('completed','failed','timeout','cancelled')`;
@@ -181,12 +187,25 @@ export async function createScan(queue: ScanQueue, input: CreateScanInput): Prom
       metadata: { profile: input.profile, assets: assets.length },
     });
 
+    const primary = assets[0];
+    const primaryMethod =
+      primary?.verification_method === "http_file" ? "http_file" : "dns_txt";
     const job: ScanJob = {
       scan_id: row.id,
       org_id: input.orgId,
       profile: input.profile as ScanJob["profile"],
       attempt: 0,
-      targets: assets.map((a) => ({ asset_id: a.id, type: a.type, value: a.value })),
+      asset_id: primary?.id,
+      target_domain: primary?.value,
+      verification_token: primary?.verification_token ?? undefined,
+      verification_method: primaryMethod,
+      targets: assets.map((a) => ({
+        asset_id: a.id,
+        type: a.type,
+        value: a.value,
+        verification_token: a.verification_token ?? undefined,
+        verification_method: a.verification_method === "http_file" ? "http_file" : "dns_txt",
+      })),
     };
     // Transactional outbox: the scan row and its dispatch intent commit in ONE
     // transaction (§06.1). The dispatcher publishes it; the reaper stays as the
@@ -226,11 +245,19 @@ export function parseFindings(raw: string | undefined): WorkerFinding[] {
       evidence: typeof o.evidence === "string" ? o.evidence.slice(0, 2000) : undefined,
       cveIds: Array.isArray(o.cve_ids)
         ? (o.cve_ids as unknown[])
-            .map((v) => String(v).toUpperCase())
-            .filter((v) => /^CVE-\d{4}-\d{4,}$/.test(v))
-            .slice(0, 10)
+          .map((v) => String(v).toUpperCase())
+          .filter((v) => /^CVE-\d{4}-\d{4,}$/.test(v))
+          .slice(0, 10)
         : undefined,
       knownExploited: o.known_exploited === true,
+      sourceTool: typeof o.source_tool === "string" ? o.source_tool.slice(0, 50) : "harizeon",
+      remediationSnippets:
+        typeof o.remediation_snippets === "object" && o.remediation_snippets !== null
+          ? (o.remediation_snippets as Record<string, string>)
+          : undefined,
+      epssScore: typeof o.epss_score === "number" ? o.epss_score : undefined,
+      epssPercentile: typeof o.epss_percentile === "number" ? o.epss_percentile : undefined,
+      isKev: o.is_kev === true || o.known_exploited === true,
     });
   }
   return out;
@@ -258,30 +285,109 @@ async function applyFindings(client: Queryable, ev: WorkerEvent): Promise<void> 
       .filter(Boolean)
       .join(" — ");
 
-    const existing = await client.query<{ id: string }>(
-      `SELECT id FROM findings WHERE org_id = $1 AND fingerprint = $2`,
+    const existing = await client.query<{ id: string; status: string }>(
+      `SELECT id, status FROM findings WHERE org_id = $1 AND fingerprint = $2`,
       [ev.org_id, fingerprint],
     );
     if ((existing.rowCount ?? 0) === 0) {
       await client.query(
-        `INSERT INTO findings (org_id, asset_id, scan_id, fingerprint, title, description,
-           severity, cwe_id, category, cve_ids, status, known_exploited)
-         VALUES ($1,$2,$3,$4,$5,$6,$7::severity,$8,$9,$10::text[],'open',$11)`,
-        [ev.org_id, assetId, ev.scan_id, fingerprint, f.title, description, f.severity, f.cweId ?? null, f.category ?? null, f.cveIds ?? [], f.knownExploited === true],
+        `INSERT INTO findings (
+           org_id, asset_id, scan_id, fingerprint, title, description,
+           severity, cwe_id, category, cve_ids, status, known_exploited,
+           check_id, location, source_tool, evidence, remediation_snippets,
+           epss_score, epss_percentile, is_kev, remediation
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7::severity,$8,$9,$10::text[],'open',$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,$20)`,
+        [
+          ev.org_id,
+          assetId,
+          ev.scan_id,
+          fingerprint,
+          f.title,
+          description,
+          f.severity,
+          f.cweId ?? null,
+          f.category ?? null,
+          f.cveIds ?? [],
+          f.knownExploited === true,
+          f.checkId,
+          f.location,
+          f.sourceTool ?? "harizeon",
+          f.evidence ?? "",
+          JSON.stringify(f.remediationSnippets ?? {}),
+          f.epssScore ?? null,
+          f.epssPercentile ?? null,
+          f.isKev === true,
+          f.remediation ?? null,
+        ],
       );
       created += 1;
+
+      if (assetId) {
+        await client.query(
+          `INSERT INTO drift_events (org_id, asset_id, scan_id, event_type, severity, summary, details)
+           VALUES ($1, $2, $3, 'FINDING_INTRODUCED', $4, $5, $6)`,
+          [
+            ev.org_id,
+            assetId,
+            ev.scan_id,
+            f.severity,
+            f.title,
+            JSON.stringify({ location: f.location, check_id: f.checkId }),
+          ],
+        );
+      }
     } else {
-      // cve_ids are replaced with the latest evidence: if the software was
-      // upgraded, an old CVE must not survive on a re-detected finding.
-      // known_exploited is sticky: KEV listing never gets revoked by a rescan.
+      const prevStatus = existing.rows[0].status;
       await client.query(
-        `UPDATE findings SET last_seen_at = now(), severity = $3::severity, description = $4,
-           remediation = COALESCE($5, remediation), cve_ids = $6::text[],
-           known_exploited = known_exploited OR $7, updated_at = now()
+        `UPDATE findings SET
+           last_seen_at = now(),
+           severity = $3::severity,
+           description = $4,
+           remediation = COALESCE($5, remediation),
+           cve_ids = $6::text[],
+           known_exploited = known_exploited OR $7,
+           is_kev = is_kev OR $8,
+           evidence = CASE WHEN $9 <> '' THEN $9 ELSE evidence END,
+           remediation_snippets = CASE WHEN $10::jsonb <> '{}'::jsonb THEN $10::jsonb ELSE remediation_snippets END,
+           source_tool = COALESCE($11, source_tool),
+           check_id = COALESCE($12, check_id),
+           location = COALESCE($13, location),
+           status = CASE WHEN status = 'fixed' THEN 'open' ELSE status END,
+           updated_at = now()
          WHERE org_id = $1 AND fingerprint = $2`,
-        [ev.org_id, fingerprint, f.severity, description, f.remediation ?? null, f.cveIds ?? [], f.knownExploited === true],
+        [
+          ev.org_id,
+          fingerprint,
+          f.severity,
+          description,
+          f.remediation ?? null,
+          f.cveIds ?? [],
+          f.knownExploited === true,
+          f.isKev === true,
+          f.evidence ?? "",
+          JSON.stringify(f.remediationSnippets ?? {}),
+          f.sourceTool ?? "harizeon",
+          f.checkId,
+          f.location,
+        ],
       );
       updated += 1;
+
+      if (prevStatus === "fixed" && assetId) {
+        await client.query(
+          `INSERT INTO drift_events (org_id, asset_id, scan_id, event_type, severity, summary, details)
+           VALUES ($1, $2, $3, 'FINDING_REGRESSED', $4, $5, $6)`,
+          [
+            ev.org_id,
+            assetId,
+            ev.scan_id,
+            f.severity,
+            `Regression: ${f.title}`,
+            JSON.stringify({ location: f.location, check_id: f.checkId }),
+          ],
+        );
+      }
     }
   }
 
@@ -320,6 +426,143 @@ export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<Ap
 
   if (ev.kind === "findings") {
     await applyFindings(client, ev);
+    return NOTHING_DISCOVERED;
+  }
+
+  function safeParseRecord(raw: unknown): Record<string, unknown> {
+    if (!raw) return {};
+    if (typeof raw !== "string") return raw as Record<string, unknown>;
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+
+  if (ev.kind === "snapshot") {
+    const snap = ev.snapshot ? safeParseRecord(ev.snapshot) : safeParseRecord(ev.payload);
+    const assetId = (snap.asset_id as string) || ev.parent_asset_id;
+    if (assetId) {
+      const prev = await client.query<{ hosts: string[]; open_ports: Record<string, number[]> }>(
+        `SELECT hosts, open_ports FROM asset_snapshots
+         WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [assetId],
+      );
+      if (prev.rows[0]) {
+        const prevHosts = new Set<string>(prev.rows[0].hosts || []);
+        for (const h of (snap.hosts || []) as string[]) {
+          if (!prevHosts.has(h)) {
+            await client.query(
+              `INSERT INTO drift_events (org_id, asset_id, scan_id, event_type, severity, summary, details)
+               VALUES ($1, $2, $3, 'NEW_SUBDOMAIN_DETECTED', 'low', $4, $5)`,
+              [ev.org_id, assetId, ev.scan_id, `New subdomain exposed: ${h}`, JSON.stringify({ host: h })],
+            );
+          }
+        }
+        const prevPorts = prev.rows[0].open_ports || {};
+        const currPorts = (snap.open_ports || {}) as Record<string, number[]>;
+        for (const [host, ports] of Object.entries(currPorts)) {
+          const oldHostPorts = new Set(prevPorts[host] || []);
+          for (const p of ports) {
+            if (!oldHostPorts.has(p)) {
+              await client.query(
+                `INSERT INTO drift_events (org_id, asset_id, scan_id, event_type, severity, summary, details)
+                 VALUES ($1, $2, $3, 'NEW_PORT_EXPOSED', 'medium', $4, $5)`,
+                [ev.org_id, assetId, ev.scan_id, `New port ${p} exposed on ${host}`, JSON.stringify({ host, port: p })],
+              );
+            }
+          }
+        }
+      }
+      if (snap.tls_expiry_iso && typeof snap.tls_expiry_iso === "object") {
+        for (const [host, expStr] of Object.entries(snap.tls_expiry_iso as Record<string, string>)) {
+          try {
+            const expDate = new Date(expStr);
+            const daysLeft = (expDate.getTime() - Date.now()) / (1000 * 86400);
+            if (daysLeft > 0 && daysLeft <= 14) {
+              await client.query(
+                `INSERT INTO drift_events (org_id, asset_id, scan_id, event_type, severity, summary, details)
+                 VALUES ($1, $2, $3, 'TLS_CERT_EXPIRING_SOON', 'medium', $4, $5)`,
+                [
+                  ev.org_id,
+                  assetId,
+                  ev.scan_id,
+                  `TLS certificate for ${host} expires in ${Math.round(daysLeft)} days`,
+                  JSON.stringify({ host, expiry: expStr, daysLeft: Math.round(daysLeft) }),
+                ],
+              );
+            }
+          } catch {
+            // Skip invalid TLS expiry timestamp rather than dropping snapshot persistence
+          }
+        }
+      }
+      await client.query(
+        `INSERT INTO asset_snapshots (org_id, asset_id, scan_id, hosts, live_urls, open_ports, tech_stack, tls_expiry_iso)
+         VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb)`,
+        [
+          ev.org_id,
+          assetId,
+          ev.scan_id,
+          JSON.stringify(snap.hosts || []),
+          JSON.stringify(snap.live_urls || []),
+          JSON.stringify(snap.open_ports || {}),
+          JSON.stringify(snap.tech_stack || {}),
+          JSON.stringify(snap.tls_expiry_iso || {}),
+        ],
+      );
+    }
+    return NOTHING_DISCOVERED;
+  }
+
+  if (ev.kind === "verify_result") {
+    const payload = safeParseRecord(ev.payload);
+    const checkId = ev.check_id || (payload.check_id as string | undefined);
+    const location = ev.location || (payload.location as string | undefined);
+    const fixed = ev.fixed ?? payload.fixed;
+    const findingId = payload.finding_id as string | undefined;
+
+    if (fixed) {
+      let updatedFinding: { id: string; asset_id: string; title: string; severity: string } | null = null;
+      if (findingId) {
+        const u = await client.query<{ id: string; asset_id: string; title: string; severity: string }>(
+          `UPDATE findings SET status = 'fixed', last_verified_at = now(), resolved_at = now(), updated_at = now()
+           WHERE org_id = $1 AND id = $2 AND status != 'fixed'
+           RETURNING id, asset_id, title, severity`,
+          [ev.org_id, findingId],
+        );
+        updatedFinding = u.rows[0] ?? null;
+      } else if (checkId && location) {
+        const u = await client.query<{ id: string; asset_id: string; title: string; severity: string }>(
+          `UPDATE findings SET status = 'fixed', last_verified_at = now(), resolved_at = now(), updated_at = now()
+           WHERE org_id = $1 AND check_id = $2 AND location = $3 AND status != 'fixed'
+           RETURNING id, asset_id, title, severity`,
+          [ev.org_id, checkId, location],
+        );
+        updatedFinding = u.rows[0] ?? null;
+      }
+
+      if (updatedFinding) {
+        await client.query(
+          `INSERT INTO finding_events (finding_id, from_status, to_status, note)
+           VALUES ($1, 'open', 'fixed', 'Resolved via micro-scan verification')`,
+          [updatedFinding.id],
+        );
+        if (updatedFinding.asset_id) {
+          await client.query(
+            `INSERT INTO drift_events (org_id, asset_id, scan_id, event_type, severity, summary, details)
+             VALUES ($1, $2, $3, 'FINDING_RESOLVED', 'info', $4, $5)`,
+            [
+              ev.org_id,
+              updatedFinding.asset_id,
+              ev.scan_id,
+              `Finding resolved: ${updatedFinding.title}`,
+              JSON.stringify({ finding_id: updatedFinding.id, check_id: checkId, location }),
+            ],
+          );
+        }
+      }
+    }
     return NOTHING_DISCOVERED;
   }
 
@@ -387,6 +630,37 @@ export async function applyEvent(client: Queryable, ev: WorkerEvent): Promise<Ap
       targetType: "scan",
       targetId: ev.scan_id,
     });
+
+    if (status === "completed") {
+      const fRows = await client.query<{
+        severity: string;
+        epss_score: number | null;
+        is_kev: boolean;
+        check_id: string | null;
+        criticality: string | null;
+      }>(
+        `SELECT f.severity, f.epss_score, f.is_kev, f.check_id, COALESCE(a.criticality, 'medium') as criticality
+         FROM findings f
+         LEFT JOIN assets a ON a.id = f.asset_id
+         WHERE f.org_id = $1 AND f.status = 'open'`,
+        [ev.org_id],
+      );
+      const aCount = await client.query<{ cnt: string }>(
+        `SELECT COUNT(*)::int AS cnt FROM assets WHERE org_id = $1 AND is_active = true`,
+        [ev.org_id],
+      );
+      const score = calculatePostureScore(
+        fRows.rows.map((r) => ({
+          severity: (r.severity as "info" | "low" | "medium" | "high" | "critical") || "info",
+          assetCriticality: r.criticality === "low" || r.criticality === "high" ? r.criticality : "medium",
+          epssScore: r.epss_score != null ? Number(r.epss_score) : null,
+          isKev: r.is_kev === true,
+          checkId: r.check_id || "unknown",
+        })),
+        Number(aCount.rows[0]?.cnt ?? 1),
+      );
+      await client.query(`UPDATE orgs SET posture_score = $1 WHERE id = $2`, [score, ev.org_id]);
+    }
   }
 
   return NOTHING_DISCOVERED;

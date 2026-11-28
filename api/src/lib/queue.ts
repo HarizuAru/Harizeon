@@ -9,20 +9,35 @@ export const INGEST_GROUP = "ingest";
 const HB_PREFIX = "harizeon:scan:hb:";
 const CANCEL_PREFIX = "harizeon:scan:cancel:";
 
-export type ScanProfile = "quick" | "standard" | "deep" | "ai";
+export type ScanProfile = "quick" | "standard" | "deep" | "ai" | "api";
+
+export type ScanTargetJob = {
+  asset_id: string;
+  type: string;
+  value: string;
+  verification_token?: string;
+  verification_method?: "dns_txt" | "http_file";
+};
 
 export type ScanJob = {
   scan_id: string;
   org_id: string;
   profile: ScanProfile;
   attempt: number;
-  targets: { asset_id: string; type: string; value: string }[];
+  targets: ScanTargetJob[];
+  asset_id?: string;
+  mode?: "full" | "verify_finding";
+  verify_check_id?: string;
+  verify_location?: string;
+  verification_token?: string;
+  verification_method?: "dns_txt" | "http_file";
+  target_domain?: string;
 };
 
 export type WorkerEvent = {
   scan_id: string;
   org_id: string;
-  kind: "status" | "event" | "terminal" | "discovered" | "findings";
+  kind: "status" | "event" | "terminal" | "discovered" | "findings" | "snapshot" | "verify_result";
   status?: ScanStatus;
   phase?: ScanPhase;
   level?: "info" | "warn" | "error";
@@ -37,6 +52,13 @@ export type WorkerEvent = {
   discovered?: string;
   /** kind=findings: JSON array of { checkId, location, title, severity, ... }. */
   findings?: string;
+  /** kind=snapshot: JSON object of asset snapshot telemetry. */
+  snapshot?: string;
+  /** kind=verify_result: verification outcome */
+  payload?: string;
+  check_id?: string;
+  location?: string;
+  fixed?: boolean | string;
 };
 
 /**
@@ -71,33 +93,63 @@ export function serialise(obj: Record<string, unknown>): Record<string, string> 
   return out;
 }
 
-const VALID_KINDS = new Set(["status", "event", "terminal", "discovered", "findings"]);
+const VALID_KINDS = new Set([
+  "status", "event", "terminal", "discovered", "findings", "snapshot", "verify_result",
+  "completed", "failed", "phase", "finding",
+]);
 
 export function parseJob(fields: Record<string, string>): ScanJob {
   const { scan_id, org_id, profile, targets } = fields;
   if (!scan_id || !org_id || !profile || !targets) throw new Error("invalid job payload");
   const parsed = JSON.parse(targets) as ScanJob["targets"];
   if (!Array.isArray(parsed)) throw new Error("invalid job targets");
-  return {
+  const job: ScanJob = {
     scan_id,
     org_id,
     profile: profile as ScanProfile,
     attempt: Number(fields.attempt ?? "0"),
     targets: parsed,
   };
+  if (fields.asset_id) job.asset_id = fields.asset_id;
+  if (fields.mode) job.mode = fields.mode as ScanJob["mode"];
+  if (fields.verify_check_id) job.verify_check_id = fields.verify_check_id;
+  if (fields.verify_location) job.verify_location = fields.verify_location;
+  if (fields.verification_token) job.verification_token = fields.verification_token;
+  if (fields.verification_method === "dns_txt" || fields.verification_method === "http_file") {
+    job.verification_method = fields.verification_method;
+  }
+  if (fields.target_domain) job.target_domain = fields.target_domain;
+  return job;
 }
 
 export function parseEvent(fields: Record<string, string>): WorkerEvent {
-  const kind = fields.kind;
-  if (!fields.scan_id || !fields.org_id || !kind || !VALID_KINDS.has(kind)) {
+  const rawKind = fields.kind || fields.type;
+  if (!fields.scan_id || !fields.org_id || !rawKind || !VALID_KINDS.has(rawKind)) {
     throw new Error("invalid event payload");
   }
+
+  let kind: WorkerEvent["kind"] = "status";
+  let status: ScanStatus | undefined = fields.status as ScanStatus | undefined;
+  if (rawKind === "completed") {
+    kind = "terminal";
+    status = "completed";
+  } else if (rawKind === "failed") {
+    kind = "terminal";
+    status = "failed";
+  } else if (rawKind === "phase") {
+    kind = "status";
+  } else if (rawKind === "finding") {
+    kind = "findings";
+  } else {
+    kind = rawKind as WorkerEvent["kind"];
+  }
+
   const ev: WorkerEvent = {
     scan_id: fields.scan_id,
     org_id: fields.org_id,
-    kind: kind as WorkerEvent["kind"],
+    kind,
   };
-  if (fields.status) ev.status = fields.status as ScanStatus;
+  if (status) ev.status = status;
   if (fields.phase) ev.phase = fields.phase as ScanPhase;
   if (fields.level) ev.level = fields.level as WorkerEvent["level"];
   if (fields.message !== undefined) ev.message = fields.message;
@@ -108,6 +160,11 @@ export function parseEvent(fields: Record<string, string>): WorkerEvent {
   if (fields.parent_asset_id) ev.parent_asset_id = fields.parent_asset_id;
   if (fields.discovered !== undefined) ev.discovered = fields.discovered;
   if (fields.findings !== undefined) ev.findings = fields.findings;
+  if (fields.snapshot !== undefined) ev.snapshot = fields.snapshot;
+  if (fields.payload !== undefined) ev.payload = fields.payload;
+  if (fields.check_id !== undefined) ev.check_id = fields.check_id;
+  if (fields.location !== undefined) ev.location = fields.location;
+  if (fields.fixed !== undefined) ev.fixed = fields.fixed === "true";
   return ev;
 }
 

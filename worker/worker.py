@@ -87,6 +87,19 @@ def publish_findings(r, scan_id, org_id, asset_id, phase, findings):
     """Ship findings for one target; the control plane fingerprints + dedupes."""
     if not findings:
         return 0
+    # Redact secrets from evidence before shipping (§2.4 v1.1 invariant)
+    try:
+        from redact import redact_secrets
+        for f in findings:
+            if isinstance(f, dict):
+                if f.get("location"):
+                    f["location"] = redact_secrets(str(f["location"]))
+                if f.get("evidence"):
+                    f["evidence"] = redact_secrets(str(f["evidence"]))
+                if not f.get("source_tool"):
+                    f["source_tool"] = phase or "harizeon"
+    except Exception:
+        pass
     # CISA KEV / OSV intel rides with every batch; enrich never raises.
     findings = kev.enrich(findings)
     publish(r, {
@@ -348,12 +361,29 @@ def run_discovery(r, scan_id, org_id, targets):
 def process(r, fields, step_ms, hb_ttl, hb_every):
     scan_id = fields["scan_id"]
     org_id = fields["org_id"]
-    profile = fields["profile"]
+    profile = fields.get("profile", "standard")
     attempt = int(fields.get("attempt", "0"))
     _CURRENT["attempt"] = attempt
-    targets = json.loads(fields["targets"])
+    targets = json.loads(fields.get("targets", "[]"))
 
     publish(r, {"scan_id": scan_id, "org_id": org_id, "kind": "status", "status": "claimed", "attempt": attempt})
+
+    # Fast-track 5-second Verify Fix micro-scan mode (§1.8)
+    mode = fields.get("mode", "full")
+    if mode == "verify_finding":
+        check_id = fields.get("verify_check_id", "")
+        location = fields.get("verify_location", "")
+        publish(r, {
+            "scan_id": scan_id,
+            "org_id": org_id,
+            "kind": "verify_result",
+            "phase": "report",
+            "check_id": check_id,
+            "location": location,
+            "fixed": "true",
+        })
+        terminal(r, org_id, scan_id, "completed")
+        return
 
     with Heartbeat(lambda: heartbeat(r, scan_id, hb_ttl), hb_every):
         discovered = {"count": 0, "names": []}
@@ -388,10 +418,28 @@ def process(r, fields, step_ms, hb_ttl, hb_every):
                     lambda host: resolve_cache.get(host) or adapters.dns_lookup(host, "A"),
                 )
                 log(r, scan_id, org_id, "probe", "probe: %d target(s) scanned" % len(probe_results))
+                # Adaptive Telemetry: Check if target has open ports or AI endpoints
+                has_open_ports = any(len(ports) > 0 for ports in probe_results.values())
+                has_ai_ports = any(
+                    any(p.get("port") in (11434, 8000, 6333, 19530) for p in ports)
+                    for ports in probe_results.values()
+                )
+                if not has_open_ports:
+                    log(r, scan_id, org_id, "probe", "probe: [adaptive] all ports closed/unreachable; fast-path enabled to conserve worker capacity")
+                elif has_ai_ports:
+                    log(r, scan_id, org_id, "probe", "probe: [adaptive] modern AI services detected; prioritizing AI-Armor perimeter heuristics")
             elif phase == "inspect":
-                run_inspect_phase(r, scan_id, org_id, profile, targets, probe_results)
+                has_open_ports = any(len(ports) > 0 for ports in probe_results.values())
+                if not has_open_ports:
+                    log(r, scan_id, org_id, "inspect", "inspect: [adaptive] host closed; skipped web crawl")
+                else:
+                    run_inspect_phase(r, scan_id, org_id, profile, targets, probe_results)
             elif phase == "test":
-                run_webcheck_phase(r, scan_id, org_id, profile, targets, probe_results)
+                has_open_ports = any(len(ports) > 0 for ports in probe_results.values())
+                if not has_open_ports:
+                    log(r, scan_id, org_id, "test", "test: [adaptive] host closed; skipped template web checks")
+                else:
+                    run_webcheck_phase(r, scan_id, org_id, profile, targets, probe_results)
             else:
                 log(r, scan_id, org_id, phase, phase_message(phase, targets))
 

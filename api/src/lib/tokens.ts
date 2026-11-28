@@ -31,8 +31,9 @@ export function generateApiKey(env: "live" | "test" = "live"): {
  * Constant-time comparison of two hex strings.
  */
 export function safeEqualHex(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length || a.length === 0) return false;
   const aBuf = Buffer.from(a, "hex");
   const bBuf = Buffer.from(b, "hex");
+  if (aBuf.length !== bBuf.length || aBuf.length === 0) return false;
   return timingSafeEqual(aBuf, bBuf);
 }
